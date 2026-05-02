@@ -17,6 +17,7 @@
 | [TECH_STACK.md](./docs/TECH_STACK.md) | Nation-grade tech-stack picks per layer — verified-software supply chain, ZK systems, SMT, native lifters, fuzzing, GPU, allocators, async. State-of-the-art over comfortable |
 | [phase-1/README.md](./docs/phase-1/README.md) | Phase 1 detailed plan — broken into 20 sub-phases (P1.1 → P1.20). Each sub-phase has working state, KPIs, features, end-to-end test, and exit checklist |
 | [phase-2/README.md](./docs/phase-2/README.md) | Phase 2 detailed plan — broken into 20 sub-phases (P2.1 → P2.20). Bundle-era + Layer-3 forensics + DEX dialect. Each sub-phase has comprehensive features, explicit numeric KPIs, and exit checklist |
+| [phase-3/README.md](./docs/phase-3/README.md) | Phase 3 detailed plan — broken into 20 sub-phases (P3.1 → P3.20). Symbolic intent resolver (L4) + Behavior Surface Hash + Bounded bisimulation (L5). cvc5 / Spacer / DiskANN / DRAT certs. Each sub-phase has comprehensive features, explicit numeric KPIs, and exit checklist |
 
 ---
 
