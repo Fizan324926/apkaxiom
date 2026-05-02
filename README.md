@@ -18,6 +18,7 @@
 | [phase-1/README.md](./docs/phase-1/README.md) | Phase 1 detailed plan — broken into 20 sub-phases (P1.1 → P1.20). Each sub-phase has working state, KPIs, features, end-to-end test, and exit checklist |
 | [phase-2/README.md](./docs/phase-2/README.md) | Phase 2 detailed plan — broken into 20 sub-phases (P2.1 → P2.20). Bundle-era + Layer-3 forensics + DEX dialect. Each sub-phase has comprehensive features, explicit numeric KPIs, and exit checklist |
 | [phase-3/README.md](./docs/phase-3/README.md) | Phase 3 detailed plan — broken into 20 sub-phases (P3.1 → P3.20). Symbolic intent resolver (L4) + Behavior Surface Hash + Bounded bisimulation (L5). cvc5 / Spacer / DiskANN / DRAT certs. Each sub-phase has comprehensive features, explicit numeric KPIs, and exit checklist |
+| [phase-4/README.md](./docs/phase-4/README.md) | Phase 4 detailed plan — broken into 20 sub-phases (P4.1 → P4.20). `.axc` certificate format + Halo2 zk-SNARK circuits for 5 privacy invariants + Stwo post-quantum fallback + `axiom-verify` (Rust/Wasm/mobile) + axiom-py/go/ts SDKs + SLSA L4 + bug-bounty pilot. Each sub-phase has comprehensive features, explicit numeric KPIs, and exit checklist |
 
 ---
 
