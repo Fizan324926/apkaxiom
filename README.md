@@ -7,6 +7,13 @@
 [![Stage](https://img.shields.io/badge/stage-architecture--draft-blue)]()
 [![Target](https://img.shields.io/badge/target-USENIX%20%7C%20S%26P%20%7C%20NDSS-purple)]()
 
+## Documents in this repository
+
+| Document | Purpose |
+|---|---|
+| [README.md](./README.md) (this file) | Architecture, the 7-layer proof stack, the 14 engineering groups, comparison matrix, caveats |
+| [ROADMAP.md](./ROADMAP.md) | 3-year executable plan to v1.0 — phases, gates, deliverables per group, risk register, ship checklist |
+
 ---
 
 ## TL;DR
@@ -661,6 +668,10 @@ APK bytes ─► L0 ─► CommitChain
 
 <a id="roadmap"></a>
 ## 17. Research Roadmap & Publication Targets
+
+> **For the executable phase-by-phase plan** — with hard gates, hiring sequence, deliverables per group, decision points, risk register, and the 20-item v1.0 ship checklist — see **[ROADMAP.md](./ROADMAP.md)**.
+>
+> The roadmap below is the high-level summary. The full plan is the source of truth.
 
 ### Phase 1 (months 0–6) — Foundations
 - Lean 4 mechanization of ZIP layer + APK Signing Block
