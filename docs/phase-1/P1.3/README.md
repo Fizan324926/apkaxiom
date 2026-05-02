@@ -2,7 +2,7 @@
 
 > Read every line of upstream `apk-info`. Decide what stays, what's rewritten, what migrates. Spec `axiom-l1-rs` v1.0 before a single line is touched.
 
-**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../README.md) · [../../README.md §22 (apk-info integration)](../../README.md#apkinfo-integration)
+**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../../README.md) · [../../README.md §22 (apk-info integration)](../../README.md#apkinfo-integration)
 
 ---
 

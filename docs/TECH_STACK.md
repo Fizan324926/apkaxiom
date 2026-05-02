@@ -3,7 +3,7 @@
 > Picked for *what is the most advanced thing that can do this job*, not *what is most popular*.
 > Where the cutting edge has a smaller community, harder learning curve, or thinner documentation, we still take it — community is a 2-year problem; soundness and speed are 10-year problems.
 
-This document is the technology companion to [README.md](./README.md) (architecture), [ROADMAP.md](./ROADMAP.md) (timeline), and [PHASE_GATES.md](./PHASE_GATES.md) (KPIs).
+This document is the technology companion to [README.md](../README.md) (architecture), [ROADMAP.md](./ROADMAP.md) (timeline), and [PHASE_GATES.md](./PHASE_GATES.md) (KPIs).
 
 ---
 

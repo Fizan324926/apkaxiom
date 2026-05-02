@@ -2,7 +2,7 @@
 
 > Lean 4 + mathlib4 vendored. First "hello" theorem re-verifies on CI. Lean → Rust extraction round-trips on a trivial example.
 
-**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../README.md) · [../../TECH_STACK.md](../../TECH_STACK.md)
+**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../../README.md) · [../../TECH_STACK.md](../../TECH_STACK.md)
 
 ---
 

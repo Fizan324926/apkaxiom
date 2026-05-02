@@ -5,7 +5,7 @@
 > A sub-phase is **NOT done** until every checkbox below it is ✅ on the live CI dashboard for ≥7 consecutive days.
 
 This document is the operational complement to:
-- [../README.md](../README.md) — architecture
+- [../README.md](../../README.md) — architecture
 - [../ROADMAP.md](../ROADMAP.md) — high-level Phase 1 goals
 - [../PHASE_GATES.md](../PHASE_GATES.md) — Phase 1 numeric KPI gates
 - [../TECH_STACK.md](../TECH_STACK.md) — tech-stack picks

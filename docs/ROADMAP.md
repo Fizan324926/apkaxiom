@@ -2,7 +2,7 @@
 
 > The executable plan: where to work first, what depends on what, the hard gates each phase must pass to advance, and the precise definition of "v1.0 ready to deploy."
 
-This document is the temporal companion to [README.md](./README.md). The README defines the architecture and the 14 engineering groups (G1–G14). This document defines **when each group activates, what they ship per phase, and what blocks progression to the next phase**.
+This document is the temporal companion to [README.md](../README.md). The README defines the architecture and the 14 engineering groups (G1–G14). This document defines **when each group activates, what they ship per phase, and what blocks progression to the next phase**.
 
 > **Performance, scalability, real-time, and stability gates** are specified separately in **[PHASE_GATES.md](./PHASE_GATES.md)** — the comprehensive KPI checklist with hard numeric thresholds. Phase advancement requires both *feature deliverables* (this doc) AND *KPI gates* (PHASE_GATES.md) to be green.
 

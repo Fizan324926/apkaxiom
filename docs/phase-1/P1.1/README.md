@@ -2,7 +2,7 @@
 
 > Buck2 + Reindeer + Nix + Bazel-for-AOSP. Every build byte-identical on three machines. Fail-closed CI before a single line of Lean is written.
 
-**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../README.md) · [../../TECH_STACK.md](../../TECH_STACK.md) · [../../PHASE_GATES.md](../../PHASE_GATES.md)
+**Parent plan:** [../README.md](../README.md) · **Architecture:** [../../README.md](../../../README.md) · [../../TECH_STACK.md](../../TECH_STACK.md) · [../../PHASE_GATES.md](../../PHASE_GATES.md)
 
 ---
 

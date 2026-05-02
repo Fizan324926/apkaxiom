@@ -3,7 +3,7 @@
 > The end-of-phase checklist focused on **speed, performance, scalability, and real-time results.**
 > Every KPI is measurable, dated, gated, and tested end-to-end on a public corpus.
 
-This document is the third pillar alongside [README.md](./README.md) (architecture) and [ROADMAP.md](./ROADMAP.md) (temporal plan). The other two define *what* and *when*. **This one defines *how well* — and what blocks progression.**
+This document is the third pillar alongside [README.md](../README.md) (architecture) and [ROADMAP.md](./ROADMAP.md) (temporal plan). The other two define *what* and *when*. **This one defines *how well* — and what blocks progression.**
 
 A phase does not advance because the features are written. A phase advances **only when every hard gate in this document is green for 7 consecutive days**.
 
