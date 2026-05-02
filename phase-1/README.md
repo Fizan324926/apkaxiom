@@ -46,26 +46,28 @@ By the end of Phase 1 (M6), the project must have:
 
 | # | Sub-phase | Owner(s) | Weeks (≈) | Hard dependency on |
 |---|---|---|---|---|
-| P1.1 | Hermetic build foundation (Buck2 + Nix + reproducibility CI) | G13 | W1–W3 | — |
-| P1.2 | Lean 4 toolchain & mathlib4 vendoring + extraction prototype | G1 | W2–W4 | P1.1 |
-| P1.3 | apk-info v0.x audit & v1.0 architecture spec | G2 | W1–W3 | — |
-| P1.4 | AXIOM-IR v0.1 draft spec (manifest + resource dialects) | G3 | W2–W6 | P1.2 (type system) |
-| P1.5 | Lean ZIP layer — local file headers + EOCD | G1 | W3–W7 | P1.2 |
-| P1.6 | Lean ZIP layer — central directory + offsets | G1 | W6–W10 | P1.5 |
-| P1.7 | apk-info v1.0 streaming reader trait | G2 | W3–W7 | P1.3 |
-| P1.8 | apk-info v1.0 type-state phantom-type guards | G2 | W6–W9 | P1.7 |
-| P1.9 | Rust extraction pipeline v0.1 + translation-validation harness | G1+G2 | W7–W11 | P1.5, P1.8 |
-| P1.10 | apk-info v1.0 BLAKE3 Merkle commit hooks (HACL\* verified) | G2 | W8–W11 | P1.7 |
-| P1.11 | Lean APK Signing Block v1/v2/v3/v3.1 | G1 | W9–W14 | P1.6 |
-| P1.12 | Rust extraction of full ZIP layer (replace hand-written) | G1+G2 | W11–W14 | P1.6, P1.9 |
-| P1.13 | Differential Fuzzing Plant — Cuttlefish A14 harness via Nyx | G8 | W4–W12 | P1.1 |
-| P1.14 | Differential Fuzzing Plant — A8 + A11 harnesses + classifier | G8 | W12–W18 | P1.13 |
-| P1.15 | apk-info v1.0 AXIOM-IR-v0.1 emitter (manifest + resource) | G2+G3 | W12–W17 | P1.4, P1.10 |
-| P1.16 | Rust extraction of APK Signing Block (HACL\* signature path) | G1+G2 | W14–W18 | P1.11, P1.12 |
-| P1.17 | Soundness regression suite as fail-closed CI gate | G1+G13 | W12–W20 | P1.9, P1.16 |
-| P1.18 | End-to-end Bench-1K smoke + Bench-10K perf eval | All | W18–W22 | P1.15, P1.16, P1.17 |
-| P1.19 | Public AndroZoo benchmark + Phase-1 paper draft | All | W20–W24 | P1.18 |
-| P1.20 | Phase 1 hard-gate review + Phase 2 ADR | Leadership + all | W24–W26 | P1.19 |
+| [P1.1](./P1.1/README.md) | Hermetic build foundation (Buck2 + Nix + reproducibility CI) | G13 | W1–W3 | — |
+| [P1.2](./P1.2/README.md) | Lean 4 toolchain & mathlib4 vendoring + extraction prototype | G1 | W2–W4 | P1.1 |
+| [P1.3](./P1.3/README.md) | apk-info v0.x audit & v1.0 architecture spec | G2 | W1–W3 | — |
+| [P1.4](./P1.4/README.md) | AXIOM-IR v0.1 draft spec (manifest + resource dialects) | G3 | W2–W6 | P1.2 (type system) |
+| [P1.5](./P1.5/README.md) | Lean ZIP layer — local file headers + EOCD | G1 | W3–W7 | P1.2 |
+| [P1.6](./P1.6/README.md) | Lean ZIP layer — central directory + offsets | G1 | W6–W10 | P1.5 |
+| [P1.7](./P1.7/README.md) | apk-info v1.0 streaming reader trait | G2 | W3–W7 | P1.3 |
+| [P1.8](./P1.8/README.md) | apk-info v1.0 type-state phantom-type guards | G2 | W6–W9 | P1.7 |
+| [P1.9](./P1.9/README.md) | Rust extraction pipeline v0.1 + translation-validation harness | G1+G2 | W7–W11 | P1.5, P1.8 |
+| [P1.10](./P1.10/README.md) | apk-info v1.0 BLAKE3 Merkle commit hooks (HACL\* verified) | G2 | W8–W11 | P1.7 |
+| [P1.11](./P1.11/README.md) | Lean APK Signing Block v1/v2/v3/v3.1 | G1 | W9–W14 | P1.6 |
+| [P1.12](./P1.12/README.md) | Rust extraction of full ZIP layer (replace hand-written) | G1+G2 | W11–W14 | P1.6, P1.9 |
+| [P1.13](./P1.13/README.md) | Differential Fuzzing Plant — Cuttlefish A14 harness via Nyx | G8 | W4–W12 | P1.1 |
+| [P1.14](./P1.14/README.md) | Differential Fuzzing Plant — A8 + A11 harnesses + classifier | G8 | W12–W18 | P1.13 |
+| [P1.15](./P1.15/README.md) | apk-info v1.0 AXIOM-IR-v0.1 emitter (manifest + resource) | G2+G3 | W12–W17 | P1.4, P1.10 |
+| [P1.16](./P1.16/README.md) | Rust extraction of APK Signing Block (HACL\* signature path) | G1+G2 | W14–W18 | P1.11, P1.12 |
+| [P1.17](./P1.17/README.md) | Soundness regression suite as fail-closed CI gate | G1+G13 | W12–W20 | P1.9, P1.16 |
+| [P1.18](./P1.18/README.md) | End-to-end Bench-1K smoke + Bench-10K perf eval | All | W18–W22 | P1.15, P1.16, P1.17 |
+| [P1.19](./P1.19/README.md) | Public AndroZoo benchmark + Phase-1 paper draft | All | W20–W24 | P1.18 |
+| [P1.20](./P1.20/README.md) | Phase 1 hard-gate review + Phase 2 ADR | Leadership + all | W24–W26 | P1.19 |
+
+> **Each sub-phase folder above contains a self-contained README** with: identity, goal/scope, hard dependencies, required tools and libraries with version pins, **third-party services & API keys with free/paid status**, system inventory (what's on the host vs what to install with concrete commands), working-directory file tree, standalone output, end-to-end test, and exit checklist.
 
 **6 months = ~26 weeks.** Many sub-phases overlap; the table is approximate scheduling, not strict serial order. Hard dependencies are non-negotiable.
 
