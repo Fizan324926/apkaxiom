@@ -119,13 +119,13 @@ These are the rules that govern how the plan is executed. They are not negotiabl
 3. Hire G1 leads. Lean / Coq PhDs are the scarcest resource on the project. Start in M−2 because the pipeline is 3–6 months.
 4. Audit existing apk-info v0.x. G2 leads produce a written report on what stays, what is rewritten, what migrates to the v1.0 refactor.
 5. Legal review: AGPL+commercial dual-licensing strategy, zk-SNARK patent landscape (Halo2 has favorable IP; Plonk/Groth16 have ongoing patent disputes), AOSP Apache 2.0 obligations.
-6. Lock the decision: Nix vs. Bazel for hermetic builds. Recommendation: **Bazel** (better toolchain support for Rust+Lean+Wasm; Nix is leaner but harder to staff).
+6. Lock the build-system decision. Pick: **Buck2** as primary (Meta's Rust-rewritten Buck — faster than Bazel, better remote execution, Rust-native via Reindeer). **Bazel** stays *only* for AOSP harness builds (G8) where Buck2 support is thinner. **Nix flakes** as the toolchain-pinning escape hatch. Full rationale in [TECH_STACK.md §10](./TECH_STACK.md#build).
 
 ### Deliverables
 - Bazel-based hermetic build env. `bazel build //...` produces bit-identical outputs on three reference machines.
 - Initial repo structure: `theorems/`, `crates/`, `ir/`, `verifier/`, `docs/`, `fuzz/`.
 - ADR-0001 (Architecture Decision Record): Lean 4 chosen.
-- ADR-0002: Bazel chosen.
+- ADR-0002: Buck2 chosen as primary build (Bazel retained for AOSP harnesses only).
 - ADR-0003: AGPL + commercial dual-licensing.
 - apk-info audit report (~30 pages).
 - Hiring funnel: ≥10 G1 candidates interviewed, ≥3 offers extended.
