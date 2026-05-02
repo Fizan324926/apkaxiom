@@ -15,6 +15,7 @@
 | [ROADMAP.md](./ROADMAP.md) | 3-year executable plan to v1.0 — phases, hiring sequence, deliverables per group, risk register |
 | [PHASE_GATES.md](./PHASE_GATES.md) | Comprehensive performance / scalability / real-time KPI checklist per phase. Hard gates that block phase advancement |
 | [TECH_STACK.md](./TECH_STACK.md) | Nation-grade tech-stack picks per layer — verified-software supply chain, ZK systems, SMT, native lifters, fuzzing, GPU, allocators, async. State-of-the-art over comfortable |
+| [phase-1/README.md](./phase-1/README.md) | Phase 1 detailed plan — broken into 20 sub-phases (P1.1 → P1.20). Each sub-phase has working state, KPIs, features, end-to-end test, and exit checklist |
 
 ---
 
