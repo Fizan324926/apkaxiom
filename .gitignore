@@ -19,6 +19,17 @@ bazel-out
 bazel-testlogs
 bazel-*
 
+# ----- Lean / Lake -----
+# Lake builds artefacts and clones deps into .lake/. The committed
+# `lake-manifest.json` pins everything by SHA; .lake/ itself is rebuildable.
+.lake/
+
+# ----- SBOM tool leftovers -----
+# `cargo-cyclonedx` writes one BOM next to each workspace member's
+# Cargo.toml. `make sbom` collects + cleans them, but defence in depth:
+**/crates/*/*.cdx.json
+**/tools/*/*.cdx.json
+
 # ----- Nix -----
 result
 result-*

@@ -1,0 +1,24 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.2 prototype Lean→Rust extractor. Replaced in P1.9 by the production
+# translation pipeline; the BUCK target name is stable so downstream
+# rules can `buck2 run //tools/lean-to-rust ...` without churn.
+
+rust_binary(
+    name = "lean-to-rust",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lean_to_rust",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = ["//third-party/rust:thiserror"],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "lean-to-rust-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lean_to_rust",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = ["//third-party/rust:thiserror"],
+)

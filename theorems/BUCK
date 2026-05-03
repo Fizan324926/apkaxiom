@@ -1,0 +1,30 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Buck2 wrapper around `lake build`. Buck2 has no native Lean rules in this
+# version of the prelude, so we drop down to a `genrule` that invokes Lake
+# in the source tree and emits a hash-manifest of every .olean it produces.
+#
+# The hash-manifest is the *visible* output: anyone reviewing CI can see
+# that a sealed reproducible re-verify happened, and a downstream rule can
+# depend on `:hello` to gate on Lean re-verify having succeeded.
+
+export_file(
+    name = "lean-build-driver",
+    src = "lean-build.sh",
+    visibility = ["PUBLIC"],
+)
+
+genrule(
+    name = "hello",
+    out = "olean-manifest.txt",
+    # The driver `cd`s to the repo root and runs `lake build` against the
+    # working tree (Lake manages its own incremental cache). We only need
+    # to declare `.lean` sources here so Buck2 invalidates this genrule
+    # when a theorem file changes; lakefile/manifest invalidation is a
+    # `buck2 clean` away when needed.
+    srcs = glob(["**/*.lean"]),
+    # Buck2 sandboxes genrules with a minimal PATH. Re-enter `nix develop`
+    # so `lake` and `b3sum` resolve to the flake-pinned toolchain.
+    cmd = "nix develop --command bash $(location :lean-build-driver) $OUT",
+    visibility = ["PUBLIC"],
+)

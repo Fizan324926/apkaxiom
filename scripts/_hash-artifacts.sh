@@ -46,6 +46,12 @@ if [[ "$BUILD" != "skip" ]]; then
     //crates/axiom-l0:axiom-l0-test \
     //crates/axiom-l1-rs:axiom-l1-rs-test \
     //crates/axiom-ir:axiom-ir-test \
+    //crates/axiom-extract-hello:axiom-extract-hello \
+    //crates/axiom-extract-hello:axiom-extract-hello-test \
+    //tools/lean-to-rust:lean-to-rust \
+    //tools/lean-to-rust:lean-to-rust-test \
+    //tools/translation-validator:translation-validator \
+    //theorems:hello \
     //:hello_world >&2
 fi
 
@@ -73,7 +79,16 @@ emit() {
 # this list is the explicit signal that "we now reproduce against this dep
 # too". Silent additions to the dep tree do not get covered until this list
 # is updated — see ADR-0007 for the policy.
-FIRST_PARTY_CRATES=(axiom_l0 axiom_l1_rs axiom_ir)
+FIRST_PARTY_CRATES=(
+  axiom_l0
+  axiom_l1_rs
+  axiom_ir
+  axiom_extract_hello   # P1.2 — auto-extracted from Hello.lean
+)
+FIRST_PARTY_BINS=(
+  lean_to_rust          # P1.2 prototype extractor
+  translation_validator # P1.2 operational-equivalence harness
+)
 VENDORED_CRATES=(thiserror thiserror_impl proc_macro2 quote syn unicode_ident)
 
 # 1) rlib/rmeta for every crate.
@@ -105,12 +120,33 @@ for crate in "${FIRST_PARTY_CRATES[@]}"; do
             2>/dev/null | sort -u)
 done
 
-# 3) Genrule outputs.
+# 3) Genrule outputs:
+#    - //:hello_world (smoke target from P1.1)
+#    - //theorems:hello (P1.2 — manifest of Lean .olean hashes)
 while IFS= read -r path; do
   [[ -z "$path" || ! -f "$path" ]] && continue
   emit "$path"
-done < <(find buck-out -type f -path "*__hello_world__*" -name "out.txt" \
-          2>/dev/null | sort -u)
+done < <({
+  find buck-out -type f -path "*__hello_world__*" -name "out.txt" 2>/dev/null
+  find buck-out -type f -path "*__hello__*" -name "olean-manifest.txt" 2>/dev/null
+} | sort -u)
+
+# 4) First-party binary tools (release-mode equivalents emitted under
+# `bin-pic-static_pic-link/`). Their stable names are the crate name
+# without the `lean_to_rust`-style `_` prefix.
+for bin in "${FIRST_PARTY_BINS[@]}"; do
+  while IFS= read -r path; do
+    [[ -z "$path" || ! -f "$path" ]] && continue
+    [[ -x "$path" ]] || continue
+    case "$(basename "$path")" in
+      "$bin") emit "$path" ;;
+    esac
+  done < <(find buck-out -type f -path "*__${bin//_/-}__*" \
+            ! -name '*.d' ! -name '*.json' ! -name '*.txt' \
+            ! -name '*.rmeta' ! -name '*.rlib' \
+            ! -name '*.args' ! -name '*.sh' \
+            2>/dev/null | sort -u)
+done
 
 # Body of the corpus, sorted + deduped.
 sort -u "$TMP" > "$TMP.sorted"

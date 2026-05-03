@@ -1,0 +1,17 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.2 translation-validator skeleton — operational equivalence checker.
+# Real semantic-equivalence proofs replace this in P1.9.
+
+rust_binary(
+    name = "translation-validator",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "translation_validator",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:thiserror",
+        "//crates/axiom-extract-hello:axiom-extract-hello",
+    ],
+    visibility = ["PUBLIC"],
+)

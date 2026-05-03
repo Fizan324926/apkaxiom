@@ -1,0 +1,22 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Auto-extracted Rust crate from theorems/Apkaxiom/Hello.lean. Source of
+# truth for `src/lib.rs` is the Lean file; the extractor produces this
+# Rust deterministically and commits it for reproducibility-hash coverage.
+
+rust_library(
+    name = "axiom-extract-hello",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_extract_hello",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-extract-hello-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_extract_hello",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+)

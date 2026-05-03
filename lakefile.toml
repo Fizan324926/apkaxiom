@@ -1,0 +1,27 @@
+# APKAXIOM Lake project — P1.2 bring-up.
+#
+# Hermeticity model:
+#   * `lean-toolchain` pins Lean (matches `flake.nix` `pkgsUnstable.lean4`).
+#   * `lake-manifest.json` (committed) pins every transitive dep by content
+#     hash. `lake update` regenerates it; CI's reindeer-style
+#     idempotence-check asserts no PR mutates the manifest by surprise.
+#   * mathlib4 is fetched at the v4.29.1 tag (commit 5e932f97dd25); the
+#     Lean Reservoir public cache supplies prebuilt .olean files so cold
+#     CI runs land inside the 10-minute budget.
+
+name = "apkaxiom"
+defaultTargets = ["Apkaxiom"]
+packagesDir = ".lake/packages"
+srcDir = "theorems"
+
+[leanOptions]
+pp.unicode.fun = true        # nicer pretty-printing for tactic state
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+version = "git#v4.29.1"
+
+[[lean_lib]]
+name = "Apkaxiom"
+defaultFacets = ["leanArts"]

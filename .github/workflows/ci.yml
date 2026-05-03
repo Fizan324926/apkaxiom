@@ -212,6 +212,47 @@ jobs:
       - run: nix develop --command make bazel-info
 
   # -------------------------------------------------------------------------
+  # 4b) Lean bring-up (P1.2). Single job, ≤10-min hard cap (per spec §9).
+  #     Builds Apkaxiom.Hello, runs the extractor, tests the extracted
+  #     crate, and runs the translation-validator on a fixed input set.
+  # -------------------------------------------------------------------------
+  lean-bringup:
+    name: lean-bringup (P1.2)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Cache Lake's `.lake/` package mirror + olean tree
+        uses: actions/cache@v4
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ hashFiles('lakefile.toml', 'lake-manifest.json', 'lean-toolchain') }}
+          restore-keys: |
+            lake-${{ runner.os }}-
+      - name: Lake build (Apkaxiom)
+        run: nix develop --command lake build Apkaxiom
+      - name: Buck2 //theorems:hello (olean manifest)
+        run: nix develop --command buck2 build //theorems:hello
+      - name: Run extractor (idempotent)
+        run: |
+          nix develop --command buck2 run //tools/lean-to-rust -- \
+            theorems/Apkaxiom/Hello.lean \
+            crates/axiom-extract-hello/src/lib.rs
+      - name: Assert extracted lib.rs is unchanged (idempotent)
+        run: |
+          if ! git diff --exit-code crates/axiom-extract-hello/src/lib.rs; then
+            echo "::error::extractor produced a diff against the committed lib.rs — re-run \`buck2 run //tools/lean-to-rust\` locally and commit." >&2
+            exit 1
+          fi
+      - name: Test the extracted crate
+        run: nix develop --command buck2 test //crates/axiom-extract-hello:axiom-extract-hello-test
+      - name: Translation validator (Lean ↔ Rust on fixed inputs)
+        run: nix develop --command buck2 run //tools/translation-validator
+
+  # -------------------------------------------------------------------------
   # 5) Drift-detection gates (cheap, run early, parallel with build).
   # -------------------------------------------------------------------------
   graph-parity:

@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "axiom-extract-hello"
+version = "0.0.0"
+
+[[package]]
 name = "axiom-ir"
 version = "0.0.0"
 dependencies = [
@@ -19,6 +23,13 @@ name = "axiom-l1-rs"
 version = "0.0.0"
 dependencies = [
  "axiom-l0",
+]
+
+[[package]]
+name = "lean-to-rust"
+version = "0.0.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -68,6 +79,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "translation-validator"
+version = "0.0.0"
+dependencies = [
+ "axiom-extract-hello",
+ "thiserror",
 ]
 
 [[package]]

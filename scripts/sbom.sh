@@ -36,11 +36,15 @@ cargo cyclonedx --format json --quiet 2>&1 | tail -5 || {
   echo "FAIL: cargo-cyclonedx failed" >&2
   exit 1
 }
-# Each workspace member gets `crates/<name>/<name>.cdx.json`. Merge them
-# all (jq union) into one workspace bom.
-mapfile -t crate_boms < <(find crates -maxdepth 3 -name '*.cdx.json' 2>/dev/null | sort)
+# Each workspace member gets `<dir>/<name>.cdx.json`. Merge them all
+# (jq union) into one workspace bom. We also clean up the per-crate
+# files at the end so the tree stays tidy.
+mapfile -t crate_boms < <({
+  find crates -maxdepth 3 -name '*.cdx.json' 2>/dev/null
+  find tools  -maxdepth 3 -name '*.cdx.json' 2>/dev/null
+} | sort)
 if [[ ${#crate_boms[@]} -eq 0 ]]; then
-  echo "FAIL: cargo-cyclonedx wrote no .cdx.json files under crates/" >&2
+  echo "FAIL: cargo-cyclonedx wrote no .cdx.json files under crates/ or tools/" >&2
   exit 1
 fi
 # Merge per-crate boms. cargo-cyclonedx 0.5.x emits CycloneDX 1.3 with

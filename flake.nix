@@ -55,19 +55,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # TODO(P1.2): pin Lean 4 + mathlib4 here.
-    #
-    # lean4 = {
-    #   url = "github:leanprover/lean4/v4.x.y";
-    #   flake = false;  # build via override in P1.2
-    # };
-    # mathlib4 = {
-    #   url = "github:leanprover-community/mathlib4/<sha>";
-    #   flake = false;
-    # };
+    # mathlib4 source pinned at the v4.29.1 commit. We do not use this as a
+    # build input directly — `lakefile.toml` + `lake-manifest.json` drive the
+    # actual fetch. Recording it here gives us a flake-level provenance
+    # anchor: any change to the SHA shows up in `flake.lock`.
+    mathlib4 = {
+      url = "github:leanprover-community/mathlib4/v4.29.1";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, rust-overlay, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, rust-overlay, mathlib4, ... }:
     flake-utils.lib.eachSystem [
       "x86_64-linux"
       "aarch64-linux"
@@ -116,17 +114,24 @@
           syft
           shellcheck
           b3sum
-          # Lean placeholder — real pin in P1.2.
-          # lean4
+          # libstdc++ runtime — Lean's bundled libleancpp.a references
+          # `__cxa_call_terminate` which lives here. Without this the
+          # mathlib `cache:exe` fails to link.
+          stdenv.cc.cc.lib
         ] ++ [
-          # Pulled from nixpkgs-unstable. Tracked in ADR-0008 §"Tool-pin
-          # exceptions"; revisit when 24.11 catches up.
+          # Pulled from nixpkgs-unstable; nixos-24.11 lags on these.
           # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0
           #   advisories (rustsec < 0.31).
           # - cargo-cyclonedx: 24.11 can't parse Cargo.lock v4.
+          # - lean4 / elan (P1.2): 24.11 has Lean 4.10.0; we want 4.29.1
+          #   to match the mathlib4 v4.29.1 line. `lean-toolchain` and
+          #   `lakefile.toml` carry the matching pins so `elan`-based dev
+          #   workflows agree with the Nix-pinned binary.
           pkgsUnstable.cargo-audit
           pkgsUnstable.cargo-deny
           pkgsUnstable.cargo-cyclonedx
+          pkgsUnstable.lean4
+          pkgsUnstable.elan
         ];
 
         # Heavy debugging tools — only loaded into the `repro-debug` shell so

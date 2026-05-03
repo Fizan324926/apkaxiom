@@ -110,12 +110,16 @@ toolchains//:rust (prelude//platforms:default#904931f735703749) (prelude//platfo
 root//:all
 root//:axiom
 root//:hello_world
+root//crates/axiom-extract-hello:axiom-extract-hello
+root//crates/axiom-extract-hello:axiom-extract-hello-test
 root//crates/axiom-ir:axiom-ir
 root//crates/axiom-ir:axiom-ir-test
 root//crates/axiom-l0:axiom-l0
 root//crates/axiom-l0:axiom-l0-test
 root//crates/axiom-l1-rs:axiom-l1-rs
 root//crates/axiom-l1-rs:axiom-l1-rs-test
+root//theorems:hello
+root//theorems:lean-build-driver
 root//third-party/rust:_thiserror-impl-1
 root//third-party/rust:proc-macro2-1
 root//third-party/rust:proc-macro2-1-build-script-build
@@ -133,3 +137,6 @@ root//third-party/rust:thiserror-1-build-script-run
 root//third-party/rust:thiserror-1.0.69.crate
 root//third-party/rust:thiserror-impl-1
 root//third-party/rust:unicode-ident-1
+root//tools/lean-to-rust:lean-to-rust
+root//tools/lean-to-rust:lean-to-rust-test
+root//tools/translation-validator:translation-validator
