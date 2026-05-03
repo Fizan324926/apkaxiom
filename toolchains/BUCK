@@ -1,12 +1,17 @@
 # Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 #
-# Toolchain registration for the Buck2 root cell. We register only the
-# toolchains we actually use (cxx, genrule, python_bootstrap, rust, test,
-# zip_file). Registering everything via `system_demo_toolchains()` works but
-# pulls in Java/Erlang/Haskell/OCaml/Go/Android toolchains we never invoke and
-# which create noise in `buck2 audit toolchains`.
+# Toolchain registration for the Buck2 root cell. We register the strict
+# subset of toolchains needed by our build graph (cxx, genrule, python
+# bootstrap, rust, remote-test-execution). Registering everything via
+# `system_demo_toolchains()` works but pulls in Go/Haskell/OCaml/Java
+# toolchains we never invoke, cluttering `buck2 audit toolchains` and
+# inflating the surface area we have to keep reproducible.
+#
+# The exact set mirrors what `system_demo_toolchains` emits in the bundled
+# prelude shipped with the Buck2 binary that flake.lock pins (see
+# ADR-0002). The bundled prelude does not expose a `noop_test_toolchain`
+# in this version; tests are driven entirely by `remote_test_execution`.
 
-load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
 load("@prelude//toolchains:cxx.bzl", "system_cxx_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "system_python_bootstrap_toolchain")
@@ -28,10 +33,10 @@ system_python_bootstrap_toolchain(
     visibility = ["PUBLIC"],
 )
 
-# The Rust toolchain reads `rustc` and `cargo` from PATH. Inside `nix develop`
-# this is the Nix-pinned 1.83.0 toolchain (see flake.nix); outside it is
-# whatever the host has. The reproducibility check (`make repro-check`)
-# *requires* `nix develop`, so the host fallback is for convenience only.
+# The Rust toolchain reads `rustc` and `cargo` from PATH. Inside `nix
+# develop` this is the Nix-pinned toolchain (see flake.nix); outside it is
+# whatever the host has. `make repro-check` *requires* `nix develop`, so
+# the host fallback is purely for IDE convenience.
 system_rust_toolchain(
     name = "rust",
     default_edition = "2021",
@@ -43,10 +48,5 @@ system_rust_toolchain(
 
 remote_test_execution_toolchain(
     name = "remote_test_execution",
-    visibility = ["PUBLIC"],
-)
-
-noop_test_toolchain(
-    name = "test",
     visibility = ["PUBLIC"],
 )
