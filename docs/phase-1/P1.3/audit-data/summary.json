@@ -1,0 +1,60 @@
+{
+  "identity": {
+    "schema": "apkaxiom.p13-audit/v1",
+    "upstream_repo": "https://github.com/delvinru/apk-info",
+    "pinned_sha": "759b39cea8e0dd570a1ca3c7c98b8c5b3070d8ab",
+    "audited_at_utc": "1980-01-01T00:00:00Z"
+  },
+  "rust_loc": 6336,
+  "rust_files": 39,
+  "advisories_found": 0,
+  "unsafe_files": 1,
+  "unsafe_total_occurrences": 1,
+  "public_api": [
+    {
+      "crate": "cli",
+      "pub_fn": 0,
+      "pub_struct": 0,
+      "pub_enum": 0,
+      "pub_trait": 0,
+      "pub_type": 0
+    },
+    {
+      "crate": "core",
+      "pub_fn": 52,
+      "pub_struct": 10,
+      "pub_enum": 1,
+      "pub_trait": 0,
+      "pub_type": 0
+    },
+    {
+      "crate": "axml",
+      "pub_fn": 47,
+      "pub_struct": 34,
+      "pub_enum": 21,
+      "pub_trait": 1,
+      "pub_type": 0
+    },
+    {
+      "crate": "xml",
+      "pub_fn": 13,
+      "pub_struct": 3,
+      "pub_enum": 0,
+      "pub_trait": 0,
+      "pub_type": 0
+    },
+    {
+      "crate": "zip",
+      "pub_fn": 6,
+      "pub_struct": 2,
+      "pub_enum": 4,
+      "pub_trait": 0,
+      "pub_type": 0
+    }
+  ],
+  "deps": {
+    "total_resolved": 188,
+    "direct_workspace_deps": 33
+  },
+  "cargo_bloat_skipped": true
+}

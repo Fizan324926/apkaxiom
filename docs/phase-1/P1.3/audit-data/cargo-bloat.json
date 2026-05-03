@@ -1,0 +1,4 @@
+{
+  "skipped": true,
+  "reason": "upstream uses edition 2024 + rust nightly; our pinned rustc 1.83.0 (stable) declines to build it. cargo-bloat would land in a follow-up audit run on a nightly-augmented dev-shell."
+}

@@ -21,7 +21,7 @@ toolchains: /root/apkaxiom/toolchains
     fbcode = none
     fbcode_macros = none
     fbsource = none
-    ignore = .git, target, result, .direnv, docs/phase-1, docs/phase-2, docs/phase-3, docs/phase-4, docs/phase-5, docs/phase-6
+    ignore = .git, target, result, .direnv, docs/phase-1, docs/phase-2, docs/phase-3, docs/phase-4, docs/phase-5, docs/phase-6, external/apk-info-upstream, .lake
     name = TARGETS
     none = none
     ovr_config = prelude

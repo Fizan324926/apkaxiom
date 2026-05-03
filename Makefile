@@ -153,6 +153,18 @@ lean-update: ## Bump lake-manifest.json (privileged — requires G13 review and 
 	@echo "*** lake-manifest.json + reproducibility-hashes diff."
 	lake update
 
+##@ P1.3 audit
+
+.PHONY: p13-audit
+p13-audit: ## Re-derive P1.3 upstream-apk-info audit data.
+	bash $(ROOT)/scripts/p13-audit.sh
+
+.PHONY: p13-diagram
+p13-diagram: ## Re-render the v1.0 architecture diagram (graphviz → svg).
+	dot -Tsvg \
+	  $(ROOT)/docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.dot \
+	  -o $(ROOT)/docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.svg
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

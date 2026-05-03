@@ -24,6 +24,19 @@ bazel-*
 # `lake-manifest.json` pins everything by SHA; .lake/ itself is rebuildable.
 .lake/
 
+# ----- P1.3 upstream audit input -----
+# external/apk-info-upstream is a vendored read-only clone for audit
+# purposes. We commit the source (so audit measurements are
+# reproducible against the pinned SHA in
+# external/apk-info-pinned-sha.txt) but exclude its .git/ — our repo
+# is the source of truth, not their git history.
+external/apk-info-upstream/.git/
+external/apk-info-upstream/target/
+external/apk-info-upstream/.lake/
+
+# Per-host audit data caches that get regenerated on demand.
+docs/phase-1/P1.3/audit-data/perf-runs/
+
 # ----- SBOM tool leftovers -----
 # `cargo-cyclonedx` writes one BOM next to each workspace member's
 # Cargo.toml. `make sbom` collects + cleans them, but defence in depth:

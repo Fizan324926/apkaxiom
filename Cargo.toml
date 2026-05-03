@@ -10,9 +10,12 @@ members = [
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.
+# `external/apk-info-upstream` is a P1.3 audit input — read-only clone of
+# the upstream parser, deliberately outside our build graph.
 exclude = [
     "third-party/rust",
     "external/aosp",
+    "external/apk-info-upstream",
 ]
 
 [workspace.package]

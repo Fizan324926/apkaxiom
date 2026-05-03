@@ -118,6 +118,17 @@
           # `__cxa_call_terminate` which lives here. Without this the
           # mathlib `cache:exe` fails to link.
           stdenv.cc.cc.lib
+          # P1.3 audit tooling. cargo-bloat / cargo-llvm-lines for
+          # binary-size analysis of the upstream apk-info, hyperfine
+          # for parser micro-benchmarks, graphviz for the v1.0
+          # architecture diagram, tokei for accurate LOC counting.
+          # flamegraph stays a dev-side opt-in (it needs perf events
+          # which CI runners don't grant).
+          cargo-bloat
+          cargo-llvm-lines
+          hyperfine
+          graphviz
+          tokei
         ] ++ [
           # Pulled from nixpkgs-unstable; nixos-24.11 lags on these.
           # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0

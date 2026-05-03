@@ -1,0 +1,9 @@
+{
+  "crates": [
+    {"crate":"cli","pub_fn":0,"pub_struct":0,"pub_enum":0,"pub_trait":0,"pub_type":0},
+    {"crate":"core","pub_fn":52,"pub_struct":10,"pub_enum":1,"pub_trait":0,"pub_type":0},
+    {"crate":"axml","pub_fn":47,"pub_struct":34,"pub_enum":21,"pub_trait":1,"pub_type":0},
+    {"crate":"xml","pub_fn":13,"pub_struct":3,"pub_enum":0,"pub_trait":0,"pub_type":0},
+    {"crate":"zip","pub_fn":6,"pub_struct":2,"pub_enum":4,"pub_trait":0,"pub_type":0}
+  ]
+}

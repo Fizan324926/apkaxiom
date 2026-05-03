@@ -1,0 +1,57 @@
+// Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+//
+// `axiom-l1-rs` v1.0 architecture (P1.3 spec).
+// Render: `dot -Tsvg axiom-l1-rs-architecture.dot -o axiom-l1-rs-architecture.svg`.
+
+digraph axiom_l1_rs {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=11, splines=ortho, nodesep=0.4, ranksep=0.6, bgcolor="white"];
+  node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#f5f7fa", color="#1f2d3d"];
+  edge  [fontname="Helvetica", fontsize=9, color="#3b4252"];
+
+  subgraph cluster_input {
+    label="Input"; labeljust=l; style="dashed"; color="#94a3b8"; fontcolor="#475569";
+    apk_file [label="APK file\n(any source: stdin / Read / mmap)"];
+  }
+
+  subgraph cluster_l1 {
+    label="axiom-l1-rs v1.0"; labeljust=l; style="rounded"; bgcolor="#eef4ff"; color="#1e3a8a"; fontcolor="#1e3a8a";
+
+    streaming_reader [label="ApkParser::from_reader<R: Read>\n(streaming, never mmap-spans-EOF)", fillcolor="#dbe7ff"];
+
+    type_state [label="Phantom-typed states\n«Sealed»  →  «Verified»  →  «Lifted»\n(invalid transitions are type errors)", fillcolor="#fff3d6"];
+
+    version_dispatch [label="trait AndroidVersionParser\n(per-API-level dispatch:\nL→S→T→U→V parsers)", fillcolor="#dbe7ff"];
+
+    merkle [label="BLAKE3 Merkle commit hooks\n(emitted at every parse step,\nrecorded in a global commitment ledger)", fillcolor="#e9d5ff"];
+
+    ir_emitter [label="AXIOM-IR-v0.1 emitter\n(manifest-dialect output;\ncontract documented in CHECKLIST §C)", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_consumers {
+    label="Downstream (P1.4+)"; labeljust=l; style="dashed"; color="#94a3b8"; fontcolor="#475569";
+    p14    [label="P1.4 — AXIOM-IR\nmanifest dialect"];
+    p17    [label="P1.7 — DEX/native\nlifters"];
+    verify [label="P1.10/P1.17 —\nsoundness gate (Lean)"];
+    p4_zk  [label="P4.x — ZK proofs\n(Halo2 over IR)"];
+  }
+
+  subgraph cluster_compat {
+    label="Compatibility surface (apk-info v0.x → v1.0 migration)"; labeljust=l; style="dotted"; color="#94a3b8"; fontcolor="#475569";
+    upstream [label="upstream apk-info v0.x\n(read-only audit input,\npinned at 759b39c)", fillcolor="#fef3c7", style="rounded,filled,dashed"];
+    migration [label="Migration roadmap\nin CHECKLIST §E", fillcolor="#fef3c7"];
+  }
+
+  apk_file -> streaming_reader [label="bytes"];
+  streaming_reader -> type_state;
+  type_state       -> version_dispatch [label="«Sealed»"];
+  version_dispatch -> merkle           [label="commit"];
+  merkle           -> ir_emitter       [label="root hash"];
+
+  ir_emitter -> p14;
+  ir_emitter -> p17;
+  ir_emitter -> verify;
+  merkle     -> p4_zk    [label="commit witness"];
+
+  upstream -> migration  [style=dashed, color="#94a3b8", arrowhead=open];
+  migration -> streaming_reader [style=dashed, color="#94a3b8", arrowhead=open, label="trait shape\nguidance"];
+}

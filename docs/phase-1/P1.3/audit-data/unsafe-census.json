@@ -1,0 +1,5 @@
+{
+  "by_file": [
+    {"file": "crates/axml/src/structs/res_string_pool.rs", "unsafe_occurrences": 1}
+  ]
+}

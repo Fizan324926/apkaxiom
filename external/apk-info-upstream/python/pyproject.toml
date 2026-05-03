@@ -1,0 +1,30 @@
+[project]
+name = "apk-info"
+requires-python = ">=3.10"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version", "license", "keywords", "description"]
+
+[project.optional-dependencies]
+tests = ["pytest"]
+
+[tool.maturin]
+profile = "release"
+features = ["pyo3/extension-module"]
+strip = true
+
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[dependency-groups]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.3",
+    "mkdocstrings-python>=2.0.3",
+    "mkdocstrings[python]>=1.0.3",
+]

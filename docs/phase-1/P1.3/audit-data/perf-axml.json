@@ -1,0 +1,85 @@
+{
+  "results": [
+    {
+      "command": "/root/apkaxiom/external/apk-info-upstream/target/release/apk-info axml com.amaze.filemanager_122.apk",
+      "mean": 0.029387362480000002,
+      "stddev": 0.005453552922926643,
+      "median": 0.027023875680000004,
+      "user": 0.01191398,
+      "system": 0.017359439999999997,
+      "min": 0.02677596268,
+      "max": 0.03914068868000001,
+      "times": [
+        0.03914068868000001,
+        0.02691049368,
+        0.027085791680000002,
+        0.027023875680000004,
+        0.02677596268
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "parameters": {
+        "apk": "com.amaze.filemanager_122.apk"
+      }
+    },
+    {
+      "command": "/root/apkaxiom/external/apk-info-upstream/target/release/apk-info axml F-Droid.apk",
+      "mean": 0.026281099880000002,
+      "stddev": 0.0027992690126603047,
+      "median": 0.026474407680000003,
+      "user": 0.01050098,
+      "system": 0.015703839999999997,
+      "min": 0.02199796168,
+      "max": 0.02938451268,
+      "times": [
+        0.026474407680000003,
+        0.025581977680000003,
+        0.02938451268,
+        0.027966639680000002,
+        0.02199796168
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "parameters": {
+        "apk": "F-Droid.apk"
+      }
+    },
+    {
+      "command": "/root/apkaxiom/external/apk-info-upstream/target/release/apk-info axml org.fdroid.fdroid_1019050.apk",
+      "mean": 0.02480077008,
+      "stddev": 0.0018030304998767495,
+      "median": 0.02495035568,
+      "user": 0.008586779999999999,
+      "system": 0.016065640000000003,
+      "min": 0.022870374680000003,
+      "max": 0.026985844680000003,
+      "times": [
+        0.026985844680000003,
+        0.02495035568,
+        0.02311563268,
+        0.026081642680000003,
+        0.022870374680000003
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "parameters": {
+        "apk": "org.fdroid.fdroid_1019050.apk"
+      }
+    }
+  ]
+}
