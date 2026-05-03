@@ -1,0 +1,2 @@
+# quote's build.rs probes rustc capability cfgs.
+buildscript.run = true

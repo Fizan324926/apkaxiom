@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/axiom-l0",
+    "crates/axiom-l1-rs",
+    "crates/axiom-ir",
+]
+# `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
+# here prevents Cargo from spuriously trying to merge the two workspaces.
+exclude = [
+    "third-party/rust",
+    "external/aosp",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+publish = false
+rust-version = "1.83"
+authors = ["APKAXIOM Authors"]
+repository = "https://github.com/Fizan324926/apkaxiom"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+
+[workspace.dependencies]
+thiserror = "1.0"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"
+panic = "abort"
+debug = 0
+incremental = false
+overflow-checks = true
+
+[profile.dev]
+incremental = false

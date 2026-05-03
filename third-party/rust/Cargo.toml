@@ -1,0 +1,33 @@
+# APKAXIOM third-party Rust manifest
+#
+# This is the *single source of truth* for every Rust crate that enters the
+# Buck2 build graph from outside the workspace. Cargo and Reindeer both read
+# this file:
+#   - Cargo (via the patch.crates-io override below) keeps `cargo build`
+#     working at the workspace root for IDE / fast-iteration paths.
+#   - Reindeer (`reindeer buckify`) uses it to generate
+#     `third-party/rust/BUCK`, which Buck2 consumes for hermetic builds.
+#
+# Adding a new crate: bump the version here, run `make third-party`, commit
+# the regenerated `BUCK`, `Cargo.lock`, and `vendor/` tree.
+
+[workspace]
+
+[package]
+name = "apkaxiom-third-party"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Dummy binary to keep `cargo` happy on this manifest. Never built or run.
+[[bin]]
+name = "top"
+path = "top/main.rs"
+
+[dependencies]
+# Phase 1 only needs `thiserror` — this is the smallest dep that exercises
+# Reindeer + Buck2 third-party correspondence (it has a proc-macro derive,
+# so it stresses both the rlib path and the proc-macro path).
+thiserror = "1.0"
+
+[patch.crates-io]

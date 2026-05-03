@@ -1,0 +1,30 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# axiom-ir consumes a third-party dep (`thiserror`) via the Reindeer-managed
+# `//third-party/rust:thiserror` target. This is the smallest crate that
+# exercises Reindeer + Buck2 third-party graph correspondence.
+
+rust_library(
+    name = "axiom-ir",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_ir",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0:axiom-l0",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-ir-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_ir",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0:axiom-l0",
+        "//third-party/rust:thiserror",
+    ],
+)

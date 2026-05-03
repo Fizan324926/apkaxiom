@@ -1,0 +1,2 @@
+# proc-macro2's build.rs probes rustc capability cfgs.
+buildscript.run = true

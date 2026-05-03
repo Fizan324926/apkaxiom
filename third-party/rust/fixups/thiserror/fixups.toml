@@ -1,0 +1,3 @@
+# thiserror's build.rs probes rustc for `error_generic_member_access` cfgs.
+# We let it run; it produces only `--cfg` flags.
+buildscript.run = true

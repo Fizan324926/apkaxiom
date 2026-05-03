@@ -1,0 +1,22 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# `rust_library` and `rust_test` are exposed as built-in rules by the bundled
+# Buck2 prelude (see prelude/native.bzl::_rust_*_macro_stub). No `load()` is
+# required.
+
+rust_library(
+    name = "axiom-l0",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_l0",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-l0-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_l0",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+)

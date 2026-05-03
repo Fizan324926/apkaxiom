@@ -1,0 +1,8 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# AOSP sub-workspace marker. `MODULE.bazel` carries the actual configuration
+# (we use bzlmod, not the legacy WORKSPACE file). This file is intentionally
+# almost-empty — Bazel still requires its presence as a workspace anchor on
+# some toolchains.
+
+workspace(name = "apkaxiom_aosp")

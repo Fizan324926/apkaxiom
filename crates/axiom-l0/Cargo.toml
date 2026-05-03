@@ -1,0 +1,16 @@
+[package]
+name = "axiom-l0"
+description = "APKAXIOM L0 — minimal trusted core (placeholder for Phase 1; real implementation arrives in P1.3)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

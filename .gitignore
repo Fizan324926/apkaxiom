@@ -1,0 +1,44 @@
+# APKAXIOM .gitignore
+# Build artifacts and tool caches. Source-of-truth files (locks, manifests,
+# vendored crates, generated BUCK files) are *kept* in git for hermeticity.
+
+# ----- Buck2 -----
+/buck-out/
+.buck/
+.buckd/
+
+# ----- Cargo / Rust -----
+/target/
+**/target/
+*.rs.bk
+**/*.rmeta-stamp
+
+# ----- Bazel -----
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-*
+
+# ----- Nix -----
+result
+result-*
+.direnv/
+
+# ----- Editors / IDEs -----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ----- Misc -----
+*.log
+*.tmp
+*.tmp.*
+
+# Reindeer / Cargo lock dirs we explicitly KEEP:
+# - Cargo.lock
+# - third-party/rust/Cargo.lock
+# - third-party/rust/vendor/  (committed for hermeticity)
+# - third-party/rust/BUCK     (generated, but committed)
+# - flake.lock                (committed)

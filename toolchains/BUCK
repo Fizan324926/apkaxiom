@@ -1,0 +1,52 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Toolchain registration for the Buck2 root cell. We register only the
+# toolchains we actually use (cxx, genrule, python_bootstrap, rust, test,
+# zip_file). Registering everything via `system_demo_toolchains()` works but
+# pulls in Java/Erlang/Haskell/OCaml/Go/Android toolchains we never invoke and
+# which create noise in `buck2 audit toolchains`.
+
+load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
+load("@prelude//toolchains:cxx.bzl", "system_cxx_toolchain")
+load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
+load("@prelude//toolchains:python.bzl", "system_python_bootstrap_toolchain")
+load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
+load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
+
+system_cxx_toolchain(
+    name = "cxx",
+    visibility = ["PUBLIC"],
+)
+
+system_genrule_toolchain(
+    name = "genrule",
+    visibility = ["PUBLIC"],
+)
+
+system_python_bootstrap_toolchain(
+    name = "python_bootstrap",
+    visibility = ["PUBLIC"],
+)
+
+# The Rust toolchain reads `rustc` and `cargo` from PATH. Inside `nix develop`
+# this is the Nix-pinned 1.83.0 toolchain (see flake.nix); outside it is
+# whatever the host has. The reproducibility check (`make repro-check`)
+# *requires* `nix develop`, so the host fallback is for convenience only.
+system_rust_toolchain(
+    name = "rust",
+    default_edition = "2021",
+    rustc_flags = [
+        "--remap-path-prefix=$PWD=.",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+remote_test_execution_toolchain(
+    name = "remote_test_execution",
+    visibility = ["PUBLIC"],
+)
+
+noop_test_toolchain(
+    name = "test",
+    visibility = ["PUBLIC"],
+)

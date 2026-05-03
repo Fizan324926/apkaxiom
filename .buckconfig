@@ -1,0 +1,31 @@
+[cells]
+  root = .
+  prelude = prelude
+  toolchains = toolchains
+  none = none
+
+[cell_aliases]
+  config = prelude
+  ovr_config = prelude
+  fbcode = none
+  fbsource = none
+  fbcode_macros = none
+  buck = none
+
+# Use the prelude bundled with the buck2 binary. The exact prelude rev is
+# pinned transitively by the buck2 binary itself, which is in turn pinned by
+# `flake.nix` / `flake.lock` — so prelude is reproducibility-pinned without a
+# git submodule.
+[external_cells]
+  prelude = bundled
+
+[parser]
+  target_platform_detector_spec = target:root//...->prelude//platforms:default \
+    target:prelude//...->prelude//platforms:default \
+    target:toolchains//...->prelude//platforms:default
+
+[build]
+  execution_platforms = prelude//platforms:default
+
+[project]
+  ignore = .git, target, result, .direnv, docs/phase-1, docs/phase-2, docs/phase-3, docs/phase-4, docs/phase-5, docs/phase-6

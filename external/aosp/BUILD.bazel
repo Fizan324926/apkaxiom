@@ -1,0 +1,6 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Root BUILD file for the AOSP sub-workspace. Empty today; populated with
+# AOSP harness targets in P1.13 / P1.14.
+
+package(default_visibility = ["//visibility:public"])

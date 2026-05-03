@@ -1,0 +1,187 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# APKAXIOM CI — Phase 1.1 hermetic build gate.
+#
+# Per PR, every push, every nightly: build + test + reproducibility-verify on
+# all supported host platforms. The matrix is:
+#   - ubuntu-24.04         (linux x86_64)
+#   - ubuntu-24.04-arm     (linux aarch64)
+#   - macos-14             (darwin arm64; aka Apple Silicon)
+#
+# The build wall-time budget is 25 min p99 per K10 (PHASE_GATES.md §5).
+#
+# Reproducibility is checked two ways:
+#   1. `make repro-check` — local determinism (build twice, diff). Per host.
+#   2. `make verify-hashes` — diff this build's hashes against the committed
+#      `docs/reproducibility-hashes.<platform>.txt` reference.
+# A separate `cross-runner-determinism` job verifies that *different runners*
+# of the same platform produce byte-identical hashes.
+#
+# Cross-platform determinism (linux-x86_64 vs linux-aarch64 etc) is *not*
+# checked because rlibs are arch-specific by definition. The doc's earlier
+# `diff hashes-ubuntu-24.04.txt hashes-ubuntu-24.04-arm.txt` is a known
+# misformulation; see ADR-0004 for rationale.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Nightly soak run at 04:17 UTC.
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_DATE_EPOCH: "315532800"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Build, test, repro-check, and snapshot per platform.
+  # Two runners per platform to feed the cross-runner-determinism job.
+  # -------------------------------------------------------------------------
+  build:
+    name: build (${{ matrix.platform }} / runner ${{ matrix.runner_id }})
+    timeout-minutes: 25  # K10 hard gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04,     platform: linux-x86_64,  runner_id: 1 }
+          - { os: ubuntu-24.04,     platform: linux-x86_64,  runner_id: 2 }
+          - { os: ubuntu-24.04-arm, platform: linux-aarch64, runner_id: 1 }
+          - { os: ubuntu-24.04-arm, platform: linux-aarch64, runner_id: 2 }
+          - { os: macos-14,         platform: darwin-arm64,  runner_id: 1 }
+          - { os: macos-14,         platform: darwin-arm64,  runner_id: 2 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Cargo registry + Buck2 outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            buck-out
+          key: build-${{ matrix.platform }}-${{ hashFiles('flake.lock', 'Cargo.lock', 'third-party/rust/Cargo.lock') }}
+          restore-keys: |
+            build-${{ matrix.platform }}-
+
+      - name: Sanity — flake check
+        run: nix develop --command nix flake check
+
+      - name: Build (Buck2 //:all)
+        run: nix develop --command make build
+
+      - name: Test (Buck2 rust_test targets)
+        run: nix develop --command make test
+
+      - name: Local determinism (make repro-check)
+        run: nix develop --command make repro-check
+
+      - name: Verify against committed reference hashes
+        run: nix develop --command make verify-hashes
+
+      - name: Snapshot for cross-runner diff
+        run: |
+          nix develop --command bash scripts/hash-snapshot.sh
+          # Strip the timestamp/headers so cross-runner diffs are stable.
+          grep -vE '^#' "docs/reproducibility-hashes.${{ matrix.platform }}.txt" \
+            | sort -u > "snapshot-${{ matrix.platform }}-${{ matrix.runner_id }}.txt"
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-${{ matrix.platform }}-${{ matrix.runner_id }}
+          path: snapshot-${{ matrix.platform }}-${{ matrix.runner_id }}.txt
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # Verify byte-identical hashes across two independent runners of each
+  # platform. This is the meaningful version of the doc's intent — same
+  # platform, different host, identical artifacts.
+  # -------------------------------------------------------------------------
+  cross-runner-determinism:
+    name: cross-runner determinism
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download all snapshots
+        uses: actions/download-artifact@v4
+        with:
+          path: snapshots
+
+      - name: Diff per-platform pairs
+        run: |
+          set -euo pipefail
+          fail=0
+          for platform in linux-x86_64 linux-aarch64 darwin-arm64; do
+            a="snapshots/snapshot-${platform}-1/snapshot-${platform}-1.txt"
+            b="snapshots/snapshot-${platform}-2/snapshot-${platform}-2.txt"
+            if [[ ! -f "$a" || ! -f "$b" ]]; then
+              echo "::warning::missing snapshot for $platform; skipping"
+              continue
+            fi
+            if diff -u "$a" "$b"; then
+              echo "PASS: $platform — runners produced byte-identical hashes"
+            else
+              echo "FAIL: $platform — runners diverged"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+  # -------------------------------------------------------------------------
+  # Cargo lint pass — separate job so it's parallelisable with the heavy
+  # Buck2 builds. Fast feedback for fmt/clippy issues.
+  # -------------------------------------------------------------------------
+  lint:
+    name: lint (cargo fmt + clippy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make lint
+
+  # -------------------------------------------------------------------------
+  # Bazel sub-workspace probe. Runs `bazel info` to make sure the AOSP
+  # sub-workspace doesn't bit-rot while it's empty.
+  # -------------------------------------------------------------------------
+  bazel-probe:
+    name: bazel sub-workspace probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make bazel-info

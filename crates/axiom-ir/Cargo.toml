@@ -1,0 +1,20 @@
+[package]
+name = "axiom-ir"
+description = "AXIOM-IR — Phase 1 placeholder for the canonical intermediate representation; v1.0 freeze in P6.10"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+axiom-l0 = { path = "../axiom-l0" }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

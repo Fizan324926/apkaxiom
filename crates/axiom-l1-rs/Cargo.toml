@@ -1,0 +1,19 @@
+[package]
+name = "axiom-l1-rs"
+description = "APKAXIOM L1 (Rust) — Phase 1 placeholder; real lifters/analyzers land in P1.7+"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+axiom-l0 = { path = "../axiom-l0" }
+
+[lints]
+workspace = true

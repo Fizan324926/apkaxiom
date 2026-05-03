@@ -1,0 +1,19 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# AOSP sub-workspace bazelrc. Reproducibility-first defaults.
+
+# Bzlmod is mandatory for this workspace.
+common --enable_bzlmod
+
+# Hermetic-ish defaults. Real hermeticity for AOSP harnesses lands in P1.13.
+build --incompatible_strict_action_env
+build --action_env=SOURCE_DATE_EPOCH=315532800
+build --action_env=TZ=UTC
+build --action_env=LC_ALL=C.UTF-8
+
+# Sandbox by default; an unsandboxed build is opt-in.
+build --spawn_strategy=sandboxed,local
+
+# Verbose failures so CI logs are diagnosable.
+build --verbose_failures
+test --test_output=errors

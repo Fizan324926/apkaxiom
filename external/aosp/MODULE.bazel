@@ -1,0 +1,20 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# AOSP harness sub-workspace. Bazel (with bzlmod) is the only build system in
+# the project that we use for AOSP-style targets — Buck2 is the primary build
+# system for everything else. This file is a stub today; AOSP-specific
+# rules and dependencies land in P1.13 / P1.14.
+#
+# `bazel info` works against this file alone. Adding rules will require
+# expanding `bazel_dep(...)` declarations below.
+
+module(
+    name = "apkaxiom_aosp",
+    version = "0.0.0",
+    compatibility_level = 0,
+)
+
+# Pinned Bazel rules. These are placeholders sized for `bazel info` to
+# succeed; real AOSP rule sets land in P1.13.
+bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "platforms", version = "0.0.10")
