@@ -62,21 +62,59 @@ the manual fallback.)
 
 ## Build entry points
 
-| Goal | Canonical command | Underlying tool |
+Every command below has a `make <target>` form (canonical) and a
+`nix run .#<target>` form (works without `nix develop`). All scripts
+honour `set -euo pipefail`; failure is loud.
+
+### Build / test
+| Goal | `make` | `nix run` | Underlying tool |
+|---|---|---|---|
+| Build everything | `make build` | `.#build` | `buck2 build //:all` |
+| Build via Cargo (IDE / fast iter) | `make build-cargo` | — | `cargo build --workspace` |
+| Run all tests | `make test` | `.#test` | `buck2 test //crates/...:` |
+| Run cargo unit tests | `make test-cargo` | — | `cargo test --workspace` |
+
+### Reproducibility
+| Goal | `make` | `nix run` | Underlying tool |
+|---|---|---|---|
+| Local determinism check (×2 clean builds) | `make repro-check` | `.#repro-check` | `scripts/repro-check.sh` |
+| Bake reference hashes for this platform | `make hash-snapshot` | `.#hash-snapshot` | `scripts/hash-snapshot.sh` |
+| Verify against committed reference | `make verify-hashes` | `.#verify-hashes` | `scripts/verify-hashes.sh` |
+| Independent rebuilder attestation | `make rebuilder-attest` | `.#rebuilder-attest` | `scripts/rebuilder-attest.sh` |
+
+### Drift detection
+| Goal | `make` | `nix run` | Underlying tool |
+|---|---|---|---|
+| Cargo↔Buck2 graph parity | `make graph-parity` | `.#graph-parity` | `scripts/graph-parity.sh` |
+| `make third-party` is idempotent | `make reindeer-check` | `.#reindeer-check` | `scripts/reindeer-check.sh` |
+| Buck2 toolchain snapshot | `make audit-toolchains` | `.#audit-toolchains` | `scripts/audit-toolchains.sh` |
+| Determinism-pattern static lint | `make determinism-lint` | `.#determinism-lint` | `scripts/lint-determinism.sh` |
+
+### Supply chain
+| Goal | `make` | `nix run` | Underlying tool |
+|---|---|---|---|
+| CycloneDX SBOM (cargo + syft + merge) | `make sbom` | `.#sbom` | `scripts/sbom.sh` |
+| Sign hash files with cosign keyless | `make sign-hashes` | `.#sign-hashes` | `scripts/sign-hashes.sh` |
+| RustSec advisory scan | `make security-audit` | `.#security-audit` | `scripts/security-audit.sh` |
+| License + ban + source policy | `make license-check` | `.#license-check` | `scripts/license-check.sh` |
+| CI wall-time p99 rollup (gh-cli) | `make wall-time-rollup` | `.#wall-time-rollup` | `scripts/wall-time-rollup.sh` |
+
+### Third-party / Bazel / Nix
+| Goal | `make` | Notes |
 |---|---|---|
-| Build everything | `make build` | `buck2 build //:all` |
-| Build via Cargo (IDE / fast iter) | `make build-cargo` | `cargo build --workspace` |
-| Run all tests | `make test` | `buck2 test //crates/...:` |
-| Run cargo unit tests | `make test-cargo` | `cargo test --workspace` |
-| Local determinism check | `make repro-check` | `scripts/repro-check.sh` |
-| Bake reference hashes | `make hash-snapshot` | `scripts/hash-snapshot.sh` |
-| Verify against committed reference | `make verify-hashes` | `scripts/verify-hashes.sh` |
 | Re-vendor third-party Rust deps | `make third-party` | `reindeer vendor && reindeer buckify` |
 | Bazel sub-workspace probe | `make bazel-info` | `cd external/aosp && bazel info` |
 | Lint (clippy + fmt --check) | `make lint` | cargo |
 | Auto-format Rust + Nix | `make fmt` | cargo + nixpkgs-fmt |
 | Validate the flake | `make nix-check` | `nix flake check` |
 | Bump flake pins | `make nix-update` | `nix flake update` (review the diff!) |
+
+### Repro-debug shell
+For investigating a `repro-check` failure with full `diffoscope`:
+
+```bash
+nix develop .#repro-debug --command diffoscope <fileA> <fileB>
+```
 
 `make` with no argument prints a help summary.
 
@@ -99,11 +137,12 @@ Phase 1's reproducibility contract has **two** levels:
 What we do **not** check: cross-platform byte-identity (linux-x86_64 vs
 linux-aarch64). rlibs are arch-specific by definition; demanding a
 linux-x86_64 rlib hash to equal a linux-aarch64 rlib hash is a category
-error. See `docs/ADR-0004-nix-flake.md` for the rationale.
+error. See [`./ADR-0004-nix-flake.md`](./ADR-0004-nix-flake.md) for the rationale.
 
 The committed reference hashes live in
-`docs/reproducibility-hashes.<platform>.txt` (one file per platform). Bumps
-to these references go through ADR review per `docs/PHASE_GATES.md`.
+`./reproducibility-hashes.<platform>.txt` (sibling of this file, one per
+platform). Bumps to these references go through ADR review per
+[`../../PHASE_GATES.md`](../../PHASE_GATES.md).
 
 ---
 
@@ -131,11 +170,17 @@ apkaxiom/
 ├── rust-toolchain.toml                 ← rust channel pin (read by both)
 ├── external/aosp/                      ← Bazel sub-workspace (P1.13+)
 ├── docs/
-│   ├── build-and-run.md                ← this file
-│   ├── ADR-0002-buck2.md               ← Buck2 + Reindeer rationale
-│   ├── ADR-0004-nix-flake.md           ← Nix flake rationale
-│   ├── reproducibility-hashes.*.txt    ← per-platform reference hashes
-│   └── phase-{1..6}/                   ← sub-phase specs
+│   ├── ROADMAP.md, PHASE_GATES.md, TECH_STACK.md
+│   └── phase-{1..6}/                   ← sub-phase specs (each owns its
+│                                          ADRs, hash refs, run-books, status)
+│       └── phase-1/P1.1/
+│           ├── README.md               ← P1.1 spec
+│           ├── CHECKLIST.md            ← P1.1 live status
+│           ├── build-and-run.md        ← this file
+│           ├── ADR-0002-buck2.md       ← Buck2 + Reindeer rationale
+│           ├── ADR-0004-nix-flake.md   ← Nix flake rationale
+│           └── reproducibility-hashes.*.txt
+│                                       ← per-platform reference hashes
 ├── scripts/
 │   ├── _hash-artifacts.sh              ← shared helper
 │   ├── repro-check.sh                  ← `make repro-check`
@@ -165,19 +210,39 @@ apkaxiom/
 
 ## CI matrix
 
-The PR-gate workflow lives at `.github/workflows/ci.yml`. The matrix:
+Three workflows under `.github/workflows/`:
+
+### `ci.yml` — PR gate (every push, every PR, nightly soak)
 
 | Job | Runs on | Purpose |
 |---|---|---|
-| `build (linux-x86_64 / 1)` | ubuntu-24.04 | Build + test + repro-check + verify-hashes |
-| `build (linux-x86_64 / 2)` | ubuntu-24.04 | Second runner — feeds cross-runner determinism |
-| `build (linux-aarch64 / 1, 2)` | ubuntu-24.04-arm | Same on ARM |
-| `build (darwin-arm64 / 1, 2)` | macos-14 | Same on macOS |
-| `cross-runner-determinism` | ubuntu-24.04 | Diffs runners 1 vs 2 per platform |
+| `build (×6)` | ubuntu-24.04, ubuntu-24.04-arm, macos-14 (×2 each) | build + test + repro-check + verify-hashes + snapshot |
+| `cross-runner determinism` | ubuntu-24.04 | Diffs runner 1 vs 2 per platform |
 | `lint` | ubuntu-24.04 | clippy + fmt --check |
-| `bazel-probe` | ubuntu-24.04 | `bazel info` against `external/aosp/` |
+| `determinism-lint` | ubuntu-24.04 | static scan for nondeterminism patterns |
+| `bazel sub-workspace probe` | ubuntu-24.04 | `bazel info` against `external/aosp/` |
+| `graph-parity` | ubuntu-24.04 | Cargo ↔ Reindeer lockfile parity (ADR-0010) |
+| `reindeer-idempotence` | ubuntu-24.04 | `make third-party` is a no-op |
+| `audit-toolchains-drift` | ubuntu-24.04 | committed Buck2 toolchain snapshot diff |
+| `security-audit` | ubuntu-24.04 | `cargo-audit` (workspace + Reindeer) |
+| `license-check` | ubuntu-24.04 | `cargo-deny` policy |
+| `sbom` | ubuntu-24.04 | CycloneDX (cargo-cyclonedx + syft + merge) |
+| `attest` (push to main only) | ubuntu-24.04 | SLSA L1 provenance |
+| `sign-hashes` (push to main only) | ubuntu-24.04 | cosign keyless signing |
 
-Hard-cap timeout: **25 minutes per build job** (PHASE_GATES.md K10).
+Hard-cap timeout: **25 minutes per build job** (K10).
+
+### `bake-refs.yml` — manual dispatch only
+
+Re-bakes `reproducibility-hashes.<plat>.txt` for every platform on two
+independent runners, asserts cross-runner byte-equality, opens a draft PR.
+Used after a controlled toolchain bump or dep update; gated on G13 review.
+
+### `wall-time-rollup.yml` — nightly cron
+
+Pulls the last 200 CI runs from the GitHub Actions API, appends per-job
+durations to `wall-time.ndjson`, regenerates the p50/p95/p99/max rollup
+table at `wall-time-rollup.md`. K10 gate evaluation.
 
 ---
 
@@ -191,4 +256,5 @@ This sub-phase (P1.1) hands off to:
 - **P1.17** — CI workflow is the scaffold; the soundness gate slots in.
 - **P1.18** — Pyroscope/Prometheus emission hooks attach to the existing CI.
 
-For the full list see `docs/phase-1/P1.1/README.md` §11.
+For the full list see [`./README.md`](./README.md) §11. For live status of the
+exit checklist see [`./CHECKLIST.md`](./CHECKLIST.md).

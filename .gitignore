@@ -36,9 +36,18 @@ result-*
 *.tmp
 *.tmp.*
 
+# Cargo runtime state files that `reindeer vendor` regenerates. These are
+# NOT source-of-truth — committing them makes `reindeer-check` flap.
+**/.cargo/.global-cache
+**/.cargo/.package-cache
+**/.cargo/.package-cache-mutate
+
 # Reindeer / Cargo lock dirs we explicitly KEEP:
 # - Cargo.lock
 # - third-party/rust/Cargo.lock
 # - third-party/rust/vendor/  (committed for hermeticity)
 # - third-party/rust/BUCK     (generated, but committed)
+# - third-party/rust/.cargo/registry/  (committed for offline-hermetic
+#                                       reindeer; the mutable caches
+#                                       above are excluded)
 # - flake.lock                (committed)

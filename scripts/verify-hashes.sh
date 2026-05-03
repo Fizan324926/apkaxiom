@@ -2,7 +2,7 @@
 # Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 #
 # verify-hashes.sh — diff this build's per-platform hashes against the
-# committed reference at `docs/reproducibility-hashes.<platform>.txt`.
+# committed reference at `docs/phase-1/P1.1/reproducibility-hashes.<platform>.txt`.
 #
 # Exits 0 iff:
 #  - reference file exists for this platform, AND
@@ -19,7 +19,7 @@ cd "$(git rev-parse --show-toplevel)"
 UNAME_S=$(uname -s | tr '[:upper:]' '[:lower:]')
 UNAME_M=$(uname -m)
 PLATFORM="$UNAME_S-$UNAME_M"
-REF="docs/reproducibility-hashes.$PLATFORM.txt"
+REF="docs/phase-1/P1.1/reproducibility-hashes.$PLATFORM.txt"
 
 if [[ ! -f "$REF" ]]; then
   echo "FAIL: no reference hashes for platform '$PLATFORM' at $REF" >&2
@@ -27,11 +27,13 @@ if [[ ! -f "$REF" ]]; then
   exit 2
 fi
 
-# Strip header comments + blank lines, sort, compare.
+# Strip header comments + blank lines, sort, compare. Both sides go
+# through the same `sort -u` so the relative position of the CORPUS_ROOT
+# trailer is irrelevant.
 expected="$(grep -vE '^(#|$)' "$REF" | sort -u)"
 
 buck2 clean
-actual="$(bash scripts/_hash-artifacts.sh)"
+actual="$(bash scripts/_hash-artifacts.sh | sort -u)"
 
 if [[ "$expected" == "$actual" ]]; then
   echo "PASS: reference reproducible on $PLATFORM"

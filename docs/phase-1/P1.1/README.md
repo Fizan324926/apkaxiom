@@ -145,9 +145,15 @@ apkaxiom/
 │   └── README.md                      # "AOSP harnesses live here, P1.13+"
 ├── Makefile                           # NEW — wraps `buck2 build`, `make repro-check`, etc.
 ├── docs/
-│   ├── build-and-run.md               # NEW
-│   ├── ADR-0002-buck2.md              # NEW
-│   └── ADR-0004-nix-flake.md          # NEW
+│   ├── ROADMAP.md, PHASE_GATES.md, TECH_STACK.md
+│   └── phase-1/P1.1/
+│       ├── README.md                  # P1.1 spec (this file)
+│       ├── CHECKLIST.md               # NEW — live status of exit checklist
+│       ├── build-and-run.md           # NEW — clone-and-build run-book
+│       ├── ADR-0002-buck2.md          # NEW
+│       ├── ADR-0004-nix-flake.md      # NEW
+│       └── reproducibility-hashes.<platform>.txt
+│                                      # NEW — per-platform reference hashes
 └── .github/
     └── workflows/
         └── ci.yml                     # NEW — per-PR build + repro check
@@ -165,7 +171,7 @@ make repro-check           # builds with Buck2, hashes outputs, diffs against re
 # expected: "✓ All artifacts byte-identical to reference"
 ```
 
-The reference SHA-256 hashes are committed in `docs/reproducibility-hashes.txt` and updated only when build inputs intentionally change (with ADR review).
+The reference SHA-256 hashes are committed per-platform in `./reproducibility-hashes.<platform>.txt` (siblings of this README) and updated only when build inputs intentionally change (with ADR review).
 
 ## 9. End-to-End Test
 
@@ -201,9 +207,10 @@ jobs:
 - [ ] 30 consecutive PRs land with byte-identical CI builds across 3 OSes
 - [ ] CI build wall time ≤ 25 min p99 (HARD per PHASE_GATES.md §5 K10)
 - [ ] ADR-0002 (Buck2) and ADR-0004 (Nix flake) merged
-- [ ] `docs/build-and-run.md` published with copy-pasteable instructions
-- [ ] Cachix binary cache live, hit rate ≥90% on warm runs
-- [ ] Reference hashes in `docs/reproducibility-hashes.txt`
+- [ ] `docs/phase-1/P1.1/build-and-run.md` published with copy-pasteable instructions
+- [ ] Binary-cache strategy chosen and live, ≥90% hit rate on warm CI runs
+      (see `CHECKLIST.md` — magic-nix-cache vs. Cachix decision still open)
+- [ ] Reference hashes in `docs/phase-1/P1.1/reproducibility-hashes.<platform>.txt` for every CI platform
 
 ## 11. Hand-Off
 

@@ -1,0 +1,86 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# cargo-deny policy. Lives at repo root; `make license-check` (and the
+# license-check CI job) enforce these constraints. Bumps go through ADR-0008.
+
+[graph]
+# Check every target the project actually compiles for. Phase 1 is
+# Linux x86_64 + Linux aarch64 + macOS aarch64. Add x86_64-apple-darwin
+# only if a CI lane requires it.
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "aarch64-apple-darwin" },
+]
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ----------------------------------------------------------------------------
+# Licenses — strict allowlist. Anything outside this set is an error.
+# State-of-the-art: every dep is one of {MIT, Apache-2.0, BSD-3-Clause,
+# Unicode-3.0, Unicode-DFS-2016, MPL-2.0}. No GPL-family deps; no
+# unlicensed/CC-0; no proprietary.
+# ----------------------------------------------------------------------------
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "Zlib",
+]
+confidence-threshold = 0.93
+private = { ignore = false }
+
+# ----------------------------------------------------------------------------
+# Bans — explicit denylist of crates we never want to take a dependency on.
+# Reasons live next to each entry; bumps via ADR-0008.
+# ----------------------------------------------------------------------------
+[bans]
+multiple-versions = "warn"
+# External wildcards are denied; intra-workspace path deps (`axiom-l0` ↔
+# `axiom-ir`) are allowed because cargo path deps carry no version field
+# by design.
+wildcards = "deny"
+allow-wildcard-paths = true
+highlight = "all"
+
+# Disallow direct deps that have soundness or maintainership concerns we
+# want to flag at PR time. Empty today; populate as the dep tree grows.
+deny = []
+
+# Skip multiple-versions noise for transitive crates that legitimately
+# ship in two versions during ecosystem migrations. Empty today.
+skip = []
+skip-tree = []
+
+# ----------------------------------------------------------------------------
+# Sources — only crates.io is permitted as an upstream registry. The
+# Reindeer-vendored tree (`third-party/rust/vendor/`) is consumed via
+# directory replacement, not as an "external source" in the cargo-deny
+# sense, so it does not need to be allow-listed here.
+# ----------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+# ----------------------------------------------------------------------------
+# Advisories — overlap with `cargo audit`; cheap to keep on so the policy
+# is enforceable from a single tool when needed.
+# ----------------------------------------------------------------------------
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = []

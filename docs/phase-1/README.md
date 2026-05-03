@@ -174,9 +174,10 @@ The repository builds reproducibly on 3 reference machines via Buck2. Toolchains
 A demo PR that adds a no-op file change builds reproducibly. Outputs are diffed across 3 reference machines (1× x86_64 Linux, 1× ARM64 Linux, 1× x86_64 macOS dev workstation). Hash equality is required for the PR to merge.
 
 **Documentation.**
-- `docs/build-and-run.md` — how to clone and `make repro-check`
-- ADR-0002: "Buck2 chosen as primary build, Bazel for AOSP only"
-- ADR-0004: "Nix flake as toolchain pin source of truth"
+- `docs/phase-1/P1.1/build-and-run.md` — how to clone and `make repro-check`
+- `docs/phase-1/P1.1/ADR-0002-buck2.md` — Buck2 primary, Bazel confined to AOSP sub-workspace
+- `docs/phase-1/P1.1/ADR-0004-nix-flake.md` — Nix flake as toolchain pin source of truth
+- `docs/phase-1/P1.1/CHECKLIST.md` — live status of the P1.1 exit checklist
 
 **Exit checklist.**
 - [ ] Buck2 + Reindeer building all current crates

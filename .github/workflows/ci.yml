@@ -3,24 +3,33 @@
 # APKAXIOM CI — Phase 1.1 hermetic build gate.
 #
 # Per PR, every push, every nightly: build + test + reproducibility-verify on
-# all supported host platforms. The matrix is:
+# all supported host platforms, plus the supply-chain and drift-detection
+# gates that turn P1.1 from "we built twice and it matched" into
+# "every artefact is signed, attested, SBOM-bearing, and policy-clean".
+#
+# The matrix is:
 #   - ubuntu-24.04         (linux x86_64)
 #   - ubuntu-24.04-arm     (linux aarch64)
 #   - macos-14             (darwin arm64; aka Apple Silicon)
 #
 # The build wall-time budget is 25 min p99 per K10 (PHASE_GATES.md §5).
+# `wall-time-rollup.yml` (separate workflow) computes the p99 nightly.
 #
-# Reproducibility is checked two ways:
-#   1. `make repro-check` — local determinism (build twice, diff). Per host.
-#   2. `make verify-hashes` — diff this build's hashes against the committed
-#      `docs/reproducibility-hashes.<platform>.txt` reference.
-# A separate `cross-runner-determinism` job verifies that *different runners*
-# of the same platform produce byte-identical hashes.
-#
-# Cross-platform determinism (linux-x86_64 vs linux-aarch64 etc) is *not*
-# checked because rlibs are arch-specific by definition. The doc's earlier
-# `diff hashes-ubuntu-24.04.txt hashes-ubuntu-24.04-arm.txt` is a known
-# misformulation; see ADR-0004 for rationale.
+# Jobs (see CONTRIBUTING.md §4 for the contract):
+#   build (matrix x6)              — build, test, repro-check, verify-hashes
+#   cross-runner-determinism       — diffs runner1 vs runner2 per platform
+#   lint                           — cargo fmt + clippy
+#   bazel-probe                    — `bazel info` against external/aosp/
+#   graph-parity                   — Cargo ↔ Reindeer lockfile parity (ADR-0010)
+#   reindeer-idempotence           — `make third-party` is a no-op
+#   audit-toolchains-drift         — committed Buck2 toolchain snapshot diff
+#   determinism-lint               — regex scan for nondeterminism patterns
+#   security-audit                 — cargo-audit (workspace + third-party)
+#   license-check                  — cargo-deny policy
+#   sbom                           — CycloneDX (cargo-cyclonedx + syft + merge)
+#   attest                         — SLSA L1 provenance via attest-build-provenance
+#   sign-hashes                    — cosign keyless signing of hash files
+#                                    (runs only on push to main, not on PRs)
 
 name: CI
 
@@ -34,6 +43,12 @@ on:
 
 permissions:
   contents: read
+  # `attest-build-provenance` and `cosign sign-blob` need the OIDC token.
+  # We keep `id-token: write` at workflow level rather than per-job because
+  # multiple jobs need it; the CODEOWNERS gate stops untrusted PRs from
+  # reaching `main`.
+  id-token: write
+  attestations: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -47,8 +62,8 @@ env:
 
 jobs:
   # -------------------------------------------------------------------------
-  # Build, test, repro-check, and snapshot per platform.
-  # Two runners per platform to feed the cross-runner-determinism job.
+  # 1) Build, test, repro-check, snapshot per platform.
+  #    Two runners per platform feed the cross-runner-determinism job.
   # -------------------------------------------------------------------------
   build:
     name: build (${{ matrix.platform }} / runner ${{ matrix.runner_id }})
@@ -108,7 +123,7 @@ jobs:
         run: |
           nix develop --command bash scripts/hash-snapshot.sh
           # Strip the timestamp/headers so cross-runner diffs are stable.
-          grep -vE '^#' "docs/reproducibility-hashes.${{ matrix.platform }}.txt" \
+          grep -vE '^#' "docs/phase-1/P1.1/reproducibility-hashes.${{ matrix.platform }}.txt" \
             | sort -u > "snapshot-${{ matrix.platform }}-${{ matrix.runner_id }}.txt"
 
       - name: Upload snapshot
@@ -119,9 +134,9 @@ jobs:
           if-no-files-found: error
 
   # -------------------------------------------------------------------------
-  # Verify byte-identical hashes across two independent runners of each
-  # platform. This is the meaningful version of the doc's intent — same
-  # platform, different host, identical artifacts.
+  # 2) Verify byte-identical hashes across two independent runners of each
+  #    platform. This is the meaningful version of the spec's intent —
+  #    same platform, different host, identical artifacts.
   # -------------------------------------------------------------------------
   cross-runner-determinism:
     name: cross-runner determinism
@@ -155,8 +170,7 @@ jobs:
           exit "$fail"
 
   # -------------------------------------------------------------------------
-  # Cargo lint pass — separate job so it's parallelisable with the heavy
-  # Buck2 builds. Fast feedback for fmt/clippy issues.
+  # 3) Cargo lint pass — clippy + cargo fmt --check + determinism-lint.
   # -------------------------------------------------------------------------
   lint:
     name: lint (cargo fmt + clippy)
@@ -170,9 +184,20 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - run: nix develop --command make lint
 
+  determinism-lint:
+    name: determinism-lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make determinism-lint
+
   # -------------------------------------------------------------------------
-  # Bazel sub-workspace probe. Runs `bazel info` to make sure the AOSP
-  # sub-workspace doesn't bit-rot while it's empty.
+  # 4) Bazel sub-workspace probe.
   # -------------------------------------------------------------------------
   bazel-probe:
     name: bazel sub-workspace probe
@@ -185,3 +210,175 @@ jobs:
           determinate: true
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - run: nix develop --command make bazel-info
+
+  # -------------------------------------------------------------------------
+  # 5) Drift-detection gates (cheap, run early, parallel with build).
+  # -------------------------------------------------------------------------
+  graph-parity:
+    name: graph-parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make graph-parity
+      - name: Upload graph-parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-parity-report
+          path: target/graph-parity.json
+          if-no-files-found: ignore
+
+  reindeer-idempotence:
+    name: reindeer-idempotence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Install reindeer
+        run: nix develop --command cargo install --locked --git https://github.com/facebookincubator/reindeer reindeer
+      - run: nix develop --command make reindeer-check
+
+  audit-toolchains-drift:
+    name: audit-toolchains-drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Re-run audit-toolchains
+        run: nix develop --command make audit-toolchains
+      - name: Diff against committed snapshot
+        run: |
+          if ! git diff --exit-code docs/phase-1/P1.1/audit-toolchains.txt \
+                                    docs/phase-1/P1.1/audit-toolchains.json; then
+            echo "::error::Buck2 toolchain snapshot drift detected. Re-run \`make audit-toolchains\` and commit the diff." >&2
+            exit 1
+          fi
+
+  # -------------------------------------------------------------------------
+  # 6) Supply-chain gates.
+  # -------------------------------------------------------------------------
+  security-audit:
+    name: security-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make security-audit
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit
+          path: |
+            target/security-audit.workspace.json
+            target/security-audit.third-party.json
+          if-no-files-found: ignore
+
+  license-check:
+    name: license-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make license-check
+      - name: Upload license report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-check
+          path: target/license-check.jsonl
+          if-no-files-found: ignore
+
+  sbom:
+    name: sbom
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix develop --command make sbom
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            target/sbom-cargo.cdx.json
+            target/sbom-syft.cdx.json
+            target/sbom-merged.cdx.json
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # 7) Provenance + signing — only on push to main, not on PRs (PRs from
+  #    forks lack id-token write).
+  # -------------------------------------------------------------------------
+  attest:
+    name: attest (slsa l1 provenance)
+    needs: [build, sbom]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: artifacts/sbom
+      - name: Download all snapshots
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/snapshots
+      - name: Generate provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            artifacts/sbom/sbom-merged.cdx.json
+            artifacts/snapshots/**/*.txt
+
+  sign-hashes:
+    name: sign-hashes (cosign keyless)
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Sign every committed reproducibility-hashes file
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: nix develop --command make sign-hashes
+      - name: Upload signatures + bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: hash-signatures
+          path: |
+            docs/phase-1/P1.1/reproducibility-hashes.*.{sig,cert,bundle}
+          if-no-files-found: error

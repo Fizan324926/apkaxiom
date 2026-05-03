@@ -1,0 +1,76 @@
+# APKAXIOM CODEOWNERS — Phase 1.1.
+#
+# Lines matched against the changed files in a PR; the OWNERS column lists
+# review-required teams for that path. Branch protection enforces "code
+# owner review required" on `main` (per ADR-0008 §"Provisioning checklist").
+#
+# When adding a path, prefer the most specific match. The first matching
+# rule wins (top-down, last-rule semantics in GitHub's parser).
+#
+# Convention: every path that participates in the hermetic-build contract
+# belongs to G13. Cross-cutting docs default to G13 + project leads.
+
+# ----------------------------------------------------------------------------
+# Hermetic-build-foundation assets — G13 (Platform Infrastructure)
+# ----------------------------------------------------------------------------
+flake.nix                                       @apkaxiom/g13-platform
+flake.lock                                      @apkaxiom/g13-platform
+rust-toolchain.toml                             @apkaxiom/g13-platform
+.buckconfig                                     @apkaxiom/g13-platform
+.buckroot                                       @apkaxiom/g13-platform
+BUCK                                            @apkaxiom/g13-platform
+toolchains/**                                   @apkaxiom/g13-platform
+reindeer.toml                                   @apkaxiom/g13-platform
+deny.toml                                       @apkaxiom/g13-platform
+Makefile                                        @apkaxiom/g13-platform
+
+# Reindeer-managed third-party tree — generated, but G13 reviews drift.
+third-party/rust/Cargo.toml                     @apkaxiom/g13-platform
+third-party/rust/Cargo.lock                     @apkaxiom/g13-platform
+third-party/rust/BUCK                           @apkaxiom/g13-platform
+third-party/rust/fixups/**                      @apkaxiom/g13-platform
+
+# Bazel sub-workspace
+external/aosp/MODULE.bazel                      @apkaxiom/g13-platform
+external/aosp/MODULE.bazel.lock                 @apkaxiom/g13-platform
+external/aosp/.bazelrc                          @apkaxiom/g13-platform
+external/aosp/.bazelversion                     @apkaxiom/g13-platform
+external/aosp/WORKSPACE                         @apkaxiom/g13-platform
+
+# Reproducibility-engineering scripts
+scripts/**                                      @apkaxiom/g13-platform
+
+# CI workflows + governance
+.github/**                                      @apkaxiom/g13-platform
+
+# ----------------------------------------------------------------------------
+# Phase-1 sub-phase docs (incl. ADRs and reference hashes)
+# ----------------------------------------------------------------------------
+docs/phase-1/P1.1/ADR-*.md                      @apkaxiom/g13-platform
+docs/phase-1/P1.1/reproducibility-hashes.*      @apkaxiom/g13-platform
+docs/phase-1/P1.1/audit-toolchains.*            @apkaxiom/g13-platform
+docs/phase-1/P1.1/CHECKLIST.md                  @apkaxiom/g13-platform
+
+# ----------------------------------------------------------------------------
+# Cross-cutting top-level docs — G13 + project leads
+# ----------------------------------------------------------------------------
+docs/ROADMAP.md                                 @apkaxiom/leads
+docs/PHASE_GATES.md                             @apkaxiom/leads
+docs/TECH_STACK.md                              @apkaxiom/leads @apkaxiom/g13-platform
+README.md                                       @apkaxiom/leads
+CONTRIBUTING.md                                 @apkaxiom/leads
+CODE_OF_CONDUCT.md                              @apkaxiom/leads
+LICENSE*                                        @apkaxiom/leads
+
+# ----------------------------------------------------------------------------
+# First-party crates — owned by their respective groups (placeholders for
+# now; real ownership lands as code does, in the relevant sub-phases).
+# ----------------------------------------------------------------------------
+crates/axiom-l0/**                              @apkaxiom/g3-trusted-core
+crates/axiom-l1-rs/**                           @apkaxiom/g4-untrusted-shell
+crates/axiom-ir/**                              @apkaxiom/g3-trusted-core
+
+# ----------------------------------------------------------------------------
+# Catch-all — at least one project lead reviews any file not covered above.
+# ----------------------------------------------------------------------------
+*                                               @apkaxiom/leads

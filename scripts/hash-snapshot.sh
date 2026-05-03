@@ -2,7 +2,7 @@
 # Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 #
 # hash-snapshot.sh — write a per-platform hash snapshot to
-# `docs/reproducibility-hashes.<os>-<arch>.txt`.
+# `docs/phase-1/P1.1/reproducibility-hashes.<os>-<arch>.txt`.
 #
 # Invariants (per-platform, not cross-platform):
 #  - Same git SHA + same flake.lock + same platform → identical snapshot.
@@ -10,8 +10,8 @@
 #    `verify-hashes` job diffs only same-platform across runners.
 #
 # To bake a new reference: run inside `nix develop` on a clean checkout, then
-# commit the resulting `docs/reproducibility-hashes.<platform>.txt`. Bumps
-# go through ADR-0004 review.
+# commit the resulting `docs/phase-1/P1.1/reproducibility-hashes.<platform>.txt`.
+# Bumps go through ADR-0004 review.
 
 set -euo pipefail
 
@@ -20,9 +20,10 @@ cd "$(git rev-parse --show-toplevel)"
 UNAME_S=$(uname -s | tr '[:upper:]' '[:lower:]')
 UNAME_M=$(uname -m)
 PLATFORM="$UNAME_S-$UNAME_M"
-OUT="docs/reproducibility-hashes.$PLATFORM.txt"
+OUT_DIR="docs/phase-1/P1.1"
+OUT="$OUT_DIR/reproducibility-hashes.$PLATFORM.txt"
 
-mkdir -p docs
+mkdir -p "$OUT_DIR"
 
 buck2 clean
 HASHES="$(bash scripts/_hash-artifacts.sh)"

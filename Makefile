@@ -81,12 +81,54 @@ repro-check: ## Build //:all twice and verify byte-identical artifacts.
 	bash $(ROOT)/scripts/repro-check.sh
 
 .PHONY: hash-snapshot
-hash-snapshot: ## Emit docs/reproducibility-hashes.$(PLATFORM).txt for this build.
+hash-snapshot: ## Emit docs/phase-1/P1.1/reproducibility-hashes.$(PLATFORM).txt for this build.
 	bash $(ROOT)/scripts/hash-snapshot.sh
 
 .PHONY: verify-hashes
 verify-hashes: ## Diff this machine's hashes against the committed reference.
 	bash $(ROOT)/scripts/verify-hashes.sh
+
+.PHONY: graph-parity
+graph-parity: ## Assert Cargo and Reindeer lockfiles agree on shared crates.
+	bash $(ROOT)/scripts/graph-parity.sh
+
+.PHONY: audit-toolchains
+audit-toolchains: ## Snapshot Buck2 toolchain graph to docs/phase-1/P1.1/audit-toolchains.{txt,json}.
+	bash $(ROOT)/scripts/audit-toolchains.sh
+
+.PHONY: reindeer-check
+reindeer-check: ## Assert `make third-party` is idempotent against the committed tree.
+	bash $(ROOT)/scripts/reindeer-check.sh
+
+.PHONY: rebuilder-attest
+rebuilder-attest: ## Run independent rebuild + emit signed attestation JSON.
+	bash $(ROOT)/scripts/rebuilder-attest.sh
+
+##@ Supply chain
+
+.PHONY: sbom
+sbom: ## Emit CycloneDX SBOM (cargo-cyclonedx + syft).
+	bash $(ROOT)/scripts/sbom.sh
+
+.PHONY: sign-hashes
+sign-hashes: ## Sign every reference-hash file with cosign keyless.
+	bash $(ROOT)/scripts/sign-hashes.sh
+
+.PHONY: security-audit
+security-audit: ## cargo-audit on workspace + Reindeer lockfiles.
+	bash $(ROOT)/scripts/security-audit.sh
+
+.PHONY: license-check
+license-check: ## cargo-deny: license/sources/bans/advisories.
+	bash $(ROOT)/scripts/license-check.sh
+
+.PHONY: determinism-lint
+determinism-lint: ## Static lints for nondeterminism patterns in first-party Rust.
+	bash $(ROOT)/scripts/lint-determinism.sh
+
+.PHONY: wall-time-rollup
+wall-time-rollup: ## Append CI wall-time samples + regenerate p99 rollup.
+	bash $(ROOT)/scripts/wall-time-rollup.sh
 
 ##@ Bazel sub-workspace
 

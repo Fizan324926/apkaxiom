@@ -11,7 +11,10 @@
 # Usage:
 #   nix develop                         # drop into the pinned toolchain
 #   nix develop --command make          # run a single command in it
-#   nix flake check                     # verify the flake is well-formed
+#   nix flake check                     # toolchain probe + shellcheck +
+#                                       # lockfile freshness
+#   nix run .#repro-check               # local determinism check
+#   nix run .#sbom                      # emit CycloneDX SBOM
 #   nix flake update                    # bump pins (review the lockfile diff)
 #
 # The Lean toolchain (P1.2) and mathlib4 commit (P3.x) will be pinned here
@@ -21,10 +24,29 @@
 {
   description = "APKAXIOM — hermetic toolchain pin (P1.1)";
 
+  # Optional binary cache. The Cachix cache is provisioned out-of-band by
+  # the G13 lead; until then `extra-substituters` is empty and the build
+  # falls back to the public NixOS cache only. See ADR-0006 for rationale
+  # and the provisioning checklist.
+  nixConfig = {
+    extra-substituters = [
+      # "https://apkaxiom.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      # "apkaxiom.cachix.org-1:<placeholder; replace after provisioning>"
+    ];
+  };
+
   inputs = {
     # Pin a recent stable nixpkgs branch. The exact commit is recorded in
     # flake.lock; bumps go through ADR-0004 review.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+
+    # Narrow second input — *only* used to pull supply-chain tooling
+    # (cargo-audit, cargo-deny) that lags in 24.11 and can't yet parse
+    # CVSS:4.0 advisories. The risk surface is small and is documented in
+    # ADR-0008.
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     flake-utils.url = "github:numtide/flake-utils";
 
@@ -45,7 +67,7 @@
     # };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachSystem [
       "x86_64-linux"
       "aarch64-linux"
@@ -57,6 +79,7 @@
           inherit system;
           overlays = [ (import rust-overlay) ];
         };
+        pkgsUnstable = import nixpkgs-unstable { inherit system; };
 
         # Single source of truth for the Rust toolchain. `rust-toolchain.toml`
         # is also read by `rustup` outside Nix, so cargo-only paths agree.
@@ -64,6 +87,13 @@
           ./rust-toolchain.toml;
 
         # Tools shared across every devShell variant.
+        #
+        # The reproducibility-engineering tools (cosign, syft, cargo-cyclonedx,
+        # cargo-audit, cargo-deny, shellcheck, b3sum) are P1.1 additions per
+        # ADR-0007 (hash-corpus), ADR-0008 (provenance/SBOM/signing), and
+        # ADR-0009 (repro-budget reporter). They are non-negotiable inputs to
+        # the build-foundation contract; missing any of them downgrades P1.1
+        # below the state-of-the-art bar.
         commonTools = with pkgs; [
           rustToolchain
           buck2
@@ -71,6 +101,8 @@
           cmake
           ninja
           gnumake
+          gnused
+          gawk
           pkg-config
           jq
           git
@@ -79,8 +111,33 @@
           curl
           coreutils
           lld
+          # Reproducibility / supply-chain tooling (P1.1)
+          cosign
+          syft
+          shellcheck
+          b3sum
           # Lean placeholder — real pin in P1.2.
           # lean4
+        ] ++ [
+          # Pulled from nixpkgs-unstable. Tracked in ADR-0008 §"Tool-pin
+          # exceptions"; revisit when 24.11 catches up.
+          # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0
+          #   advisories (rustsec < 0.31).
+          # - cargo-cyclonedx: 24.11 can't parse Cargo.lock v4.
+          pkgsUnstable.cargo-audit
+          pkgsUnstable.cargo-deny
+          pkgsUnstable.cargo-cyclonedx
+        ];
+
+        # Heavy debugging tools — only loaded into the `repro-debug` shell so
+        # everyday `nix develop` stays light. diffoscope is the gold-standard
+        # tool for binary-diff investigation when `make repro-check` fails.
+        reproDebugTools = with pkgs; [
+          diffoscopeMinimal
+          tree
+          ripgrep
+          file
+          binutils
         ];
 
         # Reproducibility env vars. Centralised so every shell variant sets
@@ -94,6 +151,24 @@
           # repeating it here keeps `cargo build` (outside Buck2) reproducible.
           export RUSTFLAGS="--remap-path-prefix=$PWD=. ''${RUSTFLAGS:-}"
         '';
+
+        # Wrap a repo-relative script as a `nix run .#<name>`-able app. The
+        # wrapper exports `commonTools` onto PATH and exec's the script
+        # in-place — buck2 / cargo / etc. all see the pinned tools without
+        # the user having to enter `nix develop` first.
+        mkApp = name: scriptPath:
+          let
+            bin = pkgs.writeShellScriptBin "apkaxiom-${name}" ''
+              set -euo pipefail
+              export PATH="${pkgs.lib.makeBinPath commonTools}:''${PATH:-}"
+              ${reproEnv}
+              exec bash ${scriptPath} "$@"
+            '';
+          in
+          {
+            type = "app";
+            program = "${bin}/bin/apkaxiom-${name}";
+          };
       in
       {
         # Default dev shell — interactive use, IDEs, CI.
@@ -106,6 +181,8 @@
             echo "  rustc:    $(rustc --version)"
             echo "  buck2:    $(buck2 --version 2>/dev/null || echo '<unavailable>')"
             echo "  bazelisk: $(bazel --version 2>/dev/null | head -1 || echo '<bazelisk; init on first run>')"
+            echo "  cosign:   $(cosign version --json 2>/dev/null | jq -r .GitVersion 2>/dev/null || cosign version 2>/dev/null | head -1 || echo '<unavailable>')"
+            echo "  syft:     $(syft version -o json 2>/dev/null | jq -r .application.version 2>/dev/null || syft --version 2>/dev/null | head -1 || echo '<unavailable>')"
             echo "  nix:      $(nix --version 2>/dev/null | head -1)"
           '';
         };
@@ -118,20 +195,107 @@
           shellHook = reproEnv;
         };
 
-        # `nix flake check` runs this. It's a sanity probe that every
-        # toolchain we pin is at least invocable.
-        checks.toolchain-probe = pkgs.runCommand "apkaxiom-toolchain-probe" {
-          nativeBuildInputs = commonTools;
-        } ''
-          set -euo pipefail
-          rustc --version > $out
-          cargo --version >> $out
-          buck2 --version >> $out
-          ninja --version >> $out
-          cmake --version | head -1 >> $out
-          jq --version >> $out
-          echo OK >> $out
-        '';
+        # Repro-debug shell — adds diffoscope, file, ripgrep, etc. for
+        # investigating reproducibility failures. Heavier than `default`,
+        # so opt-in only.
+        devShells.repro-debug = pkgs.mkShell {
+          name = "apkaxiom-repro-debug";
+          packages = commonTools ++ reproDebugTools;
+          shellHook = ''
+            ${reproEnv}
+            echo "APKAXIOM repro-debug shell — diffoscope, ripgrep, binutils"
+            echo "Use: diffoscope <fileA> <fileB>  to drill into hash diffs."
+          '';
+        };
+
+        # Apps — every script that participates in the P1.1 contract is
+        # exposed so any consumer can invoke it without first entering
+        # `nix develop`. Examples:
+        #   nix run .#repro-check
+        #   nix run github:Fizan324926/apkaxiom#sbom
+        apps = {
+          build = mkApp "build" ./scripts/build.sh;
+          test = mkApp "test" ./scripts/test.sh;
+          repro-check = mkApp "repro-check" ./scripts/repro-check.sh;
+          verify-hashes = mkApp "verify-hashes" ./scripts/verify-hashes.sh;
+          hash-snapshot = mkApp "hash-snapshot" ./scripts/hash-snapshot.sh;
+          graph-parity = mkApp "graph-parity" ./scripts/graph-parity.sh;
+          audit-toolchains = mkApp "audit-toolchains" ./scripts/audit-toolchains.sh;
+          reindeer-check = mkApp "reindeer-check" ./scripts/reindeer-check.sh;
+          sbom = mkApp "sbom" ./scripts/sbom.sh;
+          security-audit = mkApp "security-audit" ./scripts/security-audit.sh;
+          license-check = mkApp "license-check" ./scripts/license-check.sh;
+          determinism-lint = mkApp "determinism-lint" ./scripts/lint-determinism.sh;
+          sign-hashes = mkApp "sign-hashes" ./scripts/sign-hashes.sh;
+          rebuilder-attest = mkApp "rebuilder-attest" ./scripts/rebuilder-attest.sh;
+          wall-time-rollup = mkApp "wall-time-rollup" ./scripts/wall-time-rollup.sh;
+        };
+
+        # `nix flake check` runs every derivation under `checks.*`. The set
+        # below intentionally uses *cheap* checks that finish in seconds —
+        # heavy checks (full repro-check, SBOM emission) live under `apps.*`
+        # and run in CI rather than in the per-PR flake-check budget.
+        checks = {
+          # Probe every pinned tool is at least invocable on this system.
+          toolchain-probe = pkgs.runCommand "apkaxiom-toolchain-probe" {
+            nativeBuildInputs = commonTools;
+          } ''
+            set -euo pipefail
+            {
+              rustc --version
+              cargo --version
+              buck2 --version
+              ninja --version
+              cmake --version | head -1
+              jq --version
+              cosign version 2>/dev/null | head -1 || cosign --help 2>&1 | head -1
+              syft version 2>/dev/null | head -1 || syft --help 2>&1 | head -1
+              cargo-cyclonedx --help 2>&1 | head -1 || true
+              cargo-audit --version 2>/dev/null | head -1 || true
+              cargo-deny --version
+              shellcheck --version | head -2 | tail -1
+              b3sum --version
+              echo OK
+            } > $out
+          '';
+
+          # Static analysis on every shell script in the repo. This is the
+          # P1.1 enforcement of "scripts in the reproducibility hot path
+          # cannot have shellcheck warnings".
+          shellcheck = pkgs.runCommand "apkaxiom-shellcheck" {
+            nativeBuildInputs = [ pkgs.shellcheck ];
+            src = ./scripts;
+          } ''
+            set -euo pipefail
+            cp -r $src ./scripts
+            chmod -R u+w ./scripts
+            shellcheck --severity=warning ./scripts/*.sh
+            touch $out
+          '';
+
+          # Lockfile freshness — fails if `flake.lock` has gone stale (older
+          # than the budget). State-of-the-art is to bump quarterly with an
+          # ADR; this gate prevents silent rot.
+          lockfile-freshness = pkgs.runCommand "apkaxiom-lockfile-freshness" {
+            nativeBuildInputs = [ pkgs.jq pkgs.coreutils ];
+            src = ./flake.lock;
+            # Budget: 120 days. Adjust via ADR if business need shifts.
+            maxAgeDays = "120";
+            # Reference "now" timestamp baked into the flake. Bumped via
+            # `make nix-update` followed by an ADR-0004 review note.
+            referenceNow = toString 1746230400; # 2026-05-03T00:00:00Z
+          } ''
+            set -euo pipefail
+            mtime=$(jq -r '.nodes.nixpkgs.locked.lastModified // 0' "$src")
+            age_days=$(( (referenceNow - mtime) / 86400 ))
+            if [ "$age_days" -gt "$maxAgeDays" ]; then
+              echo "FAIL: nixpkgs pin is $age_days days old (>$maxAgeDays)" >&2
+              echo "Bump via \`make nix-update\` and submit an ADR." >&2
+              exit 1
+            fi
+            echo "OK: nixpkgs pin age is $age_days days (<= $maxAgeDays)" > $out
+          '';
+        };
 
         # Convenience formatter target.
         formatter = pkgs.nixpkgs-fmt;

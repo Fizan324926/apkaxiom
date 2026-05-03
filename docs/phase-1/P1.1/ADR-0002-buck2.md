@@ -66,7 +66,7 @@ The Reindeer-generated `third-party/rust/BUCK` references vendored sources at `t
 - **Buck2 daemon state can desync.** A failing `buck2 build //...` is sometimes recovered by `buck2 kill`. We mitigate by using explicit aliases (`//:all`) for entry points.
 - **Reindeer fixups are manual.** Crates with build scripts need a `fixups/<crate>/fixups.toml`. In Phase 1 we set `buildscript.run = true` for `thiserror`, `proc-macro2`, `quote`. As the dep graph grows we will need more nuanced fixups (some deps require `omit_targets`, `extra_rustc_flags`, etc.).
 - **Buck2's bundled prelude can shift API across versions.** `rust_test.bzl` was once load-able; in current versions `rust_test` is a built-in. We pin Buck2 by version to insulate against this.
-- **Cross-arch byte identity is impossible for compiled artifacts.** P1.1's exit checklist asked for `diff hashes-ubuntu-24.04.txt hashes-ubuntu-24.04-arm.txt` — that diff cannot succeed for any compiled output. We verify *per-platform* identity instead (`docs/reproducibility-hashes.<platform>.txt`); see ADR-0004.
+- **Cross-arch byte identity is impossible for compiled artifacts.** P1.1's exit checklist asked for `diff hashes-ubuntu-24.04.txt hashes-ubuntu-24.04-arm.txt` — that diff cannot succeed for any compiled output. We verify *per-platform* identity instead (`./reproducibility-hashes.<platform>.txt` — sibling of this ADR); see ADR-0004.
 
 ## Consequences
 

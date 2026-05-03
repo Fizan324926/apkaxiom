@@ -57,7 +57,7 @@ We therefore reformulate the contract as two separate, both-meaningful invariant
 
 Both invariants are necessary and sufficient for the practical reproducibility property we actually want: "given the same `git` SHA + the same `flake.lock`, any team member on the same platform reproduces the build."
 
-The committed reference hashes live at `docs/reproducibility-hashes.<platform>.txt` (one per platform). Bumps must be reviewed under PHASE_GATES.md.
+The committed reference hashes live at `./reproducibility-hashes.<platform>.txt` (sibling of this ADR; one file per platform). Bumps must be reviewed under [`../../PHASE_GATES.md`](../../PHASE_GATES.md).
 
 ## Why Nix flakes over alternatives
 
