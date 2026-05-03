@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Verifies the AXIOM-IR Cap'n Proto schema text against the committed
+# SHA pin. If `capnp` is on PATH, additionally runs `capnp compile -onull`
+# for syntax verification — closes P1.4 §10-8 ("schema compiles").
+
+rust_binary(
+    name = "ir-schema-check",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "ir_schema_check",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-ir:axiom-ir",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

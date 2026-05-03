@@ -1,0 +1,21 @@
+[package]
+name = "ir-schema-check"
+description = "Verify the AXIOM-IR Cap'n Proto schema text against its committed SHA-pin; if `capnp` is on PATH, additionally run `capnp compile -onull` to syntax-check the schema."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "ir-schema-check"
+path = "src/main.rs"
+
+[dependencies]
+axiom-ir = { path = "../../crates/axiom-ir" }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

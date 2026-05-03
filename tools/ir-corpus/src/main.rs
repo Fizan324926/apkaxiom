@@ -182,6 +182,11 @@ fn run(ir_data: &Path, corpus: &Path) -> std::io::Result<()> {
     // Type / attribute table.
     write_atomic(&ir_data.join("type-table.json"), &type_table_json())?;
 
+    // JSON Schema for the stable JSON output produced by
+    // `ir_json::encode_manifest` / `encode_resource`. Hand-rolled
+    // (Draft 2020-12), drift-stable, deterministic.
+    write_atomic(&ir_data.join("axiom-ir.schema.json"), &json_schema())?;
+
     // Schema-freeze hash. Concat order: manifests then resources then
     // lowering. Equal to running `sha256sum` over the same concat externally.
     let mut full_concat =
@@ -933,6 +938,149 @@ fn type_table_json() -> String {
     s.push('}');
     s.push('\n');
     s
+}
+
+// ---------------------------------------------------------------------------
+// JSON Schema (Draft 2020-12) for the stable JSON output.
+//
+// Hand-rolled, deterministic. Describes the shape of the JSON produced
+// by `ir_json::encode_manifest` and `ir_json::encode_resource`.
+// Downstream SDKs (P4 py / go / ts) can consume this schema directly
+// rather than re-deriving the shape from source.
+// ---------------------------------------------------------------------------
+
+fn json_schema() -> String {
+    let s = r##"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apkaxiom.dev/schema/axiom-ir-v0.1.json",
+  "title": "AXIOM-IR v0.1 stable JSON shape",
+  "description": "Schema for ir_json::encode_manifest and ir_json::encode_resource output. Pinned by docs/phase-1/P1.4/CHECKLIST.md §F.",
+  "type": "object",
+  "$defs": {
+    "tribool": { "enum": ["true", "false", "default"] },
+    "componentKind": { "enum": ["activity", "service", "receiver", "provider"] },
+    "protectionLevel": { "enum": ["normal", "dangerous", "signature", "signatureOrSystem", "internal"] },
+    "resourceType": { "enum": ["string", "drawable", "layout", "color", "dimen", "style", "bool", "integer", "raw"] },
+    "intentFilter": {
+      "type": "object",
+      "required": ["actions", "categories", "data", "priority"],
+      "properties": {
+        "actions": { "type": "array", "items": { "type": "string" } },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "data": { "type": "array", "items": { "$ref": "#/$defs/dataFilter" } },
+        "priority": { "type": "integer" }
+      }
+    },
+    "dataFilter": {
+      "type": "object",
+      "properties": {
+        "scheme":       { "type": ["string", "null"] },
+        "host":         { "type": ["string", "null"] },
+        "port":         { "type": ["string", "null"] },
+        "path":         { "type": ["string", "null"] },
+        "path_prefix":  { "type": ["string", "null"] },
+        "path_pattern": { "type": ["string", "null"] },
+        "mime_type":    { "type": ["string", "null"] }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["host", "port"],
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": ["string", "null"] }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "required": ["name", "protection", "group"],
+      "properties": {
+        "name":       { "type": "string" },
+        "protection": { "$ref": "#/$defs/protectionLevel" },
+        "group":      { "type": ["string", "null"] }
+      }
+    },
+    "component": {
+      "type": "object",
+      "required": ["kind", "name", "exported", "enabled", "is_exported", "permission", "intent_filters", "authorities"],
+      "properties": {
+        "kind":            { "$ref": "#/$defs/componentKind" },
+        "name":            { "type": "string" },
+        "exported":        { "$ref": "#/$defs/tribool" },
+        "enabled":         { "$ref": "#/$defs/tribool" },
+        "is_exported":     { "type": "boolean" },
+        "permission":      { "type": ["string", "null"] },
+        "intent_filters":  { "type": "array", "items": { "$ref": "#/$defs/intentFilter" } },
+        "authorities":     { "type": "array", "items": { "$ref": "#/$defs/authority" } }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["package", "target_sdk", "min_sdk", "application_label", "components", "permissions", "uses_permissions"],
+      "properties": {
+        "package":           { "type": "string" },
+        "target_sdk":        { "type": "integer", "minimum": 0, "maximum": 255 },
+        "min_sdk":           { "type": "integer", "minimum": 0, "maximum": 255 },
+        "application_label": { "type": ["string", "null"] },
+        "components":        { "type": "array", "items": { "$ref": "#/$defs/component" } },
+        "permissions":       { "type": "array", "items": { "$ref": "#/$defs/permission" } },
+        "uses_permissions":  { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resourceRef": {
+      "type": "object",
+      "required": ["type", "id", "name"],
+      "properties": {
+        "type": { "$ref": "#/$defs/resourceType" },
+        "id":   { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "name": { "type": "string" }
+      }
+    },
+    "resourceValue": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "const": "string" }, "value": { "type": "string" } } },
+        { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "const": "int" },    "value": { "type": "integer" } } },
+        { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "const": "bool" },   "value": { "type": "boolean" } } },
+        { "type": "object", "required": ["kind", "value"], "properties": { "kind": { "const": "ref" },    "value": { "$ref": "#/$defs/resourceRef" } } }
+      ]
+    },
+    "resourceEntry": {
+      "type": "object",
+      "required": ["ref", "value"],
+      "properties": {
+        "ref":   { "$ref": "#/$defs/resourceRef" },
+        "value": { "$ref": "#/$defs/resourceValue" }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "required": ["qualifier", "density_dpi", "locale", "orientation", "min_sdk"],
+      "properties": {
+        "qualifier":   { "type": "string" },
+        "density_dpi": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "locale":      { "type": ["string", "null"] },
+        "orientation": { "type": ["string", "null"] },
+        "min_sdk":     { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "resourceTable": {
+      "type": "object",
+      "required": ["package", "string_pool_size", "configurations", "entries"],
+      "properties": {
+        "package":          { "type": "string" },
+        "string_pool_size": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "configurations":   { "type": "array", "items": { "$ref": "#/$defs/configuration" } },
+        "entries":          { "type": "array", "items": { "$ref": "#/$defs/resourceEntry" } }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/manifest" },
+    { "$ref": "#/$defs/resourceTable" }
+  ]
+}
+"##;
+    s.to_string()
 }
 
 // ---------------------------------------------------------------------------

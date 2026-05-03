@@ -187,6 +187,10 @@ p14-schema-hash: ## Recompute SHA-256 of schema/axiom_ir_v0_1.capnp and pin to i
 	  > $(ROOT)/docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt
 	@cat $(ROOT)/docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt
 
+.PHONY: p14-schema-check
+p14-schema-check: ## Verify capnp schema SHA-pin (and run capnp compile if installed).
+	cargo run -q -p ir-schema-check -- $(ROOT)
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

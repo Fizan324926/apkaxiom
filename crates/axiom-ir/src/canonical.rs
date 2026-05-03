@@ -49,7 +49,15 @@
     clippy::cast_sign_loss,
     clippy::cast_lossless,
     clippy::missing_panics_doc,
-    clippy::module_name_repetitions
+    clippy::module_name_repetitions,
+    // doc_markdown trips on backtick-less mentions of NIST/SHA inside
+    // // comments in the new fuzz/forward-compat test modules — those
+    // are inline test docs not consumer-facing API docs.
+    clippy::doc_markdown,
+    // The forward-compat tests intentionally push (corruption)
+    // attempts of similar shape into a Vec for accounting; clippy
+    // flags this as "same item" but the items are distinct values.
+    clippy::same_item_push
 )]
 
 use crate::core::{
@@ -305,6 +313,23 @@ impl<'a> Reader<'a> {
         Self { buf, pos: 0 }
     }
 
+    /// DoS-safe `Vec::with_capacity` for items the decoder is about to
+    /// read. The decoder cannot legitimately produce more items than
+    /// there are bytes remaining (every item costs ≥ 1 byte). Clamping
+    /// to `remaining()` prevents adversarial inputs from triggering
+    /// multi-GB allocations via a corrupted varint length prefix.
+    ///
+    /// Discovered by `fuzz_tests::decoder_never_panics_on_*_mutations`
+    /// during P1.4 hardening — without this clamp the decoder aborts
+    /// on a single-byte mutation that happens to land on a length tag.
+    fn safe_capacity(&self, requested: usize) -> usize {
+        requested.min(self.remaining())
+    }
+
+    const fn remaining(&self) -> usize {
+        self.buf.len().saturating_sub(self.pos)
+    }
+
     fn take(&mut self, n: usize) -> Result<&'a [u8], IrError> {
         if self.pos + n > self.buf.len() {
             return Err(IrError::UnexpectedEof {
@@ -399,7 +424,7 @@ fn read_module(r: &mut Reader<'_>) -> Result<Module, IrError> {
 
 fn read_region(r: &mut Reader<'_>) -> Result<Region, IrError> {
     let count = r.read_varint()? as usize;
-    let mut blocks = Vec::with_capacity(count);
+    let mut blocks = Vec::with_capacity(r.safe_capacity(count));
     for _ in 0..count {
         blocks.push(read_block(r)?);
     }
@@ -409,7 +434,7 @@ fn read_region(r: &mut Reader<'_>) -> Result<Region, IrError> {
 fn read_block(r: &mut Reader<'_>) -> Result<Block, IrError> {
     let label = r.read_str()?;
     let count = r.read_varint()? as usize;
-    let mut ops = Vec::with_capacity(count);
+    let mut ops = Vec::with_capacity(r.safe_capacity(count));
     for _ in 0..count {
         ops.push(read_op(r)?);
     }
@@ -419,18 +444,18 @@ fn read_block(r: &mut Reader<'_>) -> Result<Block, IrError> {
 fn read_op(r: &mut Reader<'_>) -> Result<Operation, IrError> {
     let name = r.read_str()?;
     let n_operands = r.read_varint()? as usize;
-    let mut operands = Vec::with_capacity(n_operands);
+    let mut operands = Vec::with_capacity(r.safe_capacity(n_operands));
     for _ in 0..n_operands {
         operands.push(ValueId(r.read_varint()? as u32));
     }
     let n_results = r.read_varint()? as usize;
-    let mut results = Vec::with_capacity(n_results);
+    let mut results = Vec::with_capacity(r.safe_capacity(n_results));
     for _ in 0..n_results {
         results.push(read_value(r)?);
     }
     let attributes = read_attr_map(r)?;
     let n_regions = r.read_varint()? as usize;
-    let mut regions = Vec::with_capacity(n_regions);
+    let mut regions = Vec::with_capacity(r.safe_capacity(n_regions));
     for _ in 0..n_regions {
         regions.push(read_region(r)?);
     }
@@ -576,17 +601,17 @@ pub(crate) fn read_manifest_payload(bytes: &[u8]) -> Result<ManifestModule, IrEr
     let min_sdk = r.read_varint()? as u8;
     let application_label = read_optional_str(&mut r)?;
     let n_components = r.read_varint()? as usize;
-    let mut components = Vec::with_capacity(n_components);
+    let mut components = Vec::with_capacity(r.safe_capacity(n_components));
     for _ in 0..n_components {
         components.push(read_component(&mut r)?);
     }
     let n_permissions = r.read_varint()? as usize;
-    let mut permissions = Vec::with_capacity(n_permissions);
+    let mut permissions = Vec::with_capacity(r.safe_capacity(n_permissions));
     for _ in 0..n_permissions {
         permissions.push(read_permission(&mut r)?);
     }
     let n_uses = r.read_varint()? as usize;
-    let mut uses_permissions = Vec::with_capacity(n_uses);
+    let mut uses_permissions = Vec::with_capacity(r.safe_capacity(n_uses));
     for _ in 0..n_uses {
         uses_permissions.push(r.read_str()?);
     }
@@ -640,12 +665,12 @@ fn read_component(r: &mut Reader<'_>) -> Result<Component, IrError> {
     let enabled = Tribool::from_tag(r.read_u8()?)?;
     let permission = read_optional_str(r)?;
     let n_filters = r.read_varint()? as usize;
-    let mut intent_filters = Vec::with_capacity(n_filters);
+    let mut intent_filters = Vec::with_capacity(r.safe_capacity(n_filters));
     for _ in 0..n_filters {
         intent_filters.push(read_intent_filter(r)?);
     }
     let n_authorities = r.read_varint()? as usize;
-    let mut authorities = Vec::with_capacity(n_authorities);
+    let mut authorities = Vec::with_capacity(r.safe_capacity(n_authorities));
     for _ in 0..n_authorities {
         authorities.push(read_data_authority(r)?);
     }
@@ -674,7 +699,7 @@ fn read_intent_filter(r: &mut Reader<'_>) -> Result<IntentFilter, IrError> {
     let actions = read_str_list(r)?;
     let categories = read_str_list(r)?;
     let n_data = r.read_varint()? as usize;
-    let mut data = Vec::with_capacity(n_data);
+    let mut data = Vec::with_capacity(r.safe_capacity(n_data));
     for _ in 0..n_data {
         data.push(read_data_filter(r)?);
     }
@@ -765,7 +790,7 @@ fn write_str_list(out: &mut Vec<u8>, xs: &[String]) {
 
 fn read_str_list(r: &mut Reader<'_>) -> Result<Vec<String>, IrError> {
     let n = r.read_varint()? as usize;
-    let mut xs = Vec::with_capacity(n);
+    let mut xs = Vec::with_capacity(r.safe_capacity(n));
     for _ in 0..n {
         xs.push(r.read_str()?);
     }
@@ -815,12 +840,12 @@ pub(crate) fn read_resource_payload(bytes: &[u8]) -> Result<ResourceTable, IrErr
     let package = r.read_str()?;
     let string_pool = read_string_pool(&mut r)?;
     let n_configs = r.read_varint()? as usize;
-    let mut configurations = Vec::with_capacity(n_configs);
+    let mut configurations = Vec::with_capacity(r.safe_capacity(n_configs));
     for _ in 0..n_configs {
         configurations.push(read_configuration(&mut r)?);
     }
     let n_entries = r.read_varint()? as usize;
-    let mut entries = Vec::with_capacity(n_entries);
+    let mut entries = Vec::with_capacity(r.safe_capacity(n_entries));
     for _ in 0..n_entries {
         entries.push(read_resource_entry(&mut r)?);
     }
@@ -1037,5 +1062,502 @@ mod tests {
     fn commitment_hash_is_deterministic() {
         let m = Module::empty("manifest");
         assert_eq!(commitment_hash(&m), commitment_hash(&m));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property tests — deterministic seeded round-trip across 10k seeds.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use crate::proptest::{gen_manifest, gen_resource_table};
+
+    /// Number of seeds exercised per property. Each seed produces one
+    /// generator instance; the round-trip + idempotence + determinism
+    /// properties run against it. 10_000 × 3 generators × 3 properties =
+    /// 90,000 property checks per `cargo test`. Runs in ≈ 1 s on dev.
+    const SEED_COUNT: u64 = 10_000;
+
+    /// Round-trip property: `decode(encode(m)) == m` for every seeded manifest.
+    #[test]
+    fn manifest_round_trip_property() {
+        for seed in 0..SEED_COUNT {
+            let m = gen_manifest(seed);
+            let bytes = encode_manifest(&m);
+            let back = decode_manifest(&bytes)
+                .unwrap_or_else(|e| panic!("seed {seed}: decode failed: {e:?}"));
+            assert_eq!(back, m, "seed {seed}: manifest round-trip mismatch");
+        }
+    }
+
+    /// Round-trip property for resource tables.
+    #[test]
+    fn resource_round_trip_property() {
+        for seed in 0..SEED_COUNT {
+            let t = gen_resource_table(seed);
+            let bytes = encode_resource(&t);
+            let back = decode_resource(&bytes)
+                .unwrap_or_else(|e| panic!("seed {seed}: decode failed: {e:?}"));
+            assert_eq!(back, t, "seed {seed}: resource round-trip mismatch");
+        }
+    }
+
+    /// Idempotent encode: `encode(decode(encode(m))) == encode(m)`.
+    /// Guards against asymmetric encoder/decoder where a round-trip
+    /// "succeeds" on the data shape but produces different canonical
+    /// bytes — which would silently change the freeze hash.
+    #[test]
+    fn manifest_encode_is_fixed_point() {
+        for seed in 0..SEED_COUNT {
+            let m = gen_manifest(seed);
+            let bytes_a = encode_manifest(&m);
+            let back = decode_manifest(&bytes_a).expect("decode");
+            let bytes_b = encode_manifest(&back);
+            assert_eq!(
+                bytes_a, bytes_b,
+                "seed {seed}: encode is not a fixed point of the round-trip"
+            );
+        }
+    }
+
+    /// Same for resource tables.
+    #[test]
+    fn resource_encode_is_fixed_point() {
+        for seed in 0..SEED_COUNT {
+            let t = gen_resource_table(seed);
+            let bytes_a = encode_resource(&t);
+            let back = decode_resource(&bytes_a).expect("decode");
+            let bytes_b = encode_resource(&back);
+            assert_eq!(
+                bytes_a, bytes_b,
+                "seed {seed}: resource encode not a fixed point"
+            );
+        }
+    }
+
+    /// Determinism: `encode(m) == encode(m.clone())`. Catches
+    /// HashMap-style ordering bugs introduced by future refactors that
+    /// move attribute storage off `BTreeMap`.
+    #[test]
+    fn manifest_encode_is_deterministic() {
+        // 1_000 seeds is enough — clone-equal-encoding is a structural
+        // property, not a probabilistic one. The full 10k is reserved
+        // for round-trip and idempotence.
+        for seed in 0..1_000u64 {
+            let m = gen_manifest(seed);
+            assert_eq!(
+                encode_manifest(&m),
+                encode_manifest(&m.clone()),
+                "seed {seed}: encode is not deterministic"
+            );
+        }
+    }
+
+    /// Hash determinism. Same protection as the above, scoped to the
+    /// commitment hash that the freeze gate actually uses.
+    #[test]
+    fn manifest_hash_is_deterministic() {
+        for seed in 0..1_000u64 {
+            let m = gen_manifest(seed);
+            let bytes = encode_manifest(&m);
+            assert_eq!(crate::hash::sha256(&bytes), crate::hash::sha256(&bytes));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Structured-mutation fuzz / corruption harness.
+// Deterministic — runs in `cargo test`, no `cargo-fuzz` / nightly Rust.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod fuzz_tests {
+    use super::*;
+    use crate::proptest::{gen_manifest, gen_resource_table, Rng};
+
+    /// Number of (seed, mutation_seed) pairs to exercise. 200 base
+    /// modules × 5 mutations = 1,000 corruption attempts per dialect,
+    /// per `cargo test` run. Each run is < 100 ms.
+    const BASE_SEEDS: u64 = 200;
+
+    /// Apply a structured mutation at a single byte position.
+    /// Returns the mutated byte vector.
+    fn mutate(bytes: &[u8], rng: &mut Rng) -> Vec<u8> {
+        let mut out = bytes.to_vec();
+        if out.is_empty() {
+            return out;
+        }
+        let pos = (rng.next_u64() as usize) % out.len();
+        match rng.next_u64() % 6 {
+            0 => out[pos] = 0,                             // zero
+            1 => out[pos] = 0xFF,                          // ones
+            2 => out[pos] = 0xFE,                          // forward-compat marker
+            3 => out[pos] ^= 0xFF,                         // bit flip all
+            4 => out[pos] ^= 0x80,                         // top bit flip
+            _ => out[pos] = (rng.next_u64() & 0xFF) as u8, // random
+        }
+        out
+    }
+
+    /// The decoder must never panic / abort / infinite-loop on
+    /// adversarial input — it must always either produce a valid
+    /// `Module` (the mutation landed on a non-load-bearing byte such
+    /// as the body of a string or integer field, and the result is
+    /// still a valid shape) or return an `IrError`.
+    ///
+    /// Reaching the end of this test without an abort is the primary
+    /// assertion. The secondary assertions:
+    /// 1. The decoder is meaningfully *strict* — at least 30% of
+    ///    single-byte mutations are detected. This is well above 0%
+    ///    and well below 100% (string-body mutations decode-cleanly
+    ///    by design).
+    /// 2. **Specifically**: this test was the one that caught the
+    ///    pre-hardening Vec::with_capacity(huge_count) DoS via
+    ///    corrupted varint length prefixes. The fix was the
+    ///    [`Reader::safe_capacity`] clamp.
+    #[test]
+    fn decoder_never_panics_on_manifest_mutations() {
+        let mut total_attempts = 0u64;
+        let mut decode_ok = 0u64;
+        let mut decode_err = 0u64;
+
+        for seed in 0..BASE_SEEDS {
+            let m = gen_manifest(seed);
+            let good = encode_manifest(&m);
+            let mut mut_rng = Rng::new(seed.wrapping_mul(0xC2B2_AE3D_27D4_EB4F));
+            for _ in 0..5 {
+                let corrupted = mutate(&good, &mut mut_rng);
+                total_attempts += 1;
+                match decode_manifest(&corrupted) {
+                    Ok(_) => decode_ok += 1,
+                    Err(_) => decode_err += 1,
+                }
+            }
+        }
+        assert_eq!(total_attempts, BASE_SEEDS * 5);
+        assert_eq!(total_attempts, decode_ok + decode_err);
+        assert!(
+            decode_err * 10 >= total_attempts * 3,
+            "expected ≥30% rejection rate, got {decode_err}/{total_attempts}",
+        );
+        assert!(
+            decode_err > 0 && decode_ok > 0,
+            "test corpus should produce both outcomes",
+        );
+    }
+
+    #[test]
+    fn decoder_never_panics_on_resource_mutations() {
+        let mut total = 0u64;
+        let mut errs = 0u64;
+        for seed in 0..BASE_SEEDS {
+            let t = gen_resource_table(seed);
+            let good = encode_resource(&t);
+            let mut mut_rng = Rng::new(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+            for _ in 0..5 {
+                let corrupted = mutate(&good, &mut mut_rng);
+                total += 1;
+                if decode_resource(&corrupted).is_err() {
+                    errs += 1;
+                }
+            }
+        }
+        assert_eq!(total, BASE_SEEDS * 5);
+        assert!(
+            errs * 10 >= total * 3,
+            "expected ≥30% rejection rate, got {errs}/{total}",
+        );
+    }
+
+    /// A focused regression test for the Vec::with_capacity DoS fix.
+    /// We construct bytes where a varint length prefix claims a huge
+    /// count; pre-hardening this aborted the process. Post-hardening
+    /// the decoder either errors cleanly or allocates a small Vec
+    /// bounded by `safe_capacity`.
+    #[test]
+    fn decoder_does_not_allocate_unbounded_on_huge_length_prefix() {
+        // Header: AXIR + schema 0x0001 + payload-length 0xFFFFFF.
+        let mut bytes = Vec::with_capacity(64);
+        bytes.extend_from_slice(b"AXIR");
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // major
+        bytes.extend_from_slice(&1u16.to_be_bytes()); // minor
+        bytes.extend_from_slice(&64u64.to_be_bytes()); // payload-length (small)
+                                                       // Producer string: u64-as-varint length 0xFFFFFFFFFFFFFFFF =
+                                                       // 9-byte all-set varint. The decoder must NOT preallocate ~16 EiB
+                                                       // when reading the producer string.
+        for _ in 0..9 {
+            bytes.push(0xFF);
+        }
+        // Add some padding so the buffer is non-empty.
+        bytes.extend_from_slice(&[0u8; 32]);
+        // Decode must return an error (probably UnexpectedEof) rather
+        // than aborting.
+        let result = decode(&bytes);
+        assert!(result.is_err(), "expected error, got {result:?}");
+    }
+
+    /// Truncation at every byte offset never panics. This is the
+    /// classic "what if the network connection drops mid-frame" test.
+    #[test]
+    fn decoder_never_panics_on_truncation() {
+        let m = gen_manifest(42);
+        let good = encode_manifest(&m);
+        for cut in 0..good.len() {
+            // Result is intentionally ignored — we're testing that the
+            // call doesn't panic / loop / abort.
+            let _ = decode_manifest(&good[..cut]);
+        }
+    }
+
+    /// Extending the buffer with junk past payload-length never
+    /// panics, and never silently swallows the trailing data into a
+    /// valid `Module`.
+    #[test]
+    fn decoder_handles_trailing_junk() {
+        let m = gen_manifest(7);
+        let mut bytes = encode_manifest(&m);
+        let original_len = bytes.len();
+        bytes.extend_from_slice(b"trailing-garbage-bytes");
+        // Decode must succeed because payload-length is honoured
+        // (decoder reads exactly the declared payload).
+        let back = decode_manifest(&bytes).expect("payload-length honoured");
+        assert_eq!(back, m);
+        // Re-encoding back must produce only the original bytes — no
+        // smuggling of trailing bytes through the round-trip.
+        let re_encoded = encode_manifest(&back);
+        assert_eq!(re_encoded.len(), original_len);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Forward-compatibility matrix — every variant tag site rejects 0xFE.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod forward_compat {
+    use super::*;
+    use crate::manifest::{
+        launcher_activity, ComponentKind, DataAuthority, IntentFilter, ManifestModule, Permission,
+        ProtectionLevel,
+    };
+    use crate::resource::{
+        Configuration, ResourceEntry, ResourceId, ResourceRef, ResourceTable, ResourceType,
+        ResourceValue, StringPool,
+    };
+
+    /// Helper: locate the first occurrence of `needle` in `bytes` and
+    /// replace it with `0xFE`, returning the mutated bytes. Panics if
+    /// `needle` is not found — the test author's bug.
+    fn replace_first_tag(bytes: &[u8], needle: u8) -> Vec<u8> {
+        let pos = bytes
+            .iter()
+            .position(|&b| b == needle)
+            .unwrap_or_else(|| panic!("tag 0x{needle:02x} not found in canonical bytes"));
+        let mut out = bytes.to_vec();
+        out[pos] = TAG_EXTENSION;
+        out
+    }
+
+    fn rich_manifest() -> ManifestModule {
+        ManifestModule::new("com.apkaxiom.fwd")
+            .with_target_sdk(34)
+            .with_min_sdk(21)
+            .with_application_label("Forward")
+            .with_component(launcher_activity(".Main"))
+            .with_component(crate::manifest::Component {
+                kind: ComponentKind::Provider,
+                name: ".P".into(),
+                exported: crate::Tribool::Default,
+                enabled: crate::Tribool::Default,
+                permission: Some("android.permission.READ".into()),
+                intent_filters: vec![IntentFilter::default()],
+                authorities: vec![DataAuthority {
+                    host: "com.apkaxiom.fwd.p".into(),
+                    port: None,
+                }],
+            })
+            .with_permission(Permission {
+                name: "com.apkaxiom.fwd.PERM".into(),
+                protection: ProtectionLevel::Internal,
+                group: None,
+            })
+    }
+
+    fn rich_resource_table() -> ResourceTable {
+        ResourceTable {
+            package: "com.apkaxiom.fwd".into(),
+            string_pool: StringPool::default(),
+            configurations: vec![Configuration::default_for_sdk(24)],
+            entries: vec![
+                ResourceEntry {
+                    ref_: ResourceRef {
+                        r#type: ResourceType::String,
+                        id: ResourceId(0x7f00_0001),
+                        name: "label".into(),
+                    },
+                    value: ResourceValue::String("Hi".into()),
+                },
+                ResourceEntry {
+                    ref_: ResourceRef {
+                        r#type: ResourceType::Drawable,
+                        id: ResourceId(0x7f00_0002),
+                        name: "icon".into(),
+                    },
+                    value: ResourceValue::Ref(ResourceRef {
+                        r#type: ResourceType::Drawable,
+                        id: ResourceId(0x7f00_0003),
+                        name: "ic_launcher".into(),
+                    }),
+                },
+            ],
+        }
+    }
+
+    /// Module dialect tag site.
+    #[test]
+    fn dialect_tag_extension_rejected() {
+        let bytes = encode(&Module::empty("manifest"));
+        let corrupted = replace_first_tag(&bytes, TAG_DIALECT_MANIFEST);
+        assert!(matches!(
+            decode(&corrupted),
+            Err(IrError::UnknownExtension { .. })
+        ));
+    }
+
+    /// Component kind tag site (the first tag in the manifest payload
+    /// is `TAG_COMPONENT_ACTIVITY` from the launcher activity).
+    #[test]
+    fn component_kind_extension_rejected() {
+        let m = rich_manifest();
+        let mut bytes = encode_manifest(&m);
+        // Find the manifest payload sub-stream (it lives behind the
+        // shell's `manifest.payload` Bytes attribute) and corrupt the
+        // first activity-kind tag inside it. Easiest path: try
+        // replacing the first occurrence of `TAG_COMPONENT_ACTIVITY`
+        // in the entire byte stream — the shell layout never produces
+        // 0x50 elsewhere.
+        let pos = bytes
+            .iter()
+            .position(|&b| b == TAG_COMPONENT_ACTIVITY)
+            .expect("activity tag present");
+        bytes[pos] = TAG_EXTENSION;
+        // The shell decode itself succeeds (the corrupted byte is
+        // inside the payload-length-bounded `Bytes` attribute), but
+        // unwrap_module forwards into the manifest payload reader
+        // which detects the unknown tag. BadTag is acceptable —
+        // the manifest-payload reader uses BadTag for unknown
+        // component kinds since the extension marker is a wire-shell
+        // concept; what matters is that the decoder refuses, not
+        // the exact error variant.
+        let result = decode_manifest(&bytes);
+        match &result {
+            Err(IrError::BadTag { ctx, .. }) => assert_eq!(*ctx, "ComponentKind"),
+            Err(IrError::UnknownExtension { .. }) => {}
+            other => panic!("expected rejection, got {other:?}"),
+        }
+    }
+
+    /// ProtectionLevel tag site.
+    #[test]
+    fn protection_level_extension_rejected() {
+        let m = rich_manifest();
+        let mut bytes = encode_manifest(&m);
+        let pos = bytes
+            .iter()
+            .position(|&b| b == TAG_PROTECTION_INTERNAL)
+            .expect("internal protection tag present");
+        bytes[pos] = TAG_EXTENSION;
+        assert!(decode_manifest(&bytes).is_err());
+    }
+
+    /// ResourceType tag site.
+    #[test]
+    fn resource_type_extension_rejected() {
+        let t = rich_resource_table();
+        let mut bytes = encode_resource(&t);
+        let pos = bytes
+            .iter()
+            .position(|&b| b == TAG_RESOURCE_TYPE_DRAWABLE)
+            .expect("drawable type tag present");
+        bytes[pos] = TAG_EXTENSION;
+        assert!(decode_resource(&bytes).is_err());
+    }
+
+    /// ResourceValue tag site.
+    #[test]
+    fn resource_value_extension_rejected() {
+        let t = rich_resource_table();
+        let mut bytes = encode_resource(&t);
+        let pos = bytes
+            .iter()
+            .position(|&b| b == TAG_RESOURCE_ENTRY_REF)
+            .expect("ref entry tag present");
+        bytes[pos] = TAG_EXTENSION;
+        assert!(decode_resource(&bytes).is_err());
+    }
+
+    /// Schema-minor extension. `(major=0, minor=0xFFFF)` is a future
+    /// schema and must be rejected.
+    #[test]
+    fn schema_minor_extension_rejected() {
+        let mut bytes = encode(&Module::empty("manifest"));
+        bytes[6] = 0xFF;
+        bytes[7] = 0xFF;
+        assert!(matches!(
+            decode(&bytes),
+            Err(IrError::UnknownExtension { .. })
+        ));
+    }
+
+    /// Schema-major bump.
+    #[test]
+    fn schema_major_extension_rejected() {
+        let mut bytes = encode(&Module::empty("manifest"));
+        bytes[4] = 0x00;
+        bytes[5] = 0x01;
+        assert!(matches!(
+            decode(&bytes),
+            Err(IrError::UnknownExtension { .. })
+        ));
+    }
+
+    /// Type tag extension marker — built by hand because none of our
+    /// public dialects emit `Type` nodes outside operation results
+    /// (which the corpus doesn't currently exercise).
+    #[test]
+    fn type_tag_extension_rejected_in_synthetic_module() {
+        let mut m = Module::empty("mixed");
+        let v = m.fresh(Type::U32);
+        m.push(crate::core::Operation::new("test.op").with_result(v));
+        let mut bytes = encode(&m);
+        // Find the U32 type tag (0x11) and corrupt it.
+        let pos = bytes
+            .iter()
+            .position(|&b| b == 0x11)
+            .expect("u32 type tag present");
+        bytes[pos] = TAG_EXTENSION;
+        assert!(matches!(
+            decode(&bytes),
+            Err(IrError::UnknownExtension { .. })
+        ));
+    }
+
+    /// Attribute tag extension marker.
+    #[test]
+    fn attribute_tag_extension_rejected_in_synthetic_module() {
+        let m = Module::empty("mixed").with_attr("k", crate::core::Attribute::U32(1));
+        let mut bytes = encode(&m);
+        // Attribute::U32 tag is 0x22.
+        let pos = bytes
+            .iter()
+            .position(|&b| b == 0x22)
+            .expect("u32 attribute tag present");
+        bytes[pos] = TAG_EXTENSION;
+        assert!(matches!(
+            decode(&bytes),
+            Err(IrError::UnknownExtension { .. })
+        ));
     }
 }

@@ -323,12 +323,15 @@ jobs:
               docs/phase-1/P1.4/ir-data/resource-corpus.json \
               docs/phase-1/P1.4/ir-data/lowering-corpus.json \
               docs/phase-1/P1.4/ir-data/type-table.json \
+              docs/phase-1/P1.4/ir-data/axiom-ir.schema.json \
               docs/phase-1/P1.4/ir-data/summary.json \
               docs/phase-1/P1.4/ir-data/schema-hash.txt \
               docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt; then
             echo "::error::AXIOM-IR v0.1 drift detected — re-run \`make p14-ir\` locally and commit the diff. If the drift is intentional (a v0.2 schema bump), update ADR-0015 first."
             exit 1
           fi
+      - name: Capnp schema gate (compile if installed; SHA-pin always)
+        run: nix develop --command make p14-schema-check
       - name: Assert per-sample inspection JSON has not drifted
         run: |
           if ! git diff --exit-code docs/phase-1/P1.4/corpus/; then

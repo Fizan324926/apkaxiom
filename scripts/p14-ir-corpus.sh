@@ -38,6 +38,9 @@ cargo test -q -p axiom-ir
 echo "=== axiom-ir clippy ==="
 cargo clippy -q -p axiom-ir --all-targets -- -D warnings
 
+echo "=== capnp schema gate ==="
+cargo run -q -p ir-schema-check -- "$PWD"
+
 echo "=== summary ==="
 cat "$IR_DATA/summary.json"
 echo

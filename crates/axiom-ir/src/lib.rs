@@ -46,6 +46,9 @@ pub mod manifest;
 pub mod resource;
 pub mod text;
 
+#[cfg(test)]
+mod proptest;
+
 pub use crate::core::{
     Attribute, Block, Diagnostic, IrError, Module, Operation, Region, Tribool, Type, Value, ValueId,
 };

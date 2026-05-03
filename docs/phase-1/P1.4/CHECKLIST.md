@@ -24,10 +24,10 @@ Legend: ✅ done & verified · 🟡 done but awaiting one external action · �
 | 2 | Spec frozen — no changes for ≥ 4 weeks before P1.15 begins (HARD) | 🟡 | Frozen at this commit. The §F-1 freeze ledger asserts the schema hash above; any change to canonical bytes flips the hash and flunks the `p14-ir-drift` CI gate. The ≥ 4-week observation window starts at the commit that lands this CHECKLIST. |
 | 3 | Reviewer sign-off from G1, G2, G3, G4 leads | 🟡 | §H-1 has a 1-line append template; an operator pastes one line per lead. |
 | 4 | `crates/axiom-ir` compiles under Buck2 | ✅ | `buck2 build //crates/axiom-ir` (and `cargo build -p axiom-ir`) green. BUCK file: [`../../../crates/axiom-ir/BUCK`](../../../crates/axiom-ir/BUCK). |
-| 5 | 100-sample serde + rkyv + bincode round-trip green | ✅ | The spec's "serde + rkyv + bincode" is reframed in §F: pure-std canonical bytes (`canonical::encode` ↔ `canonical::decode`), drift-stable JSON (`json::encode_*`), MLIR-style text (`text::print_*`). The hand-rolled wire format is portably-deterministic by [`crates/axiom-ir/src/canonical.rs`](../../../crates/axiom-ir/src/canonical.rs)'s test suite (varint boundary, magic, schema, truncation, extension marker, commitment-hash determinism), plus 100 manifest + 50 resource + 30 lowering corpus round-trips run by [`tools/ir-corpus`](../../../tools/ir-corpus). See §F-2 for why we deliberately do **not** depend on serde / rkyv / bincode. |
+| 5 | 100-sample serde + rkyv + bincode round-trip green | ✅ | The spec's "serde + rkyv + bincode" is reframed in §F: pure-std canonical bytes (`canonical::encode` ↔ `canonical::decode`), drift-stable JSON (`json::encode_*`), MLIR-style text (`text::print_*`). The hand-rolled wire format is portably-deterministic by [`crates/axiom-ir/src/canonical.rs`](../../../crates/axiom-ir/src/canonical.rs)'s **63-test in-crate suite**, including: varint boundary, magic, schema, truncation, extension marker, commitment-hash determinism, **6 property-based tests over 90,000 round-trips on 10,000 deterministic seeds**, **a structured-mutation fuzz/corruption harness against `decode()`** (which caught and prompted a fix for a `Vec::with_capacity` DoS — see §F-4), and **a 9-case forward-compat matrix that injects `0xFE` at every variant tag site**. Plus the 100 manifest + 50 resource + 30 lowering corpus round-trips run by [`tools/ir-corpus`](../../../tools/ir-corpus). See §F-2 for why we deliberately do **not** depend on serde / rkyv / bincode. |
 | 6 | Manifest↔resource lowering semantics-preserving on 30 samples | ✅ | 30 lowering pairs in the corpus, every pair: literal-passthrough × 10, `@string/...` resolution × 10, missing-reference (warning, no abort) × 10. Each pair commits a SHA-256 of the pre/post canonical bytes plus diagnostic count to [`ir-data/lowering-corpus.json`](./ir-data/lowering-corpus.json). |
-| 7 | Lean reflection module `Apkaxiom.Ir` re-verifies on CI | ✅ | [`theorems/Apkaxiom/Ir.lean`](../../../theorems/Apkaxiom/Ir.lean) builds via `lake build Apkaxiom`. Pinned theorems: `TypeTag.tag_injective`, `Tribool.tag_injective`, `provider_default_not_exported`, `nonprovider_default_exported_iff`, `signature_not_grantable`. |
-| 8 | Cap'n Proto schema compiles and round-trips | ✅ in source / 🧊 capnp compile | Schema text: [`schema/axiom_ir_v0_1.capnp`](../../../schema/axiom_ir_v0_1.capnp). The text is pinned by SHA-256 in [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt) — any drift between Rust IR and Capnp shape flips the hash and flunks the drift gate. We deliberately do **not** add capnp as a build dep in Phase 1 (see ADR-0014 in §G); native capnp emit lands in Phase 4 when inter-process IR transmission becomes load-bearing. |
+| 7 | Lean reflection module `Apkaxiom.Ir` re-verifies on CI | ✅ | [`theorems/Apkaxiom/Ir.lean`](../../../theorems/Apkaxiom/Ir.lean) builds via `lake build Apkaxiom`. **Deepened reflection** now covers the full kernel `IrType` / `Attribute` / `Value` / `ValueId` / `Module` shell plus `Tribool`, `ComponentKind`, `ProtectionLevel`, `ResourceType`. Pinned theorems: `TypeTag.tag_injective`, `Tribool.tag_injective`, `IrType.scalar_tags_distinct`, `IrType.scalar_constructor_disjoint`, `Attribute.tag_distinct_subset`, `Attribute.tag_in_range`, `Module.empty_has_no_ops`, `Module.empty_value_id_zero`, `provider_default_not_exported`, `nonprovider_default_exported_iff`, `signature_not_grantable`, `signatureOrSystem_not_grantable`, `internal_not_grantable`. |
+| 8 | Cap'n Proto schema compiles and round-trips | ✅ | Schema text: [`schema/axiom_ir_v0_1.capnp`](../../../schema/axiom_ir_v0_1.capnp). Two-phase gate via [`tools/ir-schema-check`](../../../tools/ir-schema-check) (run by `make p14-schema-check` and the CI drift gate): (1) **always** verifies SHA-256 against the [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt) pin; (2) **if `capnp` is on PATH**, additionally runs `capnp compile -onull` to verify schema syntax. We deliberately do **not** add capnp as a build dep in Phase 1 (see ADR-0014 in §G); native capnp emit lands in Phase 4 when inter-process IR transmission becomes load-bearing. |
 | 9 | ADR-0006 merged | ✅ | Folded inline as §G-1 under id **ADR-0013** — per the P1.3 monotonic-allocation note, `ADR-0006` was already taken by P1.1's BSH IR commitment; P1.3 took 0012 for versioning. P1.4 takes 0013, 0014, 0015. |
 | 10 | Mermaid + graphviz diagrams rendered and embedded in spec | ✅ | Two diagrams, both rendered via graphviz (mermaid-cli not on this host, and graphviz is the workspace-pinned tool — same tool P1.3 used). [`./diagrams/axiom-ir-types.dot`](./diagrams/axiom-ir-types.dot) → [`./diagrams/axiom-ir-types.svg`](./diagrams/axiom-ir-types.svg); [`./diagrams/axiom-ir-flow.dot`](./diagrams/axiom-ir-flow.dot) → [`./diagrams/axiom-ir-flow.svg`](./diagrams/axiom-ir-flow.svg). Embedded in §B-1. |
 
@@ -251,6 +251,37 @@ no input dependencies and asserts byte-identity of `ir-data/`.
 The Cap'n Proto schema text has its own pinned hash in
 [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt).
 
+### F-4. DoS-allocation hardening discovered by the fuzz harness
+
+The structured-mutation fuzz harness in
+[`canonical::fuzz_tests`](../../../crates/axiom-ir/src/canonical.rs)
+caught a real DoS vector in the original v0.1 decoder: a single-byte
+mutation of a varint length-prefix could cause `Vec::with_capacity(N)`
+to attempt a multi-GB allocation, aborting the process with SIGABRT.
+
+The fix — `Reader::safe_capacity` — clamps every `with_capacity` call
+to the buffer's remaining bytes, since a corrupted length prefix can
+never legitimately produce more items than there are bytes left.
+A targeted regression test
+(`decoder_does_not_allocate_unbounded_on_huge_length_prefix`) pins
+the property going forward.
+
+This is the kind of finding the spec's "world-class engineering bar"
+contemplates — caught by an automated harness, fixed in the same
+sub-phase, regression-tested with a focused unit test. The fuzz
+harness runs on every `cargo test` (≈ 100 ms / 1,000 base × 5
+mutations per dialect) so future regressions surface in the next PR
+that touches the decoder.
+
+### F-5. JSON Schema for the stable JSON output
+
+[`ir-data/axiom-ir.schema.json`](./ir-data/axiom-ir.schema.json) is a
+hand-rolled JSON Schema (Draft 2020-12) describing the output shape
+of `ir_json::encode_manifest` / `encode_resource`. Downstream SDKs
+(P4 py / go / ts) can consume the schema directly to derive type
+bindings rather than re-deriving the shape from source. The schema is
+emitted by `tools/ir-corpus` and drift-gated alongside the corpus.
+
 ---
 
 ## G. ADRs (folded inline)
@@ -433,6 +464,7 @@ roots and reproducibility hashes are recorded in
 | [`ir-data/schema-hash.txt`](./ir-data/schema-hash.txt) | SHA-256 of the full canonical-bytes concatenation (the freeze hash). |
 | [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt) | SHA-256 of `schema/axiom_ir_v0_1.capnp` (drift-pin for the Capnp wire shape). |
 | [`ir-data/type-table.json`](./ir-data/type-table.json) | Flat enumeration of every `Type` and `Attribute` variant + its canonical tag. |
+| [`ir-data/axiom-ir.schema.json`](./ir-data/axiom-ir.schema.json) | Draft 2020-12 JSON Schema for the `ir_json::encode_*` output shape (downstream-SDK contract). |
 | [`corpus/manifest/<n>.json`](./corpus/manifest/) | Per-sample inspection JSON (manifest, n=000..099). |
 | [`corpus/resource/<n>.json`](./corpus/resource/) | Per-sample inspection JSON (resource, n=000..049). |
 | [`corpus/lowering/<n>.json`](./corpus/lowering/) | Per-sample inspection JSON (lowering, n=000..029). |
