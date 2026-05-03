@@ -10,7 +10,6 @@ version = "0.0.0"
 name = "axiom-ir"
 version = "0.0.0"
 dependencies = [
- "axiom-l0",
  "thiserror",
 ]
 
@@ -23,6 +22,14 @@ name = "axiom-l1-rs"
 version = "0.0.0"
 dependencies = [
  "axiom-l0",
+]
+
+[[package]]
+name = "ir-corpus"
+version = "0.0.0"
+dependencies = [
+ "axiom-ir",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.service2","target_sdk":33,"min_sdk":21,"application_label":null,"components":[{"kind":"service","name":".Service2","exported":"true","enabled":"default","is_exported":true,"permission":"com.apkaxiom.permission.SVC2","intent_filters":[],"authorities":[]}],"permissions":[],"uses_permissions":[]}

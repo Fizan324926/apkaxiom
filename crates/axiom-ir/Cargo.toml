@@ -1,6 +1,6 @@
 [package]
 name = "axiom-ir"
-description = "AXIOM-IR — Phase 1 placeholder for the canonical intermediate representation; v1.0 freeze in P6.10"
+description = "AXIOM-IR v0.1 — frozen reference IR (core + manifest + resource dialects, canonical bytes, lowering, MLIR-style text)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,6 @@ repository.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
-axiom-l0 = { path = "../axiom-l0" }
 thiserror = { workspace = true }
 
 [lints]

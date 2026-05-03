@@ -165,6 +165,28 @@ p13-diagram: ## Re-render the v1.0 architecture diagram (graphviz → svg).
 	  $(ROOT)/docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.dot \
 	  -o $(ROOT)/docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.svg
 
+##@ P1.4 AXIOM-IR v0.1
+
+.PHONY: p14-ir
+p14-ir: ## Re-derive P1.4 AXIOM-IR corpus + ir-data JSON via tools/ir-corpus.
+	bash $(ROOT)/scripts/p14-ir-corpus.sh
+
+.PHONY: p14-diagram
+p14-diagram: ## Re-render P1.4 type-lattice + lowering-flow diagrams.
+	dot -Tsvg \
+	  $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-types.dot \
+	  -o $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-types.svg
+	dot -Tsvg \
+	  $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-flow.dot \
+	  -o $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-flow.svg
+
+.PHONY: p14-schema-hash
+p14-schema-hash: ## Recompute SHA-256 of schema/axiom_ir_v0_1.capnp and pin to ir-data/.
+	@sha256sum $(ROOT)/schema/axiom_ir_v0_1.capnp \
+	  | awk '{print $$1}' \
+	  > $(ROOT)/docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt
+	@cat $(ROOT)/docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

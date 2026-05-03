@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.perm5","target_sdk":34,"min_sdk":21,"application_label":null,"components":[],"permissions":[{"name":"com.apkaxiom.permission.PERM5","protection":"normal","group":null}],"uses_permissions":[]}

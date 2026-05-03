@@ -5,6 +5,7 @@ members = [
     "crates/axiom-l1-rs",
     "crates/axiom-ir",
     "crates/axiom-extract-hello",
+    "tools/ir-corpus",
     "tools/lean-to-rust",
     "tools/translation-validator",
     "tools/unsafe-census",

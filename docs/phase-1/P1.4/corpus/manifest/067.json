@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.perm7","target_sdk":34,"min_sdk":21,"application_label":null,"components":[],"permissions":[{"name":"com.apkaxiom.permission.PERM7","protection":"signature","group":null}],"uses_permissions":[]}

@@ -1,8 +1,15 @@
 # Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 #
-# axiom-ir consumes a third-party dep (`thiserror`) via the Reindeer-managed
-# `//third-party/rust:thiserror` target. This is the smallest crate that
-# exercises Reindeer + Buck2 third-party graph correspondence.
+# AXIOM-IR v0.1 — frozen reference IR (core + manifest + resource
+# dialects, canonical bytes, lowering, MLIR-style text). The schema is
+# pinned by `docs/phase-1/P1.4/ir-data/schema-hash.txt` (CI drift gate
+# at `p14-ir-drift`).
+#
+# Pure-std + thiserror only. We deliberately do NOT pull serde / bincode /
+# rkyv / capnp here — see `third-party/rust/Cargo.toml` for the workspace
+# dep-minimisation policy. Wire formats are hand-rolled in
+# `src/canonical.rs` (deterministic bytes) + `src/json.rs` (drift-stable
+# JSON) + `src/text.rs` (MLIR-style human-readable).
 
 rust_library(
     name = "axiom-ir",
@@ -11,7 +18,6 @@ rust_library(
     crate_root = "src/lib.rs",
     edition = "2021",
     deps = [
-        "//crates/axiom-l0:axiom-l0",
         "//third-party/rust:thiserror",
     ],
     visibility = ["PUBLIC"],
@@ -24,7 +30,6 @@ rust_test(
     crate_root = "src/lib.rs",
     edition = "2021",
     deps = [
-        "//crates/axiom-l0:axiom-l0",
         "//third-party/rust:thiserror",
     ],
 )

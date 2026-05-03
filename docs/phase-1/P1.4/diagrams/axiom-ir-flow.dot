@@ -1,0 +1,63 @@
+// Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+//
+// AXIOM-IR v0.1 lowering flow. Shows the producers (P1.15 emitter from
+// L1) of the manifest + resource dialects, the lowering pass, and the
+// downstream consumers. Render:
+//
+//   dot -Tsvg axiom-ir-flow.dot -o axiom-ir-flow.svg
+
+digraph axiom_ir_flow {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=11, splines=ortho,
+         nodesep=0.4, ranksep=0.7, bgcolor="white"];
+  node  [fontname="Helvetica", fontsize=10, shape=box,
+         style="rounded,filled", fillcolor="#f5f7fa", color="#1f2d3d"];
+  edge  [fontname="Helvetica", fontsize=9, color="#3b4252"];
+
+  subgraph cluster_producer {
+    label="Producer (P1.15 emitter)"; labeljust=l; style="dashed";
+    color="#94a3b8"; fontcolor="#475569";
+
+    apk_l1 [label="axiom-l1-rs\nManifestModule\nResourceTable", fillcolor="#fff3d6"];
+  }
+
+  subgraph cluster_ir {
+    label="AXIOM-IR v0.1"; labeljust=l; style="rounded";
+    bgcolor="#eef4ff"; color="#1e3a8a"; fontcolor="#1e3a8a";
+
+    manifest_dialect [label="Manifest dialect\nComponent / IntentFilter /\nPermission / DataAuthority",
+                      fillcolor="#dbe7ff"];
+    resource_dialect [label="Resource dialect\nStringPool / Configuration /\nResourceEntry / ResourceRef",
+                      fillcolor="#dbe7ff"];
+    lowering_pass    [label="lowering::resolve\n(@string/... → literal)",
+                      fillcolor="#fff3d6"];
+    canonical        [label="canonical bytes\n(deterministic, length-prefixed,\nSHA-256-hashable)",
+                      fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_consumer {
+    label="Consumers"; labeljust=l; style="dashed";
+    color="#94a3b8"; fontcolor="#475569";
+
+    forensics [label="P2 / G4\nforensic passes",     fillcolor="#fef3c7"];
+    symbolic  [label="P3 / G5\nsymbolic resolver",   fillcolor="#fef3c7"];
+    bsh       [label="P3 / G6\nBSH-256 + bisim",     fillcolor="#fef3c7"];
+    zk        [label="P4 / G7\nHalo2 over IR",       fillcolor="#fef3c7"];
+    lean      [label="P1.5+ Lean reflection\n(theorems/Apkaxiom/Ir.lean)",
+               fillcolor="#e9d5ff"];
+  }
+
+  apk_l1 -> manifest_dialect;
+  apk_l1 -> resource_dialect;
+  manifest_dialect -> lowering_pass;
+  resource_dialect -> lowering_pass;
+  lowering_pass    -> canonical;
+  manifest_dialect -> canonical [xlabel="encode_manifest"];
+  resource_dialect -> canonical [xlabel="encode_resource"];
+
+  canonical -> forensics;
+  canonical -> symbolic;
+  canonical -> bsh;
+  canonical -> zk;
+  manifest_dialect -> lean [xlabel="reflection",  style="dashed"];
+  resource_dialect -> lean [xlabel="reflection",  style="dashed"];
+}

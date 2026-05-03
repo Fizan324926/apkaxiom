@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.service3","target_sdk":33,"min_sdk":21,"application_label":null,"components":[{"kind":"service","name":".Service3","exported":"false","enabled":"default","is_exported":false,"permission":"com.apkaxiom.permission.SVC3","intent_filters":[],"authorities":[]}],"permissions":[],"uses_permissions":[]}

@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.r8","string_pool_size":3,"configurations":[{"qualifier":"default","density_dpi":0,"locale":null,"orientation":null,"min_sdk":21}],"entries":[{"ref":{"type":"string","id":2130706433,"name":"app_name"},"value":{"kind":"string","value":"App 8"}},{"ref":{"type":"string","id":2130706434,"name":"settings"},"value":{"kind":"string","value":"Settings"}}]}

@@ -1,0 +1,20 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Generates the 100-manifest + 50-resource + 30-lowering AXIOM-IR-v0.1
+# corpus and emits deterministic JSON summaries to
+# docs/phase-1/P1.4/ir-data/. Run via `make p14-ir`. The CI drift gate
+# `p14-ir-drift` re-runs this and asserts byte-equality against the
+# committed `ir-data/`.
+
+rust_binary(
+    name = "ir-corpus",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "ir_corpus",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-ir:axiom-ir",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

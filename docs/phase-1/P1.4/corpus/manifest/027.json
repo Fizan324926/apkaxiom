@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.service7","target_sdk":33,"min_sdk":21,"application_label":null,"components":[{"kind":"service","name":".Service7","exported":"false","enabled":"default","is_exported":false,"permission":"com.apkaxiom.permission.SVC7","intent_filters":[],"authorities":[]}],"permissions":[],"uses_permissions":[]}

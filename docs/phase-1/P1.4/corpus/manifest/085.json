@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.empty5","target_sdk":34,"min_sdk":21,"application_label":null,"components":[{"kind":"activity","name":".EmptyFilter5","exported":"true","enabled":"default","is_exported":true,"permission":null,"intent_filters":[{"actions":[],"categories":[],"data":[],"priority":0}],"authorities":[]}],"permissions":[],"uses_permissions":[]}

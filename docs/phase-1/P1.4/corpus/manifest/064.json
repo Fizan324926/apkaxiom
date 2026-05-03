@@ -1,0 +1,1 @@
+{"package":"com.apkaxiom.perm4","target_sdk":34,"min_sdk":21,"application_label":null,"components":[],"permissions":[{"name":"com.apkaxiom.permission.PERM4","protection":"internal","group":null}],"uses_permissions":[]}

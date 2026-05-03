@@ -1,59 +1,90 @@
 // Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 
-//! `axiom-ir` — Phase 1 placeholder for the canonical AXIOM-IR.
+//! `axiom-ir` — reference Rust implementation of **AXIOM-IR v0.1**.
 //!
-//! The real IR (with SSA, effects, dependent types in the kernel slice) lands
-//! incrementally across P1.5, P1.6, P3.x and is frozen to v1.0 in P6.10.
-//! In Phase 1 this crate exists to:
-//!  1. Demonstrate a *third-party* dependency vended through Reindeer
-//!     (`thiserror` → `//third-party/rust:thiserror`).
-//!  2. Demonstrate an *intra-workspace* dependency on `axiom-l0`.
+//! Frozen scope (Phase 1):
+//!   * **core**     — dialect-agnostic kernel: [`Module`], [`Operation`],
+//!                    [`Region`], [`Block`], [`Value`], [`Type`],
+//!                    [`Attribute`], [`Tribool`], [`Diagnostic`].
+//!   * **manifest** — Android-manifest dialect: [`manifest::Component`],
+//!                    [`manifest::IntentFilter`], [`manifest::Permission`],
+//!                    [`manifest::ManifestModule`].
+//!   * **resource** — `resources.arsc` dialect: [`resource::StringPool`],
+//!                    [`resource::Configuration`], [`resource::ResourceRef`],
+//!                    [`resource::ResourceTable`].
+//!   * **lowering** — manifest ↔ resource resolution: [`lowering::resolve`].
+//!
+//! Three wire formats are stable for v0.1:
+//!   * **Canonical bytes** ([`canonical`]) — byte-deterministic, self-describing,
+//!     length-prefixed. The cryptographic IR-commitment hash in [`hash`] is
+//!     computed over this byte stream. Producing equal canonical bytes from
+//!     two `Module` values is the round-trip equality property.
+//!   * **MLIR-style text** ([`text`]) — human-readable, parseable, used in
+//!     diagnostics and the spec.
+//!   * **Stable JSON** ([`json`]) — sorted keys, deterministic strings, used
+//!     by `tools/ir-corpus` to emit drift-stable summaries.
+//!
+//! The implementation is intentionally pure-std: no `serde`, `bincode`,
+//! `rkyv`, or `capnp` runtime dependency. Cf. `third-party/rust/Cargo.toml`
+//! for the workspace's deliberate dep-minimisation policy. The wire formats
+//! here are exact, deterministic, and self-validating against a hand-rolled
+//! NIST-FIPS-180-4 SHA-256 (see [`hash`]).
+//!
+//! See `docs/phase-1/P1.4/CHECKLIST.md` for the v0.1 spec, including the
+//! freeze policy (any change to canonical bytes flips the schema hash and
+//! flunks the CI drift gate at `p14-ir-drift`).
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs, unreachable_pub)]
 
-use thiserror::Error;
+pub mod canonical;
+pub mod core;
+pub mod hash;
+pub mod json;
+pub mod lowering;
+pub mod manifest;
+pub mod resource;
+pub mod text;
 
-/// Errors surfaced by the (future) AXIOM-IR pipeline.
-///
-/// Phase 1 ships only the placeholder variant; downstream phases extend
-/// this enum.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum IrError {
-    /// Phase-1 placeholder error returned by [`probe`].
-    #[error("axiom-ir placeholder error (real diagnostics arrive in P1.5)")]
-    Placeholder,
-}
+pub use crate::core::{
+    Attribute, Block, Diagnostic, IrError, Module, Operation, Region, Tribool, Type, Value, ValueId,
+};
 
-/// Build-graph liveness probe.
+/// Crate identifier baked into every `Module` produced by this crate.
 ///
-/// Threads through L0 *and* a third-party crate so a successful build proves
-/// Reindeer and Buck2 third-party graphs match the Cargo graph.
-///
-/// # Errors
-/// Always returns [`IrError::Placeholder`] in Phase 1 — the success path
-/// arrives once the IR is real.
-pub const fn probe() -> Result<u32, IrError> {
-    let _ = axiom_l0::placeholder();
-    Err(IrError::Placeholder)
-}
-
-/// Crate identifier baked into the binary.
+/// The string is part of canonical bytes; it pins the producer-tag of every
+/// IR module emitted in Phase 1. Downstream consumers may key on this for
+/// version detection.
 pub const CRATE_ID: &str = "apkaxiom::ir";
 
+/// AXIOM-IR specification version.
+///
+/// Minor bumps add fields without breaking canonical bytes for older
+/// schemas (modulo a wire-format extension marker). Major bumps reshape the
+/// canonical encoding and require an ADR.
+pub const SCHEMA_VERSION: &str = "0.1.0";
+
+/// Producer-tag string written into the canonical-bytes header.
+///
+/// Format: `apkaxiom::ir/0.1.0`.
+pub const PRODUCER_TAG: &str = "apkaxiom::ir/0.1.0";
+
 #[cfg(test)]
-mod tests {
+mod smoke {
     use super::*;
 
     #[test]
-    fn probe_returns_placeholder() {
-        assert!(matches!(probe(), Err(IrError::Placeholder)));
+    fn crate_id_is_stable() {
+        assert_eq!(CRATE_ID, "apkaxiom::ir");
+        assert_eq!(SCHEMA_VERSION, "0.1.0");
+        assert_eq!(PRODUCER_TAG, "apkaxiom::ir/0.1.0");
     }
 
     #[test]
-    fn error_renders() {
-        let s = IrError::Placeholder.to_string();
-        assert!(s.contains("placeholder"));
+    fn empty_module_round_trips() {
+        let m = Module::empty("smoke");
+        let bytes = canonical::encode(&m);
+        let parsed = canonical::decode(&bytes).expect("decode round-trip");
+        assert_eq!(canonical::encode(&parsed), bytes);
     }
 }

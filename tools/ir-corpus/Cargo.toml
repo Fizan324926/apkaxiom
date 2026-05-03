@@ -1,0 +1,21 @@
+[package]
+name = "ir-corpus"
+description = "Generate the 100-manifest + 50-resource + 30-lowering AXIOM-IR-v0.1 corpus and emit deterministic JSON summaries to docs/phase-1/P1.4/ir-data/."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "ir-corpus"
+path = "src/main.rs"
+
+[dependencies]
+axiom-ir = { path = "../../crates/axiom-ir" }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

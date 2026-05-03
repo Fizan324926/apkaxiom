@@ -1,0 +1,83 @@
+// Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+//
+// AXIOM-IR v0.1 type lattice. Renders the closed type set in
+// `crates/axiom-ir/src/core.rs::Type`. Render:
+//
+//   dot -Tsvg axiom-ir-types.dot -o axiom-ir-types.svg
+//
+// Tag values are listed inside each node — these are part of the
+// canonical-bytes wire format (any reorder = schema break).
+
+digraph axiom_ir_types {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=11, splines=ortho,
+         nodesep=0.3, ranksep=0.6, bgcolor="white"];
+  node  [fontname="Helvetica", fontsize=10, shape=box,
+         style="rounded,filled", fillcolor="#f5f7fa", color="#1f2d3d"];
+  edge  [fontname="Helvetica", fontsize=9, color="#3b4252"];
+
+  subgraph cluster_kernel {
+    label="Kernel (dialect-agnostic)"; labeljust=l; style="rounded";
+    bgcolor="#eef4ff"; color="#1e3a8a"; fontcolor="#1e3a8a";
+
+    type_node [label="Type\n(closed enum)", fillcolor="#dbe7ff"];
+    attr_node [label="Attribute\n(closed enum)", fillcolor="#dbe7ff"];
+  }
+
+  subgraph cluster_scalars {
+    label="Type::Scalar (tags 0x10–0x18)"; labeljust=l; style="dashed";
+    color="#94a3b8"; fontcolor="#475569";
+
+    tribool       [label="Tribool\n0x10",        fillcolor="#fff3d6"];
+    u32           [label="U32\n0x11",            fillcolor="#fff3d6"];
+    i32           [label="I32\n0x12",            fillcolor="#fff3d6"];
+    string        [label="String\n0x13",         fillcolor="#fff3d6"];
+    bytes         [label="Bytes\n0x14",          fillcolor="#fff3d6"];
+    resourceRef   [label="ResourceRef\n0x15",    fillcolor="#fff3d6"];
+    permissionRef [label="PermissionRef\n0x16",  fillcolor="#fff3d6"];
+    componentName [label="ComponentName\n0x17",  fillcolor="#fff3d6"];
+    apiLevel      [label="ApiLevel\n0x18",       fillcolor="#fff3d6"];
+  }
+
+  subgraph cluster_constructors {
+    label="Type::Constructor (tags 0x80+)"; labeljust=l; style="dashed";
+    color="#94a3b8"; fontcolor="#475569";
+
+    list   [label="List<T>\n0x80",  fillcolor="#dcfce7"];
+    option [label="Option<T>\n0x81", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_attrs {
+    label="Attribute (tags 0x20–0x26)"; labeljust=l; style="dashed";
+    color="#94a3b8"; fontcolor="#475569";
+
+    a_bool      [label="Bool\n0x20",      fillcolor="#e9d5ff"];
+    a_tribool   [label="Tribool\n0x21",   fillcolor="#e9d5ff"];
+    a_u32       [label="U32\n0x22",       fillcolor="#e9d5ff"];
+    a_i32       [label="I32\n0x23",       fillcolor="#e9d5ff"];
+    a_string    [label="String\n0x24",    fillcolor="#e9d5ff"];
+    a_bytes     [label="Bytes\n0x25",     fillcolor="#e9d5ff"];
+    a_apilevel  [label="ApiLevel\n0x26",  fillcolor="#e9d5ff"];
+  }
+
+  type_node -> tribool;
+  type_node -> u32;
+  type_node -> i32;
+  type_node -> string;
+  type_node -> bytes;
+  type_node -> resourceRef;
+  type_node -> permissionRef;
+  type_node -> componentName;
+  type_node -> apiLevel;
+  type_node -> list;
+  type_node -> option;
+  list   -> type_node [xlabel="inner", style="dashed"];
+  option -> type_node [xlabel="inner", style="dashed"];
+
+  attr_node -> a_bool;
+  attr_node -> a_tribool;
+  attr_node -> a_u32;
+  attr_node -> a_i32;
+  attr_node -> a_string;
+  attr_node -> a_bytes;
+  attr_node -> a_apilevel;
+}
