@@ -26,14 +26,18 @@ cd "$(git rev-parse --show-toplevel)"
 # Produce the .olean tree (incremental — Lake handles caching itself).
 lake build Apkaxiom >&2
 
-# Emit a sorted, deduped manifest of every .olean we produced.
-# Format: "<sha256>  <relative-path>".
+# Emit a sorted, deduped manifest of every *first-party* .olean we
+# produced. Mathlib + Batteries + other vendored Lean deps live under
+# `.lake/packages/*/` and have their own upstream reproducibility story;
+# including them here would bloat our manifest with churn that is not
+# under our control.
 {
   while IFS= read -r path; do
     [[ -z "$path" || ! -f "$path" ]] && continue
     sha256sum "$path" | awk -v rel="${path#./}" \
       '{printf "%s  %s\n", $1, rel}'
-  done < <(find .lake/build/lib -type f -name '*.olean' 2>/dev/null | sort -u)
+  done < <(find .lake/build/lib -type f -name '*.olean' \
+            -path '*/Apkaxiom*' 2>/dev/null | sort -u)
 } > "$OUT"
 
 # Final manifest line: the BLAKE3 of the body itself (matches the P1.1

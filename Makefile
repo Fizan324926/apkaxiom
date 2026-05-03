@@ -130,6 +130,29 @@ determinism-lint: ## Static lints for nondeterminism patterns in first-party Rus
 wall-time-rollup: ## Append CI wall-time samples + regenerate p99 rollup.
 	bash $(ROOT)/scripts/wall-time-rollup.sh
 
+##@ Lean (P1.2)
+
+.PHONY: lean-build
+lean-build: ## Lake-build the Apkaxiom theorems (incl. mathlib probe).
+	lake build Apkaxiom
+
+.PHONY: lean-extract
+lean-extract: ## Re-run lean-to-rust extractor on theorems/Apkaxiom/Hello.lean.
+	buck2 run //tools/lean-to-rust -- \
+	  theorems/Apkaxiom/Hello.lean \
+	  crates/axiom-extract-hello/src/lib.rs
+
+.PHONY: translation-validate
+translation-validate: ## Run Lean↔Rust operational-equivalence harness.
+	buck2 run //tools/translation-validator
+
+.PHONY: lean-update
+lean-update: ## Bump lake-manifest.json (privileged — requires G13 review and an explicit reason).
+	@echo "*** lake update is privileged — analogous to nix flake update."
+	@echo "*** Each manifest bump goes through a code-review on the resulting"
+	@echo "*** lake-manifest.json + reproducibility-hashes diff."
+	lake update
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

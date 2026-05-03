@@ -8,13 +8,23 @@
 /// Auto-extracted from a Lean `def`. Operational equivalence is
 /// asserted by `tools/translation-validator` on a fixed input set.
 #[must_use]
-pub const fn double(n: u64) -> u64 { 2 * n }
-
+pub const fn double(n: u64) -> u64 {
+    2 * n
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn double_zero() { assert_eq!(double(0), 0); }
-    #[test] fn double_seven() { assert_eq!(double(7), 14); }
-    #[test] fn double_billion() { assert_eq!(double(1_000_000_000), 2_000_000_000); }
+    #[test]
+    fn double_zero() {
+        assert_eq!(double(0), 0);
+    }
+    #[test]
+    fn double_seven() {
+        assert_eq!(double(7), 14);
+    }
+    #[test]
+    fn double_billion() {
+        assert_eq!(double(1_000_000_000), 2_000_000_000);
+    }
 }

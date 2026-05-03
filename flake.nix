@@ -147,14 +147,31 @@
 
         # Reproducibility env vars. Centralised so every shell variant sets
         # the same baseline.
+        #
+        # The `LIBRARY_PATH` / `LD_LIBRARY_PATH` prepend pulls in the newer
+        # libstdc++ from `pkgsUnstable.stdenv` (gcc-15.2.0). The 24.11
+        # stdenv is gcc-13.3.0 whose libstdc++ predates `__cxa_call_terminate`,
+        # which Lean's `libleancpp.a` (built with newer GCC) references —
+        # without this prepend, `lake update` fails to link mathlib's
+        # `cache:exe`.
         reproEnv = ''
           export SOURCE_DATE_EPOCH=315532800   # 1980-01-01 (zip/ar epoch)
           export TZ=UTC
           export LC_ALL=C.UTF-8
           export LANG=C.UTF-8
-          # Cargo's path-prefix remap is also set in toolchains/BUCK, but
-          # repeating it here keeps `cargo build` (outside Buck2) reproducible.
           export RUSTFLAGS="--remap-path-prefix=$PWD=. ''${RUSTFLAGS:-}"
+          # Lake invokes the C compiler named in `LEAN_CC` for its final
+          # link step. We pin that to gcc-15.2.0 (from pkgsUnstable) so
+          # mathlib's `cache:exe` and any other C++-bearing Lake targets
+          # resolve `__cxa_call_terminate` from a libstdc++ that has it.
+          export LEAN_CC="${pkgsUnstable.gcc}/bin/gcc"
+          export LIBRARY_PATH="${pkgsUnstable.stdenv.cc.cc.lib}/lib:''${LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${pkgsUnstable.stdenv.cc.cc.lib}/lib:''${LD_LIBRARY_PATH:-}"
+          # Force every gcc invocation in the dev shell to add the newer
+          # libstdc++ to the linker's *explicit* `-L` set, so lake's
+          # cache:exe link finds `__cxa_call_terminate` even when its own
+          # command line does not pass an explicit `-L`.
+          export NIX_LDFLAGS="-L${pkgsUnstable.stdenv.cc.cc.lib}/lib ''${NIX_LDFLAGS:-}"
         '';
 
         # Wrap a repo-relative script as a `nix run .#<name>`-able app. The
@@ -177,7 +194,10 @@
       in
       {
         # Default dev shell — interactive use, IDEs, CI.
-        devShells.default = pkgs.mkShell {
+        # Uses pkgsUnstable's stdenv so the C/C++ toolchain is gcc-15.2.0;
+        # 24.11's gcc-13.3.0 ships a libstdc++ that predates
+        # `__cxa_call_terminate`, which Lean's libleancpp.a requires.
+        devShells.default = pkgsUnstable.mkShell {
           name = "apkaxiom-dev";
           packages = commonTools;
           shellHook = ''
@@ -186,15 +206,16 @@
             echo "  rustc:    $(rustc --version)"
             echo "  buck2:    $(buck2 --version 2>/dev/null || echo '<unavailable>')"
             echo "  bazelisk: $(bazel --version 2>/dev/null | head -1 || echo '<bazelisk; init on first run>')"
-            echo "  cosign:   $(cosign version --json 2>/dev/null | jq -r .GitVersion 2>/dev/null || cosign version 2>/dev/null | head -1 || echo '<unavailable>')"
-            echo "  syft:     $(syft version -o json 2>/dev/null | jq -r .application.version 2>/dev/null || syft --version 2>/dev/null | head -1 || echo '<unavailable>')"
+            echo "  lean:     $(lean --version 2>/dev/null | head -1 || echo '<unavailable>')"
+            echo "  cosign:   $(cosign version 2>/dev/null | awk -F: '/^GitVersion/{print $2}' | xargs || echo '<unavailable>')"
+            echo "  syft:     $(syft version 2>/dev/null | awk -F: '/^Version/{print $2}' | xargs || echo '<unavailable>')"
             echo "  nix:      $(nix --version 2>/dev/null | head -1)"
           '';
         };
 
         # CI shell — same packages as default, but no interactive banner so
         # logs stay clean.
-        devShells.ci = pkgs.mkShell {
+        devShells.ci = pkgsUnstable.mkShell {
           name = "apkaxiom-ci";
           packages = commonTools;
           shellHook = reproEnv;
@@ -203,7 +224,7 @@
         # Repro-debug shell — adds diffoscope, file, ripgrep, etc. for
         # investigating reproducibility failures. Heavier than `default`,
         # so opt-in only.
-        devShells.repro-debug = pkgs.mkShell {
+        devShells.repro-debug = pkgsUnstable.mkShell {
           name = "apkaxiom-repro-debug";
           packages = commonTools ++ reproDebugTools;
           shellHook = ''

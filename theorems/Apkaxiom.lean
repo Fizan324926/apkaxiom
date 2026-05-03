@@ -2,3 +2,4 @@
 -- `import Apkaxiom` is sufficient to bring our theorems into scope.
 
 import Apkaxiom.Hello
+import Apkaxiom.MathlibProbe

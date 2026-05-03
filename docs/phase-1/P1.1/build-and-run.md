@@ -118,6 +118,48 @@ nix develop .#repro-debug --command diffoscope <fileA> <fileB>
 
 `make` with no argument prints a help summary.
 
+## Lean (P1.2) entry points
+
+The Lean toolchain is pinned via `pkgsUnstable.lean4` in `flake.nix`
+(Lean 4.29.1 — matches the `mathlib4 v4.29.1` line declared in
+`lakefile.toml` and verified against the SHA recorded in `flake.lock`).
+
+| Goal | `make` | Notes |
+|---|---|---|
+| Build all our theorems (incl. mathlib probe) | `make lean-build` | `lake build Apkaxiom` |
+| Re-run the Lean → Rust extractor | `make lean-extract` | Idempotent; CI gates on `git diff --exit-code` |
+| Operational-equivalence check (Lean ↔ Rust on fixed inputs) | `make translation-validate` | Skeleton; replaced by P1.9's full validator |
+| Buck2 wrapper around `lake build` | `buck2 build //theorems:hello` | Emits an olean hash-manifest with CORPUS_ROOT |
+| **Privileged**: bump `lake-manifest.json` | `make lean-update` | Analogous to `nix flake update`; goes through G13 review |
+
+### Mathlib4 cache & reproducibility model
+
+We follow Lake's own model: `lake-manifest.json` is committed, pinning
+every transitive Lean package by SHA. On a fresh clone, `lake build`
+fetches the listed packages on demand — there is no need to run
+`lake update` first, and you should not (it is a privileged manifest
+bump, gated by `make lean-update`).
+
+The `actions/cache@v4` step in `lean-bringup` keys off the manifest, so
+warm CI runs hit the cached `.lake/` tree and skip mathlib's olean
+rebuild entirely. The hash corpus only includes our own oleans
+(`Apkaxiom*.olean`); mathlib has its own upstream reproducibility
+guarantees we delegate to.
+
+### Local-only quirk: `lake update` may fail to link `cache:exe`
+
+Mathlib4's `cache:exe` (its olean-cache fetcher) embeds C++ symbols from
+a libstdc++ newer than 24.11's `gcc-13.3.0-lib` provides. The flake
+exports `LEAN_CC` / `LIBRARY_PATH` / `NIX_LDFLAGS` to bias linking
+toward `gcc-15.2.0-lib`, but the rust-overlay's stdenv injects gcc-13
+paths into `NIX_LDFLAGS` later in the chain, sometimes winning the
+search-order contest. **You do not need `cache:exe` for everyday work**
+— `lake build` works without it and our manifest is already pinned.
+The only time the fault surfaces is when bumping the manifest via
+`make lean-update`; the partial failure still writes the new manifest
+before the cache:exe step fails, so you can `git add lake-manifest.json`
+and proceed. CI runs on Ubuntu's stock gcc and is unaffected.
+
 ---
 
 ## What "byte-identical" means here
