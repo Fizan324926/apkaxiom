@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# Syn-based unsafe-block census. Replaces the regex approximation in
+# scripts/p13-audit.sh with a real AST scan.
+
+rust_binary(
+    name = "unsafe-census",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "unsafe_census",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:syn",
+        "//third-party/rust:walkdir",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

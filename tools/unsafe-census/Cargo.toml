@@ -1,0 +1,22 @@
+[package]
+name = "unsafe-census"
+description = "Syn-based AST scanner that counts genuine `unsafe` blocks / fns / impls in a Rust source tree. Used by scripts/p13-audit.sh to replace the regex approximation that over-counts string literals and comments."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "unsafe-census"
+path = "src/main.rs"
+
+[dependencies]
+syn = { workspace = true, features = ["full", "visit"] }
+walkdir = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

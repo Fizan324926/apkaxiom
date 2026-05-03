@@ -2,14 +2,26 @@
   "identity": {
     "schema": "apkaxiom.p13-audit/v1",
     "upstream_repo": "https://github.com/delvinru/apk-info",
-    "pinned_sha": "759b39cea8e0dd570a1ca3c7c98b8c5b3070d8ab",
-    "audited_at_utc": "1980-01-01T00:00:00Z"
+    "pinned_sha": "759b39cea8e0dd570a1ca3c7c98b8c5b3070d8ab"
   },
   "rust_loc": 6336,
   "rust_files": 39,
-  "advisories_found": 0,
-  "unsafe_files": 1,
-  "unsafe_total_occurrences": 1,
+  "cargo_audit": {
+    "vulnerabilities": 0,
+    "unmaintained": 2,
+    "yanked": 0,
+    "notices": 0,
+    "total_advisories_and_warnings": 2
+  },
+  "unsafe_ast": {
+    "unsafe_blocks": 1,
+    "unsafe_fns": 0,
+    "unsafe_impls": 0,
+    "unsafe_traits": 0,
+    "grand_total": 1
+  },
+  "unsafe_ast_files": 1,
+  "unsafe_ast_parse_failures": 0,
   "public_api": [
     {
       "crate": "cli",
@@ -56,5 +68,28 @@
     "total_resolved": 188,
     "direct_workspace_deps": 33
   },
-  "cargo_bloat_skipped": true
+  "cargo_bloat_skipped": false,
+  "correctness": {
+    "pass": 100,
+    "fail": 0,
+    "error_buckets": []
+  },
+  "perf": [
+    {
+      "subcommand": "show",
+      "n": 100,
+      "median_ms": 4.386216640000001,
+      "p95_ms": 5.9483406400000005,
+      "p99_ms": 32.767510640000005,
+      "max_ms": 36.065072640000004
+    },
+    {
+      "subcommand": "axml",
+      "n": 100,
+      "median_ms": 1.7476361599999997,
+      "p95_ms": 4.4143941600000005,
+      "p99_ms": 34.66041916,
+      "max_ms": 35.69377916
+    }
+  ]
 }

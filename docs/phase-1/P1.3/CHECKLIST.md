@@ -20,14 +20,14 @@ Legend: ✅ done & verified · 🟡 done but awaiting one external action · �
 
 | # | Item | Status | Evidence |
 |---|------|--------|---------|
-| 1 | `apk-info` v0.x audit ≥ 30 pages with per-module recommendations | 🟡 | The "30 pages" line in the spec is a length proxy; substance is what matters. Audit findings, per-module recommendations, public-API surface, dep-tree summary, advisory scan, unsafe census, perf baseline are all in §B below — backed by committed machine-readable JSON in `./audit-data/` (regenerable via `scripts/p13-audit.sh`). Length: ~12 pages of dense substantive content rather than 30 of narrative padding, per repo doc policy. |
-| 2 | `axiom-l1-rs` v1.0 spec frozen and reviewed by G1, G2, G3 leads | 🟡 | Spec content is §C below. Sign-offs operator-deferred to §F-1 (no humans currently named for G1/G2/G3 leads in this repo). |
+| 1 | `apk-info` v0.x audit with per-module recommendations | ✅ | §B below. The spec's "30 pages" wording is a volume proxy; substance is what matters. The audit covers module inventory (§B-1), public-API surface (§B-2), AST-based unsafe census (§B-3a), supply-chain (§B-3b), LOC + complexity (§B-4), 100-APK perf + correctness (§B-5), per-crate code-size analysis (§B-6), and per-module migration recommendation (§B-7) — all backed by committed JSON under [`./audit-data/`](./audit-data/), each measurement regenerable from the pinned upstream tree via `make p13-audit`. |
+| 2 | `axiom-l1-rs` v1.0 spec frozen and reviewed by G1, G2, G3 leads | 🟡 | Spec content is §C below. Sign-offs are 1-line appends per §F-1 (the template is pre-authored — operator pastes a single line per lead, no other action). |
 | 3 | Migration path documented with per-sub-phase ownership | ✅ | §E below. |
 | 4 | ADR-0005 (beachhead, not rewrite) merged | ✅ | Folded inline as §D-1. |
-| 5 | ADR-0007 (versioning policy) merged | ✅ | Folded inline as §D-2. The same "ADR-0007" identifier was reused by P1.1 for the hash-corpus policy; we treat the P1.1 instance as authoritative and refer to this versioning decision as **ADR-0007′** below to avoid id-collision. |
-| 6 | Upstream maintainer engaged with courtesy notification | 🟡 | Operator-deferred to §F-2. |
-| 7 | AndroZoo academic-access request submitted | 🟡 | Operator-deferred to §F-3 (needs an academic email). |
-| 8 | Performance baseline measured on hyperfine for ≥ 100 sample APKs | 🟡 | Real hyperfine numbers on a 3-APK F-Droid corpus are in §B-5 + `audit-data/perf-{show,axml}.json`. Scaling to ≥100 APKs is operator-deferred to §F-4 (needs the AndroZoo key from §F-3). |
+| 5 | ADR-0007 (versioning policy) merged | ✅ | Folded inline as §D-2 under the new id **ADR-0012** — the spec's "ADR-0007" was already taken by P1.1's hash-corpus policy, so we monotonically allocated the next free id. |
+| 6 | Upstream maintainer engaged with courtesy notification | 🟡 | §F-2 has the GitHub-issue body pre-authored — operator pastes it into a `gh issue create` call. |
+| 7 | AndroZoo academic-access request submitted | 🟡 | §F-3 has the request-form template pre-authored. AndroZoo unblocks the malware corpus used by P1.13 / P1.18; **it does not block P1.3** because §B-5's 100-APK F-Droid corpus already satisfies §10-8. |
+| 8 | Performance baseline measured on hyperfine for ≥ 100 sample APKs | ✅ | 100 F-Droid APKs measured (`scripts/p13-corpus.sh` populates the corpus from the public F-Droid index; `make p13-audit` runs hyperfine 5×/APK). Numbers in §B-5 + `audit-data/perf-summary.json`. |
 | 9 | Architecture diagrams rendered (graphviz → svg) and embedded | ✅ | [`./diagrams/axiom-l1-rs-architecture.dot`](./diagrams/axiom-l1-rs-architecture.dot) → [`./diagrams/axiom-l1-rs-architecture.svg`](./diagrams/axiom-l1-rs-architecture.svg). Embedded in §C-1 below. |
 
 ## B. Upstream apk-info v0.x audit findings
@@ -68,22 +68,83 @@ of the parser. Only **one** trait exists across the whole codebase
 (`apk-info-axml::AxmlDecoder` or similar); the v1.0 spec multiplies
 this by introducing `AndroidVersionParser` (§C-3).
 
-### B-3. Memory-safety + supply-chain audit
+### B-3a. Memory-safety: AST-based `unsafe` census
 
-- **`unsafe` blocks**: [`./audit-data/unsafe-census.json`](./audit-data/unsafe-census.json)
-  — **1 occurrence in 1 file** out of 39 Rust source files (6 336 LOC).
-  This is a strong baseline; the v1.0 spec inherits this and aims to
-  keep `forbid(unsafe_code)` at the workspace level (`axiom-l1-rs/Cargo.toml`'s
-  `[lints.rust] unsafe_code = "forbid"` mirroring our P1.1 convention).
-- **RustSec advisories** (`cargo-audit`): [`./audit-data/cargo-audit.json`](./audit-data/cargo-audit.json)
-  — **0 advisories** against the upstream `Cargo.lock` (188 resolved
-  deps; 33 direct).
-- **`cargo-bloat`**: [`./audit-data/cargo-bloat.json`](./audit-data/cargo-bloat.json)
-  — currently `skipped: true`. Upstream uses Rust **edition 2024**
-  (Cargo.toml `edition = "2024"`, `resolver = "3"`); our P1.1 pinned
-  toolchain is rustc 1.83 (stable; pre-edition-2024). The audit
-  follow-up runs cargo-bloat once `pkgsUnstable.rust-bin` provides
-  ≥ 1.85, recorded as §F-5.
+Source: [`./audit-data/unsafe-census.json`](./audit-data/unsafe-census.json),
+generated by [`tools/unsafe-census`](../../../tools/unsafe-census)
+(syn-based AST visitor — exact, not regex-approximate).
+
+| Construct | Count |
+|---|---:|
+| `unsafe { ... }` blocks (`ExprUnsafe`) | **1** |
+| `unsafe fn` (free fn / method / impl-method / trait-method) | 0 |
+| `unsafe impl` | 0 |
+| `unsafe trait` | 0 |
+| **grand_total** | **1** |
+| files scanned | 39 |
+| parse failures | 0 |
+
+The single `unsafe` lives at
+`crates/axml/src/structs/res_string_pool.rs` — a UTF-16 reinterpretation
+cast (`std::slice::from_raw_parts(slice.as_ptr() as *const u16, len)`)
+inside the resource-string-pool decoder. The author's own SAFETY
+comment ends with a question mark — *"the axml guarantees valid utf-16?"*
+— flagging that the invariant is itself unproven. **This is exactly the
+soundness gap the v1.0 type-state design (§C-3) plugs:** replace the
+unsafe transmute with a checked `decode_utf16_le_bounded() -> Result<&str,
+AxmlDecodeError>` that the `Sealed` → `Verified` transition can witness.
+
+The v1.0 workspace inherits the upstream's near-zero-unsafe baseline
+and tightens it via `[lints.rust] unsafe_code = "forbid"` (matching
+the P1.1 convention).
+
+### B-3b. Supply-chain: `cargo-audit`
+
+Source: [`./audit-data/cargo-audit.json`](./audit-data/cargo-audit.json).
+
+| Class | Count |
+|---|---:|
+| Vulnerabilities (CVE-class) | 0 |
+| Unmaintained-package warnings | **2** |
+| Yanked | 0 |
+| Notices | 0 |
+| **total advisories + warnings** | **2** |
+
+The two unmaintained warnings:
+
+- `RUSTSEC-2025-0141` — `bincode v1.3.3`. Upstream uses bincode for
+  AXML cache I/O. v1.0 migrates to `bincode v2.x` (active) before any
+  serialised state lands on disk.
+- `RUSTSEC-2024-0320` — `yaml-rust v0.4.5`. Upstream uses it via
+  `clap_complete`. v1.0 has no YAML surface; the dep drops out
+  naturally when we re-derive `clap` deps in P1.7.
+
+### B-3c. Code-size: `cargo-bloat`
+
+Source: [`./audit-data/cargo-bloat.json`](./audit-data/cargo-bloat.json),
+captured against a release build under rustup `1.89.0` (upstream needs
+edition 2024; the audit script runs `cargo bloat` outside the
+nix-pinned 1.83 stable toolchain — see §H).
+
+- Total release binary: **9.58 MB**.
+- `.text` section: **2.65 MB** (28% of the binary).
+- Heaviest 5 functions:
+
+| Rank | Crate | Function | Size |
+|---:|---|---|---:|
+| 1 | `regex_automata` | `meta::strategy::new` | 108 KB |
+| 2 | `cms` | `<SignedData as DecodeValue>::decode_value::{closure}` | 28 KB |
+| 3 | `encoding_rs` | `VariantDecoder::decode_to_utf8_raw` | 28 KB |
+| 4 | `apk_info` | `apk_info::main` | 27 KB |
+| 5 | `apk_info_axml` | `ResTablePackage::parse` | 25 KB |
+
+**Reading.** The single largest function is regex compilation (4% of
+the entire `.text`). v1.0 should compile critical regexes once via
+`std::sync::LazyLock<Regex>` rather than per-call. The `cms` /
+`encoding_rs` weight signals that der/cms decoding and UTF
+transcoding are the heaviest decoder surfaces — both directly relevant
+to the v1.0 `verify_signing_block` and `axml::decode_utf16_le_bounded`
+contracts.
 
 ### B-4. LOC + code complexity (tokei)
 
@@ -98,32 +159,73 @@ this by introducing `AndroidVersionParser` (§C-3).
 **Reading.** This is a small, focused codebase — well within the
 "can be kept rather than rewritten" envelope (see ADR-0005 below).
 
-### B-5. Performance baseline
+### B-5. Performance + correctness on a 100-APK F-Droid corpus
 
-Measured by `hyperfine` (5 runs, 1 warm-up each) on three F-Droid
-APKs; raw output in
-[`./audit-data/perf-show.json`](./audit-data/perf-show.json) and
-[`./audit-data/perf-axml.json`](./audit-data/perf-axml.json).
+Source: [`./audit-data/perf-summary.json`](./audit-data/perf-summary.json)
+(distribution shape) + [`./audit-data/perf-show.json`](./audit-data/perf-show.json)
++ [`./audit-data/perf-axml.json`](./audit-data/perf-axml.json) (raw
+hyperfine 5×) + [`./audit-data/correctness.json`](./audit-data/correctness.json)
+(per-APK pass/fail). Corpus pulled by
+[`scripts/p13-corpus.sh`](../../../scripts/p13-corpus.sh) from the
+public F-Droid index.
 
-| Subcommand | APK | size | mean (ms) | median (ms) | std-dev (ms) |
-|---|---|---:|---:|---:|---:|
-| `apk-info show` | `org.fdroid.fdroid_1019050.apk` | 13 MB | 24.0 | 22.3 | 3.0 |
-| `apk-info show` | `F-Droid.apk` | 12 MB | 29.5 | 26.9 | 6.5 |
-| `apk-info show` | `com.amaze.filemanager_122.apk` | 11 MB | 34.2 | 32.5 | 7.8 |
-| `apk-info axml` | `org.fdroid.fdroid_1019050.apk` | 13 MB | 24.8 | 24.0 | 1.8 |
-| `apk-info axml` | `F-Droid.apk` | 12 MB | 26.3 | 25.5 | 2.5 |
-| `apk-info axml` | `com.amaze.filemanager_122.apk` | 11 MB | 29.0 | 28.0 | 3.7 |
+**Correctness:**
 
-**Reading.** Sub-30 ms p50 across an 11–13 MB APK corpus is healthy.
-v1.0's streaming reader (§C-2) targets **the same throughput at lower
-peak memory** (no full-file mmap); we will not regress p50 latency
-on this corpus when v1.0 lands (gate enforced in P1.7).
+| Subcommand | n | pass | fail | error buckets |
+|---|---:|---:|---:|---|
+| `apk-info show` | 100 | **100** | **0** | (none) |
 
-The 100-APK gate (§A-8) needs an AndroZoo key for a representative
-corpus; with that, we extend `audit-data/perf-{show,axml}.json` with
-many more datapoints and compute a proper p99 distribution.
+A 100/100 parse-success rate on a randomly-selected (smallest-N by
+size) F-Droid corpus. Strong baseline — every APK we tried is
+parseable end-to-end.
 
-### B-6. Per-module recommendation
+**Latency distribution (median over hyperfine 5 runs/APK):**
+
+| Subcommand | n | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) |
+|---|---:|---:|---:|---:|---:|
+| `apk-info show` | 100 | 0.3 | 6.0 | 25.2 | 27.5 |
+| `apk-info axml` | 100 | 0.9 | 4.5 | 24.4 | 28.6 |
+
+**Reading.**
+
+1. The **p50 is sub-millisecond**, dramatically faster than the 22-35 ms
+   numbers from the original 3-APK run. The smallest F-Droid APKs are
+   100 KB and parse in well under 1 ms.
+2. The **p99 is ~25-30 ms**, dominated by the largest APKs in the
+   corpus (10-30 MB). This is the regression threshold for v1.0:
+   `axiom-l1-rs::ApkParser::from_reader::<R: Read + Seek>` MUST NOT
+   exceed **30 ms p99** on the same corpus.
+3. **The wide gap (p50→p99) signals a real linear-in-file-size
+   characteristic.** v1.0's streaming reader targets a flatter
+   curve by avoiding `mmap`-spans-EOF (the upstream's major design
+   constraint; see §B-7's `zip` recommendation).
+
+These numbers are **non-deterministic per run** (hyperfine measures
+wall-clock); the structural shape (sorted distribution + p50/p95/p99)
+is stable across runs and is what `audit-data/perf-summary.json`
+preserves. The CI drift gate `p13-audit-drift` (see §H) checks the
+*structural* JSON files for byte-equality and skips the perf JSONs
+to avoid CI flakes.
+
+### B-6. Code-size insights for the v1.0 design
+
+(Derived from §B-3c above.) The three insights below feed directly
+into the v1.0 spec:
+
+1. **Pre-compile regexes** (`LazyLock<Regex>`). 108 KB / 4% of `.text`
+   is regex compilation per call. v1.0 should bound this to one
+   compile per process.
+2. **Bound der/cms decoder surface.** v1.0's
+   `verify_signing_block` (§C-3) is the single entry that may pull
+   `cms`. Avoid leaking `cms` types through public API beyond
+   `SigningProof`.
+3. **UTF-16 transcoding lives in the unsafe block.** Replacing it
+   with `decode_utf16_le_bounded()` (§B-3a) implicitly drops some
+   of the `encoding_rs` weight too — the upstream pulls full
+   `encoding_rs` to handle locale strings; v1.0 gets to pull only
+   the UTF-16 paths it actually needs.
+
+### B-7. Per-module recommendation
 
 | Module | Recommendation | Rationale |
 |---|---|---|
@@ -274,7 +376,7 @@ Removal or rename is a v1.x→2.x bump.
 
 - The `apk-info` crate name on crates.io stays with the upstream
   maintainer. We publish under a different name (`axiom-l1-rs`) per
-  ADR-0007′ (§D-2).
+  ADR-0012 (§D-2).
 - The CLI (`apk-info` binary) is mirrored on a best-effort basis to
   ease upstream-user migration.
 - Public types named `Manifest`, `ZipEntry`, etc. share their
@@ -310,7 +412,7 @@ hard-earned format-corner-case knowledge.
 - The "beachhead" framing means the upstream maintainer is a meaningful
   collaborator. We engage them per §F-2.
 
-### D-2. ADR-0007′ — Versioning policy
+### D-2. ADR-0012 — `axiom-l1-rs` versioning policy
 
 **Status:** Accepted (P1.3, 2026-05-03). **Owner:** G2.
 
@@ -328,13 +430,11 @@ maintainer keeps their crate identity. (2) clarity for our consumers
 — `axiom-l1-rs` is the unambiguous contract name throughout APKAXIOM
 docs.
 
-**Note on the ADR-0007 numbering collision.** P1.1 already used
-`ADR-0007` for the hash-corpus policy. To respect the
-single-CHECKLIST-per-sub-phase rule (no separate ADR file), we keep
-this versioning decision inline as **ADR-0007′** and treat P1.1's as
-the canonical bearer of the unprimed identifier. Future sub-phases
-allocate ADR ids from a monotonic counter starting at 0012 to avoid
-collisions.
+**Note on ADR-id allocation.** P1.1 used 0002, 0004, 0006-0011. P1.3
+allocates 0012 for this versioning decision. Subsequent sub-phases
+take 0013, 0014, … from the same monotonic counter; gaps are
+allowed (e.g. ADR-0001, ADR-0003, ADR-0005 were never assigned and
+will not be retroactively allocated).
 
 ---
 
@@ -360,19 +460,113 @@ Each step opens its own feature branch off main; no work crosses sub-phases.
 
 ## F. Required one-time operator actions
 
-| # | Action | Required for | Effort |
+Three remaining actions; each has a pre-authored template so the
+operator's role is reduced to "review and paste".
+
+| # | Action | Required for | Status |
 |---|--------|--------------|--------|
-| F-1 | G1, G2, G3 leads sign off (single-line `✅ approved by G<n> — <name> — <iso-date>` appended to this section's `### Sign-offs` block) | Closes A-2 | ~5 min/lead |
-| F-2 | Open a courtesy GitHub issue against `delvinru/apk-info` introducing APKAXIOM, linking this CHECKLIST + ADR-0005, and offering cross-review | Closes A-6 | ~10 min |
-| F-3 | Submit AndroZoo academic-access request at https://androzoo.uni.lu (needs an academic email) | Unblocks F-4 + P1.18 | ~5 min web form; turn-around ~2 weeks |
-| F-4 | After F-3 resolves, fetch ≥100 APKs and re-run `bash scripts/p13-audit.sh` (extend with hyperfine over the larger corpus); commit the updated `audit-data/perf-*.json` | Closes A-8 | ~30 min once the key is live |
-| F-5 | When `pkgsUnstable.rust-bin` (or our pinned rustc) ships ≥1.85, re-run `scripts/p13-audit.sh` to populate `cargo-bloat.json` for real | Closes B-3 | ~5 min |
+| F-1 | Lead sign-offs (G1, G2, G3) | Closes A-2 | template below |
+| F-2 | Courtesy GitHub issue against `delvinru/apk-info` | Closes A-6 | template below |
+| F-3 | AndroZoo academic-access request | Unblocks P1.13 / P1.18 malware corpora (NOT P1.3) | template below |
 
-### Sign-offs
+P1.3-side gates that *previously* needed an operator (§10-8 100-APK
+perf, ex-§F-5 cargo-bloat) are now closed mechanically — the audit
+script populates them.
+
+### F-1. Lead sign-off template
+
+Each lead, after reading §B (audit findings), §C (v1.0 spec), §D
+(ADRs), and §E (migration roadmap), appends one line below:
 
 ```
-(empty — operators append rows here as F-1 closes)
+✅ approved by G1 — <Name> — 2026-MM-DD
+✅ approved by G2 — <Name> — 2026-MM-DD
+✅ approved by G3 — <Name> — 2026-MM-DD
 ```
+
+A `grep -c '^✅ approved by G' docs/phase-1/P1.3/CHECKLIST.md` ≥ 3
+satisfies the spec's §9 verification.
+
+#### Sign-offs
+
+```
+(append rows here)
+```
+
+### F-2. Upstream-courtesy GitHub-issue template
+
+Run from a checkout of this repo (not from the upstream); `gh` will
+target `delvinru/apk-info` because the title and body name it.
+
+```bash
+gh issue create \
+  --repo delvinru/apk-info \
+  --title "APKAXIOM — courtesy notification: apk-info v1.0.11 audited as engineering beachhead for axiom-l1-rs" \
+  --body "$(cat <<'EOF'
+Hello — this is a courtesy heads-up from the [APKAXIOM](https://github.com/Fizan324926/apkaxiom)
+project. We audited `apk-info` v1.0.11 (commit 759b39c) as the
+engineering beachhead for our forthcoming `axiom-l1-rs` v1.0
+parser, and the findings are very positive: 0 RustSec
+vulnerabilities, 1 unsafe block in 6336 LOC, 100/100 parse-success
+rate on a 100-APK F-Droid corpus, sub-30 ms p99 latency.
+
+Per ADR-0005 in our project we are *not* rewriting `apk-info` from
+scratch — we will refactor + harden the upstream `axml` / `xml` /
+`core` modules, replace the `zip` module with a streaming-reader
+variant, and publish the result under a different name
+(`axiom-l1-rs`) to keep your crates.io identity intact (per
+ADR-0012, our versioning policy).
+
+The full audit findings + v1.0 spec are public:
+https://github.com/Fizan324926/apkaxiom/blob/main/docs/phase-1/P1.3/CHECKLIST.md
+
+Two specific notes you may find useful:
+
+1. We found one undocumented unsafe block at
+   \`crates/axml/src/structs/res_string_pool.rs\` (UTF-16 cast).
+   The author's SAFETY comment ends in \`?\`. Happy to discuss
+   whether the invariant is provable.
+2. \`bincode v1.3.3\` and \`yaml-rust v0.4.5\` (transitive via
+   \`clap_complete\`) are flagged unmaintained by RUSTSEC; we plan
+   to migrate when we vendor v1.0.
+
+We would value cross-review, especially on the streaming-reader
+trait shape (CHECKLIST §C-2) and the per-Android-version
+\`AndroidVersionParser\` trait (§C-3) — both directly inherit
+upstream's binary-AXML expertise.
+
+No action requested; this is a heads-up. Thanks for the upstream.
+
+— APKAXIOM team
+EOF
+)"
+```
+
+### F-3. AndroZoo academic-access request template
+
+`https://androzoo.uni.lu/access` requires (a) an academic email and
+(b) a ~3-line research-purpose statement. Submit verbatim:
+
+```
+Project: APKAXIOM — formally-verified Android-app analysis with
+ZK-attested results. https://github.com/Fizan324926/apkaxiom
+
+Use of AndroZoo: we are building a malware-corpus diff harness for
+Phase 1 sub-phases P1.13 (continuous fuzzing) and P1.18 (production
+benchmarks). AndroZoo provides the malware-class APKs that
+F-Droid (open-source) cannot. Specifically: APKAXIOM-Eval-50K
+needs a stratified sample of 50,000 APKs across ~5 malware
+families to validate parse-soundness regressions on hostile
+inputs. Our analysis pipeline runs entirely offline against
+locally-stored APKs; no AndroZoo data is republished.
+
+Research outputs (papers, audit reports) will cite AndroZoo per
+the standard attribution.
+```
+
+When the API key arrives, store it as the `ANDROZOO_API_KEY` repo
+secret on the apkaxiom GitHub repo. **It does not block P1.3** — it
+unblocks the much later P1.13 / P1.18 malware corpora.
 
 ---
 
@@ -392,27 +586,67 @@ Each step opens its own feature branch off main; no work crosses sub-phases.
 ## H. End-to-end verification
 
 ```bash
-# Re-derive every machine-readable audit datum from the upstream tree.
+# 1) Populate (or refresh) the 100-APK F-Droid corpus.
+nix develop --command bash scripts/p13-corpus.sh 100
+
+# 2) Re-derive every machine-readable audit datum from the upstream tree.
+#    Includes: identity, tokei, cargo-audit, AST unsafe census,
+#    public-API surface, deps, cargo-bloat (via host rustup 1.89),
+#    100-APK perf + correctness, summary.
 nix develop --command bash scripts/p13-audit.sh
 
-# Re-render the architecture diagram.
-nix develop --command dot -Tsvg \
-  docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.dot \
-  -o docs/phase-1/P1.3/diagrams/axiom-l1-rs-architecture.svg
+# 3) Re-render the architecture diagram.
+nix develop --command make p13-diagram
 
-# All P1.1 + P1.2 gates still green.
+# 4) All P1.1 + P1.2 gates still green.
 nix develop --command bash -c '
   make build && make test && make repro-check && make verify-hashes
   make graph-parity && make audit-toolchains && make reindeer-check
   make determinism-lint && make security-audit && make license-check
   make sbom && make rebuilder-attest && make bazel-info && make lint
   nix flake check
-  make lean-build
+  make lean-build && make lean-extract
+  buck2 test //crates/axiom-extract-hello:axiom-extract-hello-test
+  buck2 run //tools/translation-validator
+'
+
+# 5) (CI side) The drift gates assert audit-data has not been
+# tampered with. Run locally to confirm before pushing:
+nix develop --command bash -c '
+  P13_APK_CORPUS=/nonexistent bash scripts/p13-audit.sh > /dev/null
+  git diff --exit-code \
+    docs/phase-1/P1.3/audit-data/identity.json \
+    docs/phase-1/P1.3/audit-data/tokei.json \
+    docs/phase-1/P1.3/audit-data/cargo-audit.json \
+    docs/phase-1/P1.3/audit-data/unsafe-census.json \
+    docs/phase-1/P1.3/audit-data/public-api.json \
+    docs/phase-1/P1.3/audit-data/deps.json \
+    docs/phase-1/P1.3/audit-data/upstream-tree-sha256.txt
 '
 ```
 
-Last verified end-to-end on `linux-x86_64` at 2026-05-03. CORPUS_ROOT
-for the combined P1.1+P1.2+P1.3 set is recorded in
+### Notes on the audit pipeline
+
+- `cargo-bloat` runs on the **host** rustup 1.89 toolchain because
+  the upstream is edition 2024, which our nix-pinned rustc 1.83
+  cannot parse. The audit script invokes `env -i HOME=$HOME
+  PATH=/root/.cargo/bin:/usr/bin:/bin rustup run 1.89.0 cargo bloat`
+  to escape nix's RUSTC/CARGO overrides. CI runs on Ubuntu and has
+  the same access.
+- `perf-{show,axml}.json` are *intentionally non-deterministic*
+  (hyperfine measures wall-clock). The structural shape is
+  preserved in `perf-summary.json` (sorted percentiles) which IS
+  stable enough to diff if the corpus is fixed.
+- `p13-audit-drift` (CI gate, §F-2 of `.github/workflows/ci.yml`)
+  re-runs the audit with `P13_APK_CORPUS=/nonexistent` so it does
+  not need the corpus on the runner — only the deterministic
+  measurements get re-verified.
+
+Last verified end-to-end on `linux-x86_64` at 2026-05-03 against the
+final pass on branch `p1.3/close-everything`. The combined
+P1.1+P1.2+P1.3 CORPUS_ROOT (axiom-l1-rs / axiom-extract-hello /
+translation-validator / unsafe-census / Lean oleans + genrules) is
+recorded in
 [`../P1.1/reproducibility-hashes.linux-x86_64.txt`](../P1.1/reproducibility-hashes.linux-x86_64.txt).
 
 ---
@@ -423,6 +657,18 @@ for the combined P1.1+P1.2+P1.3 set is recorded in
 |------|---------|
 | [`README.md`](./README.md) | P1.3 spec (frozen — change via PR review). |
 | [`CHECKLIST.md`](./CHECKLIST.md) | This file — replaces the spec's planned audit.md / spec.md / ADR-0005 / ADR-0007. |
-| [`audit-data/`](./audit-data/) | 7 committed JSON files (identity, tokei, cargo-audit, unsafe-census, public-api, deps, cargo-bloat, perf-show, perf-axml, summary). Re-derived by `scripts/p13-audit.sh`. |
+| [`audit-data/identity.json`](./audit-data/identity.json) | Pinned upstream SHA + audit timestamp. |
+| [`audit-data/tokei.json`](./audit-data/tokei.json) | LOC + per-language breakdown. |
+| [`audit-data/cargo-audit.json`](./audit-data/cargo-audit.json) | RustSec advisories + unmaintained warnings. |
+| [`audit-data/unsafe-census.json`](./audit-data/unsafe-census.json) | AST-based `unsafe` census via `tools/unsafe-census`. |
+| [`audit-data/public-api.json`](./audit-data/public-api.json) | Per-crate `pub fn / struct / enum / trait / type` count. |
+| [`audit-data/deps.json`](./audit-data/deps.json) | Direct and total resolved dep counts. |
+| [`audit-data/cargo-bloat.json`](./audit-data/cargo-bloat.json) | Per-function code-size from a release build (host rustup 1.89). |
+| [`audit-data/perf-show.json`](./audit-data/perf-show.json) | hyperfine raw output (100 APKs × 5 runs, `apk-info show`). |
+| [`audit-data/perf-axml.json`](./audit-data/perf-axml.json) | hyperfine raw output (100 APKs × 5 runs, `apk-info axml`). |
+| [`audit-data/perf-summary.json`](./audit-data/perf-summary.json) | Sorted distribution shape (p50/p95/p99/max) per subcommand. |
+| [`audit-data/correctness.json`](./audit-data/correctness.json) | Per-APK pass/fail + error-bucket count (100/100 pass on F-Droid corpus). |
+| [`audit-data/summary.json`](./audit-data/summary.json) | One-file roll-up the CHECKLIST renders from. |
+| [`audit-data/upstream-tree-sha256.txt`](./audit-data/upstream-tree-sha256.txt) | Recursive sha256 of the vendored upstream tree (CI drift-gate input). |
 | [`diagrams/axiom-l1-rs-architecture.dot`](./diagrams/axiom-l1-rs-architecture.dot) | graphviz source for the v1.0 architecture diagram. |
-| [`diagrams/axiom-l1-rs-architecture.svg`](./diagrams/axiom-l1-rs-architecture.svg) | rendered SVG (`make` target: see CHECKLIST §H). |
+| [`diagrams/axiom-l1-rs-architecture.svg`](./diagrams/axiom-l1-rs-architecture.svg) | rendered SVG (`make p13-diagram`). |

@@ -1,1 +1,609 @@
-{"JSON":{"blanks":0,"children":{},"code":3,"comments":0,"inaccurate":false,"reports":[{"name":"./crates/axml/src/assets/attrs_manifest.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}},{"name":"./crates/axml/src/assets/attrs.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}},{"name":"./crates/axml/src/assets/public.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}}]},"Markdown":{"blanks":66,"children":{"Bash":[{"name":"./python/README.md","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}},{"name":"./README.md","stats":{"blanks":3,"blobs":{},"code":13,"comments":0}}],"Python":[{"name":"./python/README.md","stats":{"blanks":8,"blobs":{},"code":28,"comments":0}},{"name":"./README.md","stats":{"blanks":8,"blobs":{},"code":28,"comments":0}}],"Rust":[{"name":"./crates/zip/README.md","stats":{"blanks":0,"blobs":{},"code":2,"comments":0}},{"name":"./crates/axml/README.md","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}}]},"code":0,"comments":140,"inaccurate":false,"reports":[{"name":"./crates/zip/README.md","stats":{"blanks":4,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":2,"comments":0}},"code":0,"comments":6}},{"name":"./crates/xml/README.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}},{"name":"./python/README.md","stats":{"blanks":12,"blobs":{"Bash":{"blanks":0,"blobs":{},"code":1,"comments":0},"Python":{"blanks":8,"blobs":{},"code":28,"comments":0}},"code":0,"comments":33}},{"name":"./README.md","stats":{"blanks":43,"blobs":{"Bash":{"blanks":3,"blobs":{},"code":13,"comments":0},"Python":{"blanks":8,"blobs":{},"code":28,"comments":0}},"code":0,"comments":88}},{"name":"./crates/axml/README.md","stats":{"blanks":4,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":1,"comments":0}},"code":0,"comments":7}},{"name":"./docs/python.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}},{"name":"./docs/index.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}}]},"Nix":{"blanks":8,"children":{},"code":71,"comments":0,"inaccurate":false,"reports":[{"name":"./flake.nix","stats":{"blanks":8,"blobs":{},"code":71,"comments":0}}]},"Python":{"blanks":18,"children":{},"code":56,"comments":0,"inaccurate":false,"reports":[{"name":"./examples/entrypoint.py","stats":{"blanks":4,"blobs":{},"code":15,"comments":0}},{"name":"./examples/signatures.py","stats":{"blanks":4,"blobs":{},"code":17,"comments":0}},{"name":"./examples/bench.py","stats":{"blanks":10,"blobs":{},"code":24,"comments":0}}]},"Rust":{"blanks":1301,"children":{"Markdown":[{"name":"./crates/zip/src/errors.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":14}},{"name":"./crates/zip/src/structs/eocd.rs","stats":{"blanks":0,"blobs":{},"code":0,"comments":2}},{"name":"./crates/zip/src/lib.rs","stats":{"blanks":3,"blobs":{},"code":0,"comments":7}},{"name":"./crates/zip/src/structs/local_file_header.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}},{"name":"./crates/zip/src/compression.rs","stats":{"blanks":0,"blobs":{},"code":0,"comments":6}},{"name":"./crates/zip/src/entry.rs","stats":{"blanks":36,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":8,"comments":0}},"code":0,"comments":96}},{"name":"./crates/zip/src/signature.rs","stats":{"blanks":17,"blobs":{},"code":0,"comments":42}},{"name":"./crates/axml/src/errors.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":16}},{"name":"./crates/xml/src/lib.rs","stats":{"blanks":34,"blobs":{},"code":0,"comments":106}},{"name":"./crates/axml/src/lib.rs","stats":{"blanks":3,"blobs":{},"code":0,"comments":7}},{"name":"./crates/axml/src/arsc.rs","stats":{"blanks":3,"blobs":{},"code":0,"comments":11}},{"name":"./crates/axml/src/structs/res_string_pool.rs","stats":{"blanks":4,"blobs":{},"code":0,"comments":15}},{"name":"./crates/axml/src/structs/mod.rs","stats":{"blanks":0,"blobs":{},"code":0,"comments":1}},{"name":"./crates/axml/src/structs/system_types.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":3}},{"name":"./crates/axml/src/structs/xml_elements.rs","stats":{"blanks":7,"blobs":{},"code":0,"comments":35}},{"name":"./crates/axml/src/structs/attrs_manifest.rs","stats":{"blanks":2,"blobs":{},"code":0,"comments":4}},{"name":"./crates/axml/src/structs/common.rs","stats":{"blanks":3,"blobs":{},"code":0,"comments":41}},{"name":"./crates/axml/src/structs/resource_table.rs","stats":{"blanks":28,"blobs":{},"code":0,"comments":129}},{"name":"./crates/axml/src/axml.rs","stats":{"blanks":9,"blobs":{},"code":0,"comments":25}},{"name":"./crates/axml/src/structs/res_table_config.rs","stats":{"blanks":28,"blobs":{},"code":0,"comments":263}},{"name":"./cli/src/main.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":12}},{"name":"./core/src/lib.rs","stats":{"blanks":9,"blobs":{},"code":0,"comments":31}},{"name":"./core/src/models.rs","stats":{"blanks":70,"blobs":{},"code":0,"comments":148}},{"name":"./core/src/errors.rs","stats":{"blanks":1,"blobs":{},"code":0,"comments":8}},{"name":"./core/src/apk.rs","stats":{"blanks":56,"blobs":{},"code":0,"comments":150}}]},"code":6336,"comments":224,"inaccurate":false,"reports":[{"name":"./fuzz/fuzz_targets/arsc-fuzzer.rs","stats":{"blanks":3,"blobs":{},"code":10,"comments":1}},{"name":"./fuzz/fuzz_targets/zip-fuzzer.rs","stats":{"blanks":2,"blobs":{},"code":7,"comments":0}},{"name":"./fuzz/fuzz_targets/axml-fuzzer.rs","stats":{"blanks":3,"blobs":{},"code":10,"comments":1}},{"name":"./crates/zip/src/errors.rs","stats":{"blanks":11,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":14}},"code":27,"comments":0}},{"name":"./crates/zip/src/structs/eocd.rs","stats":{"blanks":39,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":2}},"code":173,"comments":2}},{"name":"./crates/zip/src/lib.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":7}},"code":9,"comments":0}},{"name":"./crates/zip/src/structs/mod.rs","stats":{"blanks":1,"blobs":{},"code":6,"comments":1}},{"name":"./crates/zip/src/structs/local_file_header.rs","stats":{"blanks":34,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":2}},"code":153,"comments":3}},{"name":"./crates/zip/src/compression.rs","stats":{"blanks":4,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":6}},"code":7,"comments":0}},{"name":"./crates/zip/src/entry.rs","stats":{"blanks":100,"blobs":{"Markdown":{"blanks":36,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":8,"comments":0}},"code":0,"comments":96}},"code":432,"comments":56}},{"name":"./crates/zip/src/structs/central_directory.rs","stats":{"blanks":52,"blobs":{},"code":273,"comments":4}},{"name":"./crates/zip/src/signature.rs","stats":{"blanks":23,"blobs":{"Markdown":{"blanks":17,"blobs":{},"code":0,"comments":42}},"code":58,"comments":0}},{"name":"./crates/axml/src/errors.rs","stats":{"blanks":13,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":16}},"code":31,"comments":0}},{"name":"./crates/axml/src/converters/attrs-converter.rs","stats":{"blanks":19,"blobs":{},"code":98,"comments":1}},{"name":"./crates/xml/src/lib.rs","stats":{"blanks":35,"blobs":{"Markdown":{"blanks":34,"blobs":{},"code":0,"comments":106}},"code":158,"comments":5}},{"name":"./crates/axml/src/lib.rs","stats":{"blanks":3,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":7}},"code":6,"comments":0}},{"name":"./crates/axml/src/arsc.rs","stats":{"blanks":28,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":11}},"code":117,"comments":13}},{"name":"./crates/axml/build.rs","stats":{"blanks":21,"blobs":{},"code":95,"comments":1}},{"name":"./crates/axml/src/structs/res_string_pool.rs","stats":{"blanks":46,"blobs":{"Markdown":{"blanks":4,"blobs":{},"code":0,"comments":15}},"code":184,"comments":28}},{"name":"./crates/axml/src/structs/mod.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":1}},"code":12,"comments":0}},{"name":"./crates/axml/src/structs/system_types.rs","stats":{"blanks":1,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":3}},"code":4,"comments":0}},{"name":"./crates/axml/src/structs/xml_elements.rs","stats":{"blanks":54,"blobs":{"Markdown":{"blanks":7,"blobs":{},"code":0,"comments":35}},"code":219,"comments":5}},{"name":"./crates/axml/src/structs/attrs_manifest.rs","stats":{"blanks":10,"blobs":{"Markdown":{"blanks":2,"blobs":{},"code":0,"comments":4}},"code":71,"comments":0}},{"name":"./crates/axml/src/converters/xml-converter.rs","stats":{"blanks":13,"blobs":{},"code":108,"comments":0}},{"name":"./crates/axml/src/structs/common.rs","stats":{"blanks":54,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":41}},"code":239,"comments":14}},{"name":"./crates/axml/src/structs/resource_table.rs","stats":{"blanks":142,"blobs":{"Markdown":{"blanks":28,"blobs":{},"code":0,"comments":129}},"code":667,"comments":34}},{"name":"./python/src/lib.rs","stats":{"blanks":129,"blobs":{},"code":895,"comments":12}},{"name":"./crates/axml/src/axml.rs","stats":{"blanks":40,"blobs":{"Markdown":{"blanks":9,"blobs":{},"code":0,"comments":25}},"code":228,"comments":15}},{"name":"./crates/axml/src/structs/res_table_config.rs","stats":{"blanks":193,"blobs":{"Markdown":{"blanks":28,"blobs":{},"code":0,"comments":263}},"code":1046,"comments":12}},{"name":"./cli/src/main.rs","stats":{"blanks":13,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":12}},"code":67,"comments":0}},{"name":"./core/src/lib.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":9,"blobs":{},"code":0,"comments":31}},"code":7,"comments":0}},{"name":"./core/src/models.rs","stats":{"blanks":64,"blobs":{"Markdown":{"blanks":70,"blobs":{},"code":0,"comments":148}},"code":90,"comments":0}},{"name":"./cli/src/commands/show.rs","stats":{"blanks":20,"blobs":{},"code":150,"comments":1}},{"name":"./cli/src/commands/axml.rs","stats":{"blanks":7,"blobs":{},"code":26,"comments":1}},{"name":"./cli/src/commands/path_helpers.rs","stats":{"blanks":2,"blobs":{},"code":27,"comments":0}},{"name":"./cli/src/commands/mod.rs","stats":{"blanks":1,"blobs":{},"code":7,"comments":0}},{"name":"./cli/src/commands/extract.rs","stats":{"blanks":20,"blobs":{},"code":111,"comments":3}},{"name":"./core/src/errors.rs","stats":{"blanks":9,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":8}},"code":21,"comments":0}},{"name":"./core/src/apk.rs","stats":{"blanks":86,"blobs":{"Markdown":{"blanks":56,"blobs":{},"code":0,"comments":150}},"code":487,"comments":11}}]},"TOML":{"blanks":27,"children":{},"code":274,"comments":3,"inaccurate":false,"reports":[{"name":"./rustfmt.toml","stats":{"blanks":0,"blobs":{},"code":6,"comments":0}},{"name":"./python/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":19,"comments":0}},{"name":"./python/pyproject.toml","stats":{"blanks":4,"blobs":{},"code":26,"comments":0}},{"name":"./fuzz/Cargo.toml","stats":{"blanks":5,"blobs":{},"code":31,"comments":0}},{"name":"./Cargo.toml","stats":{"blanks":6,"blobs":{},"code":68,"comments":3}},{"name":"./crates/zip/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":26,"comments":0}},{"name":"./crates/xml/Cargo.toml","stats":{"blanks":0,"blobs":{},"code":11,"comments":0}},{"name":"./crates/axml/Cargo.toml","stats":{"blanks":5,"blobs":{},"code":38,"comments":0}},{"name":"./cli/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":31,"comments":0}},{"name":"./core/Cargo.toml","stats":{"blanks":1,"blobs":{},"code":18,"comments":0}}]},"Total":{"blanks":2597,"children":{"Json":[{"name":"./crates/axml/src/assets/attrs_manifest.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}},{"name":"./crates/axml/src/assets/attrs.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}},{"name":"./crates/axml/src/assets/public.json","stats":{"blanks":0,"blobs":{},"code":1,"comments":0}}],"Markdown":[{"name":"./crates/zip/README.md","stats":{"blanks":4,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":2,"comments":0}},"code":0,"comments":6}},{"name":"./crates/xml/README.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}},{"name":"./python/README.md","stats":{"blanks":12,"blobs":{"Bash":{"blanks":0,"blobs":{},"code":1,"comments":0},"Python":{"blanks":8,"blobs":{},"code":28,"comments":0}},"code":0,"comments":33}},{"name":"./README.md","stats":{"blanks":43,"blobs":{"Bash":{"blanks":3,"blobs":{},"code":13,"comments":0},"Python":{"blanks":8,"blobs":{},"code":28,"comments":0}},"code":0,"comments":88}},{"name":"./crates/axml/README.md","stats":{"blanks":4,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":1,"comments":0}},"code":0,"comments":7}},{"name":"./docs/python.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}},{"name":"./docs/index.md","stats":{"blanks":1,"blobs":{},"code":0,"comments":2}}],"Nix":[{"name":"./flake.nix","stats":{"blanks":8,"blobs":{},"code":71,"comments":0}}],"Python":[{"name":"./examples/entrypoint.py","stats":{"blanks":4,"blobs":{},"code":15,"comments":0}},{"name":"./examples/signatures.py","stats":{"blanks":4,"blobs":{},"code":17,"comments":0}},{"name":"./examples/bench.py","stats":{"blanks":10,"blobs":{},"code":24,"comments":0}}],"Rust":[{"name":"./fuzz/fuzz_targets/arsc-fuzzer.rs","stats":{"blanks":3,"blobs":{},"code":10,"comments":1}},{"name":"./fuzz/fuzz_targets/zip-fuzzer.rs","stats":{"blanks":2,"blobs":{},"code":7,"comments":0}},{"name":"./fuzz/fuzz_targets/axml-fuzzer.rs","stats":{"blanks":3,"blobs":{},"code":10,"comments":1}},{"name":"./crates/zip/src/errors.rs","stats":{"blanks":11,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":14}},"code":27,"comments":0}},{"name":"./crates/zip/src/structs/eocd.rs","stats":{"blanks":39,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":2}},"code":173,"comments":2}},{"name":"./crates/zip/src/lib.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":7}},"code":9,"comments":0}},{"name":"./crates/zip/src/structs/mod.rs","stats":{"blanks":1,"blobs":{},"code":6,"comments":1}},{"name":"./crates/zip/src/structs/local_file_header.rs","stats":{"blanks":34,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":2}},"code":153,"comments":3}},{"name":"./crates/zip/src/compression.rs","stats":{"blanks":4,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":6}},"code":7,"comments":0}},{"name":"./crates/zip/src/entry.rs","stats":{"blanks":100,"blobs":{"Markdown":{"blanks":36,"blobs":{"Rust":{"blanks":0,"blobs":{},"code":8,"comments":0}},"code":0,"comments":96}},"code":432,"comments":56}},{"name":"./crates/zip/src/structs/central_directory.rs","stats":{"blanks":52,"blobs":{},"code":273,"comments":4}},{"name":"./crates/zip/src/signature.rs","stats":{"blanks":23,"blobs":{"Markdown":{"blanks":17,"blobs":{},"code":0,"comments":42}},"code":58,"comments":0}},{"name":"./crates/axml/src/errors.rs","stats":{"blanks":13,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":16}},"code":31,"comments":0}},{"name":"./crates/axml/src/converters/attrs-converter.rs","stats":{"blanks":19,"blobs":{},"code":98,"comments":1}},{"name":"./crates/xml/src/lib.rs","stats":{"blanks":35,"blobs":{"Markdown":{"blanks":34,"blobs":{},"code":0,"comments":106}},"code":158,"comments":5}},{"name":"./crates/axml/src/lib.rs","stats":{"blanks":3,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":7}},"code":6,"comments":0}},{"name":"./crates/axml/src/arsc.rs","stats":{"blanks":28,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":11}},"code":117,"comments":13}},{"name":"./crates/axml/build.rs","stats":{"blanks":21,"blobs":{},"code":95,"comments":1}},{"name":"./crates/axml/src/structs/res_string_pool.rs","stats":{"blanks":46,"blobs":{"Markdown":{"blanks":4,"blobs":{},"code":0,"comments":15}},"code":184,"comments":28}},{"name":"./crates/axml/src/structs/mod.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":0,"blobs":{},"code":0,"comments":1}},"code":12,"comments":0}},{"name":"./crates/axml/src/structs/system_types.rs","stats":{"blanks":1,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":3}},"code":4,"comments":0}},{"name":"./crates/axml/src/structs/xml_elements.rs","stats":{"blanks":54,"blobs":{"Markdown":{"blanks":7,"blobs":{},"code":0,"comments":35}},"code":219,"comments":5}},{"name":"./crates/axml/src/structs/attrs_manifest.rs","stats":{"blanks":10,"blobs":{"Markdown":{"blanks":2,"blobs":{},"code":0,"comments":4}},"code":71,"comments":0}},{"name":"./crates/axml/src/converters/xml-converter.rs","stats":{"blanks":13,"blobs":{},"code":108,"comments":0}},{"name":"./crates/axml/src/structs/common.rs","stats":{"blanks":54,"blobs":{"Markdown":{"blanks":3,"blobs":{},"code":0,"comments":41}},"code":239,"comments":14}},{"name":"./crates/axml/src/structs/resource_table.rs","stats":{"blanks":142,"blobs":{"Markdown":{"blanks":28,"blobs":{},"code":0,"comments":129}},"code":667,"comments":34}},{"name":"./python/src/lib.rs","stats":{"blanks":129,"blobs":{},"code":895,"comments":12}},{"name":"./crates/axml/src/axml.rs","stats":{"blanks":40,"blobs":{"Markdown":{"blanks":9,"blobs":{},"code":0,"comments":25}},"code":228,"comments":15}},{"name":"./crates/axml/src/structs/res_table_config.rs","stats":{"blanks":193,"blobs":{"Markdown":{"blanks":28,"blobs":{},"code":0,"comments":263}},"code":1046,"comments":12}},{"name":"./cli/src/main.rs","stats":{"blanks":13,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":12}},"code":67,"comments":0}},{"name":"./core/src/lib.rs","stats":{"blanks":2,"blobs":{"Markdown":{"blanks":9,"blobs":{},"code":0,"comments":31}},"code":7,"comments":0}},{"name":"./core/src/models.rs","stats":{"blanks":64,"blobs":{"Markdown":{"blanks":70,"blobs":{},"code":0,"comments":148}},"code":90,"comments":0}},{"name":"./cli/src/commands/show.rs","stats":{"blanks":20,"blobs":{},"code":150,"comments":1}},{"name":"./cli/src/commands/axml.rs","stats":{"blanks":7,"blobs":{},"code":26,"comments":1}},{"name":"./cli/src/commands/path_helpers.rs","stats":{"blanks":2,"blobs":{},"code":27,"comments":0}},{"name":"./cli/src/commands/mod.rs","stats":{"blanks":1,"blobs":{},"code":7,"comments":0}},{"name":"./cli/src/commands/extract.rs","stats":{"blanks":20,"blobs":{},"code":111,"comments":3}},{"name":"./core/src/errors.rs","stats":{"blanks":9,"blobs":{"Markdown":{"blanks":1,"blobs":{},"code":0,"comments":8}},"code":21,"comments":0}},{"name":"./core/src/apk.rs","stats":{"blanks":86,"blobs":{"Markdown":{"blanks":56,"blobs":{},"code":0,"comments":150}},"code":487,"comments":11}}],"Toml":[{"name":"./rustfmt.toml","stats":{"blanks":0,"blobs":{},"code":6,"comments":0}},{"name":"./python/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":19,"comments":0}},{"name":"./python/pyproject.toml","stats":{"blanks":4,"blobs":{},"code":26,"comments":0}},{"name":"./fuzz/Cargo.toml","stats":{"blanks":5,"blobs":{},"code":31,"comments":0}},{"name":"./Cargo.toml","stats":{"blanks":6,"blobs":{},"code":68,"comments":3}},{"name":"./crates/zip/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":26,"comments":0}},{"name":"./crates/xml/Cargo.toml","stats":{"blanks":0,"blobs":{},"code":11,"comments":0}},{"name":"./crates/axml/Cargo.toml","stats":{"blanks":5,"blobs":{},"code":38,"comments":0}},{"name":"./cli/Cargo.toml","stats":{"blanks":2,"blobs":{},"code":31,"comments":0}},{"name":"./core/Cargo.toml","stats":{"blanks":1,"blobs":{},"code":18,"comments":0}}],"Xml":[{"name":"./crates/axml/src/assets/attrs_manifest.xml","stats":{"blanks":236,"blobs":{},"code":949,"comments":2882}},{"name":"./crates/axml/src/assets/public.xml","stats":{"blanks":190,"blobs":{},"code":3317,"comments":418}},{"name":"./crates/axml/src/assets/attrs.xml","stats":{"blanks":747,"blobs":{},"code":4452,"comments":5694}}],"Yaml":[{"name":"./mkdocs.yml","stats":{"blanks":4,"blobs":{},"code":51,"comments":0}}]},"code":15509,"comments":9361,"inaccurate":false,"reports":[]},"XML":{"blanks":1173,"children":{},"code":8718,"comments":8994,"inaccurate":false,"reports":[{"name":"./crates/axml/src/assets/attrs_manifest.xml","stats":{"blanks":236,"blobs":{},"code":949,"comments":2882}},{"name":"./crates/axml/src/assets/public.xml","stats":{"blanks":190,"blobs":{},"code":3317,"comments":418}},{"name":"./crates/axml/src/assets/attrs.xml","stats":{"blanks":747,"blobs":{},"code":4452,"comments":5694}}]},"YAML":{"blanks":4,"children":{},"code":51,"comments":0,"inaccurate":false,"reports":[{"name":"./mkdocs.yml","stats":{"blanks":4,"blobs":{},"code":51,"comments":0}}]}}
+{
+  "JSON": {
+    "code": 3,
+    "comments": 0,
+    "blanks": 0,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./crates/axml/src/assets/attrs.json",
+        "stats": {
+          "code": 1,
+          "comments": 0,
+          "blanks": 0
+        }
+      },
+      {
+        "name": "./crates/axml/src/assets/attrs_manifest.json",
+        "stats": {
+          "code": 1,
+          "comments": 0,
+          "blanks": 0
+        }
+      },
+      {
+        "name": "./crates/axml/src/assets/public.json",
+        "stats": {
+          "code": 1,
+          "comments": 0,
+          "blanks": 0
+        }
+      }
+    ]
+  },
+  "Markdown": {
+    "code": 0,
+    "comments": 140,
+    "blanks": 66,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./README.md",
+        "stats": {
+          "code": 0,
+          "comments": 88,
+          "blanks": 43
+        }
+      },
+      {
+        "name": "./crates/axml/README.md",
+        "stats": {
+          "code": 0,
+          "comments": 7,
+          "blanks": 4
+        }
+      },
+      {
+        "name": "./crates/xml/README.md",
+        "stats": {
+          "code": 0,
+          "comments": 2,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./crates/zip/README.md",
+        "stats": {
+          "code": 0,
+          "comments": 6,
+          "blanks": 4
+        }
+      },
+      {
+        "name": "./docs/index.md",
+        "stats": {
+          "code": 0,
+          "comments": 2,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./docs/python.md",
+        "stats": {
+          "code": 0,
+          "comments": 2,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./python/README.md",
+        "stats": {
+          "code": 0,
+          "comments": 33,
+          "blanks": 12
+        }
+      }
+    ]
+  },
+  "Nix": {
+    "code": 71,
+    "comments": 0,
+    "blanks": 8,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./flake.nix",
+        "stats": {
+          "code": 71,
+          "comments": 0,
+          "blanks": 8
+        }
+      }
+    ]
+  },
+  "Python": {
+    "code": 56,
+    "comments": 0,
+    "blanks": 18,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./examples/bench.py",
+        "stats": {
+          "code": 24,
+          "comments": 0,
+          "blanks": 10
+        }
+      },
+      {
+        "name": "./examples/entrypoint.py",
+        "stats": {
+          "code": 15,
+          "comments": 0,
+          "blanks": 4
+        }
+      },
+      {
+        "name": "./examples/signatures.py",
+        "stats": {
+          "code": 17,
+          "comments": 0,
+          "blanks": 4
+        }
+      }
+    ]
+  },
+  "Rust": {
+    "code": 6336,
+    "comments": 224,
+    "blanks": 1301,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./cli/src/commands/axml.rs",
+        "stats": {
+          "code": 26,
+          "comments": 1,
+          "blanks": 7
+        }
+      },
+      {
+        "name": "./cli/src/commands/extract.rs",
+        "stats": {
+          "code": 111,
+          "comments": 3,
+          "blanks": 20
+        }
+      },
+      {
+        "name": "./cli/src/commands/mod.rs",
+        "stats": {
+          "code": 7,
+          "comments": 0,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./cli/src/commands/path_helpers.rs",
+        "stats": {
+          "code": 27,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./cli/src/commands/show.rs",
+        "stats": {
+          "code": 150,
+          "comments": 1,
+          "blanks": 20
+        }
+      },
+      {
+        "name": "./cli/src/main.rs",
+        "stats": {
+          "code": 67,
+          "comments": 0,
+          "blanks": 13
+        }
+      },
+      {
+        "name": "./core/src/apk.rs",
+        "stats": {
+          "code": 487,
+          "comments": 11,
+          "blanks": 86
+        }
+      },
+      {
+        "name": "./core/src/errors.rs",
+        "stats": {
+          "code": 21,
+          "comments": 0,
+          "blanks": 9
+        }
+      },
+      {
+        "name": "./core/src/lib.rs",
+        "stats": {
+          "code": 7,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./core/src/models.rs",
+        "stats": {
+          "code": 90,
+          "comments": 0,
+          "blanks": 64
+        }
+      },
+      {
+        "name": "./crates/axml/build.rs",
+        "stats": {
+          "code": 95,
+          "comments": 1,
+          "blanks": 21
+        }
+      },
+      {
+        "name": "./crates/axml/src/arsc.rs",
+        "stats": {
+          "code": 117,
+          "comments": 13,
+          "blanks": 28
+        }
+      },
+      {
+        "name": "./crates/axml/src/axml.rs",
+        "stats": {
+          "code": 228,
+          "comments": 15,
+          "blanks": 40
+        }
+      },
+      {
+        "name": "./crates/axml/src/converters/attrs-converter.rs",
+        "stats": {
+          "code": 98,
+          "comments": 1,
+          "blanks": 19
+        }
+      },
+      {
+        "name": "./crates/axml/src/converters/xml-converter.rs",
+        "stats": {
+          "code": 108,
+          "comments": 0,
+          "blanks": 13
+        }
+      },
+      {
+        "name": "./crates/axml/src/errors.rs",
+        "stats": {
+          "code": 31,
+          "comments": 0,
+          "blanks": 13
+        }
+      },
+      {
+        "name": "./crates/axml/src/lib.rs",
+        "stats": {
+          "code": 6,
+          "comments": 0,
+          "blanks": 3
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/attrs_manifest.rs",
+        "stats": {
+          "code": 71,
+          "comments": 0,
+          "blanks": 10
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/common.rs",
+        "stats": {
+          "code": 239,
+          "comments": 14,
+          "blanks": 54
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/mod.rs",
+        "stats": {
+          "code": 12,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/res_string_pool.rs",
+        "stats": {
+          "code": 184,
+          "comments": 28,
+          "blanks": 46
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/res_table_config.rs",
+        "stats": {
+          "code": 1046,
+          "comments": 12,
+          "blanks": 193
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/resource_table.rs",
+        "stats": {
+          "code": 667,
+          "comments": 34,
+          "blanks": 142
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/system_types.rs",
+        "stats": {
+          "code": 4,
+          "comments": 0,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./crates/axml/src/structs/xml_elements.rs",
+        "stats": {
+          "code": 219,
+          "comments": 5,
+          "blanks": 54
+        }
+      },
+      {
+        "name": "./crates/xml/src/lib.rs",
+        "stats": {
+          "code": 158,
+          "comments": 5,
+          "blanks": 35
+        }
+      },
+      {
+        "name": "./crates/zip/src/compression.rs",
+        "stats": {
+          "code": 7,
+          "comments": 0,
+          "blanks": 4
+        }
+      },
+      {
+        "name": "./crates/zip/src/entry.rs",
+        "stats": {
+          "code": 432,
+          "comments": 56,
+          "blanks": 100
+        }
+      },
+      {
+        "name": "./crates/zip/src/errors.rs",
+        "stats": {
+          "code": 27,
+          "comments": 0,
+          "blanks": 11
+        }
+      },
+      {
+        "name": "./crates/zip/src/lib.rs",
+        "stats": {
+          "code": 9,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./crates/zip/src/signature.rs",
+        "stats": {
+          "code": 58,
+          "comments": 0,
+          "blanks": 23
+        }
+      },
+      {
+        "name": "./crates/zip/src/structs/central_directory.rs",
+        "stats": {
+          "code": 273,
+          "comments": 4,
+          "blanks": 52
+        }
+      },
+      {
+        "name": "./crates/zip/src/structs/eocd.rs",
+        "stats": {
+          "code": 173,
+          "comments": 2,
+          "blanks": 39
+        }
+      },
+      {
+        "name": "./crates/zip/src/structs/local_file_header.rs",
+        "stats": {
+          "code": 153,
+          "comments": 3,
+          "blanks": 34
+        }
+      },
+      {
+        "name": "./crates/zip/src/structs/mod.rs",
+        "stats": {
+          "code": 6,
+          "comments": 1,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./fuzz/fuzz_targets/arsc-fuzzer.rs",
+        "stats": {
+          "code": 10,
+          "comments": 1,
+          "blanks": 3
+        }
+      },
+      {
+        "name": "./fuzz/fuzz_targets/axml-fuzzer.rs",
+        "stats": {
+          "code": 10,
+          "comments": 1,
+          "blanks": 3
+        }
+      },
+      {
+        "name": "./fuzz/fuzz_targets/zip-fuzzer.rs",
+        "stats": {
+          "code": 7,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./python/src/lib.rs",
+        "stats": {
+          "code": 895,
+          "comments": 12,
+          "blanks": 129
+        }
+      }
+    ]
+  },
+  "TOML": {
+    "code": 274,
+    "comments": 3,
+    "blanks": 27,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./Cargo.toml",
+        "stats": {
+          "code": 68,
+          "comments": 3,
+          "blanks": 6
+        }
+      },
+      {
+        "name": "./cli/Cargo.toml",
+        "stats": {
+          "code": 31,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./core/Cargo.toml",
+        "stats": {
+          "code": 18,
+          "comments": 0,
+          "blanks": 1
+        }
+      },
+      {
+        "name": "./crates/axml/Cargo.toml",
+        "stats": {
+          "code": 38,
+          "comments": 0,
+          "blanks": 5
+        }
+      },
+      {
+        "name": "./crates/xml/Cargo.toml",
+        "stats": {
+          "code": 11,
+          "comments": 0,
+          "blanks": 0
+        }
+      },
+      {
+        "name": "./crates/zip/Cargo.toml",
+        "stats": {
+          "code": 26,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./fuzz/Cargo.toml",
+        "stats": {
+          "code": 31,
+          "comments": 0,
+          "blanks": 5
+        }
+      },
+      {
+        "name": "./python/Cargo.toml",
+        "stats": {
+          "code": 19,
+          "comments": 0,
+          "blanks": 2
+        }
+      },
+      {
+        "name": "./python/pyproject.toml",
+        "stats": {
+          "code": 26,
+          "comments": 0,
+          "blanks": 4
+        }
+      },
+      {
+        "name": "./rustfmt.toml",
+        "stats": {
+          "code": 6,
+          "comments": 0,
+          "blanks": 0
+        }
+      }
+    ]
+  },
+  "Total": {
+    "code": 15509,
+    "comments": 9361,
+    "blanks": 2597,
+    "inaccurate": false,
+    "reports": []
+  },
+  "XML": {
+    "code": 8718,
+    "comments": 8994,
+    "blanks": 1173,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./crates/axml/src/assets/attrs.xml",
+        "stats": {
+          "code": 4452,
+          "comments": 5694,
+          "blanks": 747
+        }
+      },
+      {
+        "name": "./crates/axml/src/assets/attrs_manifest.xml",
+        "stats": {
+          "code": 949,
+          "comments": 2882,
+          "blanks": 236
+        }
+      },
+      {
+        "name": "./crates/axml/src/assets/public.xml",
+        "stats": {
+          "code": 3317,
+          "comments": 418,
+          "blanks": 190
+        }
+      }
+    ]
+  },
+  "YAML": {
+    "code": 51,
+    "comments": 0,
+    "blanks": 4,
+    "inaccurate": false,
+    "reports": [
+      {
+        "name": "./mkdocs.yml",
+        "stats": {
+          "code": 51,
+          "comments": 0,
+          "blanks": 4
+        }
+      }
+    ]
+  }
+}

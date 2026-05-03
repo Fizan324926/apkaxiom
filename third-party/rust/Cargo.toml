@@ -25,9 +25,18 @@ name = "top"
 path = "top/main.rs"
 
 [dependencies]
-# Phase 1 only needs `thiserror` — this is the smallest dep that exercises
-# Reindeer + Buck2 third-party correspondence (it has a proc-macro derive,
-# so it stresses both the rlib path and the proc-macro path).
+# `thiserror` exercises Reindeer + Buck2 third-party correspondence (it
+# has a proc-macro derive, so it stresses both the rlib and proc-macro
+# paths).
 thiserror = "1.0"
+# `syn` powers tools/unsafe-census — replaces the regex approximation
+# of `unsafe` block counting with a real AST visitor. `walkdir` is the
+# directory traversal companion. We deliberately do NOT pull serde or
+# serde_json here: Reindeer's buildscript runner does not pass
+# CARGO_PKG_VERSION_PATCH, which serde_core's build.rs requires. The
+# tool emits JSON via std::fmt::Write — sufficient for our output
+# shape.
+syn = { version = "2", features = ["parsing", "full", "visit"] }
+walkdir = "2"
 
 [patch.crates-io]

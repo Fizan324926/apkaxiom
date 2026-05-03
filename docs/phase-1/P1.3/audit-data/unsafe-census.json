@@ -1,5 +1,17 @@
 {
+  "schema": "apkaxiom.unsafe-census/v1",
+  "root": "external/apk-info-upstream",
+  "files_scanned": 39,
+  "totals": {
+    "unsafe_blocks": 1,
+    "unsafe_fns": 0,
+    "unsafe_impls": 0,
+    "unsafe_traits": 0,
+    "grand_total": 1
+  },
+  "parse_failures": [
+  ],
   "by_file": [
-    {"file": "crates/axml/src/structs/res_string_pool.rs", "unsafe_occurrences": 1}
+    {"file": "crates/axml/src/structs/res_string_pool.rs", "unsafe_blocks": 1, "unsafe_fns": 0, "unsafe_impls": 0, "unsafe_traits": 0}
   ]
 }

@@ -7,6 +7,7 @@ members = [
     "crates/axiom-extract-hello",
     "tools/lean-to-rust",
     "tools/translation-validator",
+    "tools/unsafe-census",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.
@@ -40,6 +41,8 @@ module_name_repetitions = "allow"
 
 [workspace.dependencies]
 thiserror = "1.0"
+syn = { version = "2", default-features = false, features = ["parsing", "full", "visit"] }
+walkdir = "2"
 
 [profile.release]
 codegen-units = 1

@@ -85,6 +85,8 @@
     "root//third-party/rust:quote-1-build-script-build",
     "root//third-party/rust:quote-1-build-script-run",
     "root//third-party/rust:quote-1.0.45.crate",
+    "root//third-party/rust:same-file-1",
+    "root//third-party/rust:syn",
     "root//third-party/rust:syn-2",
     "root//third-party/rust:thiserror",
     "root//third-party/rust:thiserror-1",
@@ -93,8 +95,14 @@
     "root//third-party/rust:thiserror-1.0.69.crate",
     "root//third-party/rust:thiserror-impl-1",
     "root//third-party/rust:unicode-ident-1",
+    "root//third-party/rust:walkdir",
+    "root//third-party/rust:walkdir-2",
+    "root//third-party/rust:winapi-util-0.1",
+    "root//third-party/rust:windows-link-0.2",
+    "root//third-party/rust:windows-sys-0.61",
     "root//tools/lean-to-rust:lean-to-rust",
     "root//tools/lean-to-rust:lean-to-rust-test",
-    "root//tools/translation-validator:translation-validator"
+    "root//tools/translation-validator:translation-validator",
+    "root//tools/unsafe-census:unsafe-census"
   ]
 }

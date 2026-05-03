@@ -261,6 +261,67 @@ jobs:
         run: nix develop --command buck2 run //tools/translation-validator
 
   # -------------------------------------------------------------------------
+  # 4c) P1.3 drift gates. Re-run the audit and assert it produces the
+  #     committed `audit-data/`; assert the recursive sha256 of the
+  #     vendored upstream tree matches the committed value. Either
+  #     drift would silently invalidate every audit-derived claim.
+  #     Skips perf/correctness because they require a 100-APK corpus
+  #     not present on the runner; everything else (identity, tokei,
+  #     cargo-audit, unsafe-census, public-api, deps, summary) IS
+  #     deterministic.
+  # -------------------------------------------------------------------------
+  p13-audit-drift:
+    name: p13-audit-drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with: { determinate: true }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Re-run scripts/p13-audit.sh
+        # P13_APK_CORPUS=/nonexistent skips the perf/correctness paths
+        # which need real APKs. Everything else still runs.
+        run: P13_APK_CORPUS=/nonexistent nix develop --command bash scripts/p13-audit.sh
+      - name: Assert audit-data has not drifted
+        run: |
+          if ! git diff --exit-code \
+              docs/phase-1/P1.3/audit-data/identity.json \
+              docs/phase-1/P1.3/audit-data/tokei.json \
+              docs/phase-1/P1.3/audit-data/cargo-audit.json \
+              docs/phase-1/P1.3/audit-data/unsafe-census.json \
+              docs/phase-1/P1.3/audit-data/public-api.json \
+              docs/phase-1/P1.3/audit-data/deps.json \
+              docs/phase-1/P1.3/audit-data/upstream-tree-sha256.txt; then
+            echo "::error::audit-data drift detected — re-run \`make p13-audit\` locally with the F-Droid corpus and commit the diff."
+            exit 1
+          fi
+
+  apk-info-upstream-pin:
+    name: apk-info-upstream-pin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recompute upstream-tree-sha256 and diff
+        run: |
+          set -euo pipefail
+          actual=$(cd external/apk-info-upstream && \
+            find . -type f \
+                  -not -path './target/*' \
+                  -not -path './.lake/*' \
+                  -not -path './.git/*' \
+                  -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          expected=$(cat docs/phase-1/P1.3/audit-data/upstream-tree-sha256.txt)
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::upstream tree sha drift: expected $expected, got $actual"
+            echo "Either someone modified files under external/apk-info-upstream/ (which is read-only audit input)" >&2
+            echo "or the pinned SHA in external/apk-info-pinned-sha.txt was bumped without re-baking audit-data/." >&2
+            exit 1
+          fi
+          echo "PASS: upstream tree matches committed sha $expected"
+
+  # -------------------------------------------------------------------------
   # 5) Drift-detection gates (cheap, run early, parallel with build).
   # -------------------------------------------------------------------------
   graph-parity:
