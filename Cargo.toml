@@ -30,6 +30,7 @@ exclude = [
     # lives outside Reindeer. Driven by `cargo +nightly fuzz run …`
     # from inside the dev shell; not part of the buck2 / cargo build.
     "crates/axiom-zip-ref/fuzz",
+    "crates/axiom-l1-rs/fuzz",
 ]
 
 [workspace.package]

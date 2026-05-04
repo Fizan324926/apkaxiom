@@ -1,0 +1,29 @@
+[package]
+name = "axiom-l1-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.axiom-l1-rs]
+path = ".."
+
+# `cargo +nightly fuzz run fuzz_apk_stream` drives the streaming
+# parser with random byte sequences. Pass condition: no panics, no
+# unbounded memory growth (caught at OOM by the libFuzzer harness).
+# The streaming parser delegates wire-format parsing to the verified
+# `axiom_zip_ref` crate (which has its own fuzz suite); this target
+# specifically catches *streaming-layer* bugs (state machine
+# transitions, DD scan boundary, buffer compaction).
+
+[[bin]]
+name = "fuzz_apk_stream"
+path = "fuzz_targets/fuzz_apk_stream.rs"
+test = false
+doc = false
+bench = false

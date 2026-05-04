@@ -80,6 +80,21 @@ fn bench_stream(bytes: &[u8], iters: u64) -> Vec<Duration> {
     samples
 }
 
+/// Measure the time from `from_reader` construction to the first
+/// `next_event()` returning `Ok(Some)` — the gate the §10 spec calls
+/// "time-to-first-event ≤ 5 ms p99".
+fn bench_time_to_first_event(bytes: &[u8], iters: u64) -> Vec<Duration> {
+    let mut samples = Vec::with_capacity(iters as usize);
+    for _ in 0..iters {
+        let t = Instant::now();
+        let mut parser = ApkParser::from_reader(bytes);
+        let _first = parser.next_event().unwrap();
+        let elapsed = t.elapsed();
+        samples.push(elapsed);
+    }
+    samples
+}
+
 fn bench_file(bytes: &[u8], iters: u64) -> Vec<Duration> {
     let mut samples = Vec::with_capacity(iters as usize);
     for _ in 0..iters {
@@ -120,10 +135,31 @@ fn parse_iters() -> u64 {
         .unwrap_or(10_000)
 }
 
+fn report_t1e(samples: &mut [Duration]) {
+    let median = percentile(samples, 50.0);
+    let p99 = percentile(samples, 99.0);
+    let max = samples.iter().max().copied().unwrap();
+    let min = samples.iter().min().copied().unwrap();
+    println!("time-to-first-event: min={min:?} p50={median:?} p99={p99:?} max={max:?}");
+    let gate = Duration::from_millis(5);
+    if p99 > gate {
+        println!("  ::error::time-to-first-event p99 {p99:?} > spec gate {gate:?}");
+        std::process::exit(1);
+    } else {
+        println!("  PASS: p99 {p99:?} ≤ spec gate {gate:?}");
+    }
+}
+
 fn main() {
     let iters = parse_iters();
     let bytes = synthetic_archive();
     println!("zip-stream-bench: synthetic 98-byte archive, {iters} iters per arm");
+
+    // (1) Time-to-first-event — the §10 hard floor.
+    let mut t1e_samples = bench_time_to_first_event(&bytes, iters);
+    report_t1e(&mut t1e_samples);
+
+    // (2) Throughput / total-consume comparison.
     let mut stream_samples = bench_stream(&bytes, iters);
     let mut file_samples = bench_file(&bytes, iters);
     report("stream", &mut stream_samples, bytes.len() as u64);

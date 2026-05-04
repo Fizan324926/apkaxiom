@@ -1,0 +1,6 @@
+# cargo-fuzz workspace artefacts. Targets + Cargo.toml are
+# committed; corpora/, artifacts/, target/ are regenerated.
+target/
+corpus/
+artifacts/
+coverage/
