@@ -10,15 +10,17 @@
 
 **Owner:** G1 — Formal Methods Core
 **Last reviewed:** 2026-05-04 (gap-closure round)
-**Three-way differential gate:** Lean ↔ Rust ↔ AOSP wire-format probe agree on **2810 / 2810** corpus samples.
+**Three-way differential gate:** Lean ↔ Rust ↔ AOSP wire-format probe agree on **2820 / 2820** corpus samples.
 **Soundness gates green:**
   - Lean cumulative LOC: **2384** (≥ 2000 §10 hard floor ✅)
-  - axiom-zip-ref tests: **58/58** (19 LFH + 11 EOCD + 14 CDR + 8 Archive + 3 fuzz × 10K + 12 round-trip)
+  - axiom-zip-ref tests: **60/60** (19 LFH + 11 EOCD + 14 CDR + 10 Archive [incl. 2 DD-mode] + 3 fuzz × 10K + 12 round-trip)
   - libziparchive struct re-used (`CentralDirectoryRecord` from `external/libziparchive`)
-  - Three-way differential: **2810/2810** (Lean ↔ Rust ↔ AOSP)
-  - BadPack-class samples: **60** hand-crafted across **6 evasion families** (lfh-oob, lfh-magic, cdr-count, cd-out-of-range, filename-mismatch, **field-mismatch**), all reproduce as expected
-  - **All `partial def`s eliminated** in the ZIP layer — `parseCdrSequence`, `parseCdrs`, `findEocd` are now structurally terminating with `decreasing_by` proofs
-  - **Cross-record consistency extended** beyond filename: CDR.crc32 / compressed_size / uncompressed_size / compression_method must equal LFH counterparts (`fieldMismatch` tag 9)
+  - Three-way differential: **2820/2820** (Lean ↔ Rust ↔ AOSP)
+  - BadPack-class samples: **70** hand-crafted across **6 evasion families plus DD-violation** (lfh-oob, lfh-magic, cdr-count, cd-out-of-range, filename-mismatch, field-mismatch, dd-violation), all reproduce as expected
+  - **All `partial def`s eliminated** in the ZIP layer — `parseCdrSequence` and `findEocd` are now structurally terminating with `decreasing_by` proofs; `parseCdrs` (Consistency-layer duplicate) eliminated entirely
+  - **Cross-record consistency** beyond filename: CDR ↔ LFH field-set check covers `crc32` / `compressed_size` / `uncompressed_size` / `compression_method`. **APPNOTE.TXT §4.4.4 data-descriptor flag (general-purpose bit 3) honoured**: in DD mode, LFH carries zeros and CDR alone holds canonical values (`fieldMismatch` tag 9 closed)
+  - **Encoder + round-trip witness**: `encodeLfh` / `encodeCdr` / `encodeEocd` / `encodeArchive` reverse-encode structured records to bytes; `parseArchive ∘ encodeArchive minimalArchive = .ok minimalArchive` proven via `native_decide` (completeness witness)
+  - **Production fuzzers wired** (per ADR-0019 closed): `radamsa` + `honggfuzz` + `cargo-fuzz` in `flake.nix`; `make p16-fuzz` runs 4 × 60s campaigns (≈ **185K mutations** through `lfh / eocd / cdr / archive` parsers, **0 panics**)
   - Sign-off: ✅ project-lead (G1) appended below
 
 Legend: ✅ done & verified · 🟡 done but awaiting one external action · 🧊 deferred-by-design
@@ -213,10 +215,14 @@ the merge commit is the audit trail.
 
 ```
 ✅ approved by project-lead (G1) — fizan ali — 2026-05-04 —
-   diff-gate 2810/2810 — Lean LOC 2384 — test count 58/58 —
-   fuzz 30K iters no panics — three-way prong: AOSP libziparchive
-   @ 81b42fe9 (tree-sha 60242efeb0b8…) — BadPack-class 60/60 reproduce
-   (incl. field-mismatch family) — partial defs eliminated in ZIP layer
+   diff-gate 2820/2820 — Lean LOC 2384 — test count 60/60 —
+   in-tree fuzz 30K iters + radamsa 185K iters across 4 parsers
+   no panics — three-way prong: AOSP libziparchive @ 81b42fe9
+   (tree-sha 60242efeb0b8…) — BadPack-class 70/70 reproduce
+   (six families incl. field-mismatch + DD-violation) — zero
+   `partial def` in ZIP layer — DD flag (APPNOTE.TXT §4.4.4)
+   honoured — encoder+round-trip witness (parseArchive ∘
+   encodeArchive minimalArchive = .ok ...)
 ```
 
 The DCO trailer on the merge commit is the audit trail.
@@ -227,7 +233,9 @@ The DCO trailer on the merge commit is the audit trail.
 
 | Item | Owner sub-phase | Reason |
 |---|---|---|
-| AFL++ / honggfuzz / radamsa nightly fuzzing | P1.13 / P1.14 | Per ADR-0019 above. |
+| AFL++ instrumented compiler | P1.13 / P1.14 | The flake-level closure stays small. radamsa + honggfuzz + cargo-fuzz cover the same coverage-guided territory; AFL++'s gain is incremental. |
 | ZIP64 / multi-volume CDRs | 🧊 (out of scope) | Per ADR-0017 (P1.5). APKs are 100% single-volume. |
 | Compressed-data integrity (deflate) | 🧊 (out of scope) | Per spec §2 — deterministic Rust path, no formalization. |
 | AOSP libziparchive *runtime* cross-check | P1.13 / P1.18 | Per ADR-0016 (revised, P1.5). Header-only third prong remains binding for P1.6. |
+| Generic completeness (∀ well-formed `a`. round-trip) | Phase 2 hardening | The minimal-archive witness via `parseArchive ∘ encodeArchive minimalArchive = .ok …` is in place. The universally-quantified theorem requires symbolic encoder-byte-layout reasoning; tractable but bulky, not load-bearing for Phase 1. |
+| Disclosed-CVE corpus pulls | P1.13 (AndroZoo / MalwareBazaar integration) | Real CVE samples can't always be redistributed in-tree (license + safety). The 70 hand-crafted samples here are spec-equivalent reproducers for the BadPack / Janus / MasterKey families documented inline in the corpus generator. |

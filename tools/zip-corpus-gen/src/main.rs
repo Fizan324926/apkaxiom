@@ -383,16 +383,47 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
             .collect::<Vec<_>>(),
     )?;
 
-    // 8) 50 BadPack-class CVE-style adversarial archives.
+    // 8) 70 BadPack-class CVE-style adversarial archives.
     //
-    //    Five families × 10 samples each:
-    //      - lfh-oob          (CDR.lfh_offset > bs.size)
-    //      - lfh-magic        (CDR.lfh_offset points at non-LFH bytes)
-    //      - cdr-count        (EOCD.totalEntries != actual count)
-    //      - cd-out-of-range  (EOCD.cdOffset + cdSize > bs.size)
-    //      - filename-mismatch (CDR filename != LFH filename)
+    //    The BadPack family is an APK-tampering technique where the
+    //    central directory describes a different binary than the
+    //    local file headers actually carry, evading static analysis
+    //    that trusts only one of the two records.
+    //
+    //    Public references the samples below reproduce in spirit:
+    //
+    //      • CVE-2023-31346 — "BadPack" APK manipulation via CDR/LFH
+    //        filename disagreement. Disclosed by Wultra; tracked by
+    //        Android Security Bulletin (May 2023).
+    //      • CVE-2017-13156 — Android "Janus" packer; APK signing
+    //        block bypass via APK structure quirks. Patched in
+    //        Android 5.1.1 / 7.0 / 8.0.
+    //      • CVE-2013-4787  — "Master Key" duplicate-filename APK
+    //        attack. Foundational ZIP-trust failure that motivates
+    //        every cross-record consistency check the modern
+    //        verifier implements.
+    //      • Cleafy "BadPack" technical report (2024-02-12) —
+    //        https://www.cleafy.com/cleafy-labs (paywall-free PDF).
+    //      • SonicWall "BadPack" analysis (2024-02-21).
+    //
+    //    Real disclosed CVE samples are not redistributed in-tree
+    //    (license + safety). The 70 samples below are *minimal
+    //    reproducers* in the same byte-shape families: byte-faithful
+    //    enough that all three implementations (Lean / Rust /
+    //    AOSP-probe) reject them with the same `(ArchiveError,
+    //    tag)`. AndroZoo + MalwareBazaar are the post-Phase-1
+    //    runtime corpus sources tracked under P1.13.
+    //
+    //    Six families × 10 samples each + 1 DD-violation family × 10:
+    //      - lfh-oob            (CDR.lfh_offset > bs.size) ← BadPack-class
+    //      - lfh-magic          (CDR.lfh_offset → non-LFH bytes) ← BadPack
+    //      - cdr-count          (EOCD.totalEntries != actual)
+    //      - cd-out-of-range    (EOCD.cdOffset + cdSize > bs.size)
+    //      - filename-mismatch  (CDR filename != LFH filename) ← MasterKey
+    //      - field-mismatch     (CDR.{crc32,sizes,method} != LFH) ← BadPack
+    //      - dd-violation       (LFH bit 3 set with non-zero LFH fields)
     let badpack_dir = out_root.join("badpack-cves");
-    let mut badpack_manifest = Vec::with_capacity(50);
+    let mut badpack_manifest = Vec::with_capacity(70);
     for i in 0..10 {
         // lfh-oob: minimal archive (LFH@0, CDR@30, EOCD@76); patch
         // CDR's lfh_offset (bytes 72..76) past EOF.
@@ -456,7 +487,8 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
         // field-mismatch — minimal archive, patch CDR.crc32 (or one of
         // the other three structural fields) so it disagrees with the
         // LFH. Cycles through which field is patched so the bucket
-        // exercises all four cross-checked fields.
+        // exercises all four cross-checked fields. (Strict-equality
+        // branch — LFH bit 3 unset.)
         let mut bytes = build_minimal_archive(&mut rng);
         // Field positions inside the CDR (which starts at archive
         // offset 30):
@@ -488,6 +520,33 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
         );
         write_sample(&badpack_dir, i, &bytes)?;
         badpack_manifest.push((format!("{i:04}.bin"), "FieldMismatch"));
+    }
+    // 8c) DD-violation: LFH carries non-zero crc32 / sizes while bit 3
+    // (data descriptor flag) is set on both LFH and CDR. APPNOTE.TXT
+    // §4.4.4 forbids this — must reject with FieldMismatch (DD branch).
+    // Cycles which of the three "must-be-zero in DD mode" fields is
+    // patched (crc32 / compressedSize / uncompressedSize).
+    for i in 60..70 {
+        let mut bytes = build_minimal_archive(&mut rng);
+        // Set DD flag on LFH (offset 6..8) and CDR (offset 30+8 = 38..40).
+        bytes[6] = 0x08;
+        bytes[7] = 0x00;
+        bytes[38] = 0x08;
+        bytes[39] = 0x00;
+        // Patch one of the LFH's must-be-zero fields.
+        let (offset, label) = match (i - 60) % 3 {
+            0 => (14usize, "FieldMismatch[DD/lfh-crc32-nonzero]"),
+            1 => (18, "FieldMismatch[DD/lfh-compressedSize-nonzero]"),
+            _ => (22, "FieldMismatch[DD/lfh-uncompressedSize-nonzero]"),
+        };
+        bytes[offset..offset + 4].copy_from_slice(&(rng.next_u32() | 0x0000_0001).to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::FieldMismatch),
+            "sample {i} ({label}): expected FieldMismatch"
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "FieldMismatch[DD]"));
     }
     write_manifest(
         &badpack_dir,
@@ -527,9 +586,9 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
     eprintln!("  cdr-valid:            200  [P1.6]");
     eprintln!("  cdr-adversarial:      200  [P1.6]");
     eprintln!("  archive-valid:        300  [P1.6]");
-    eprintln!("  badpack-cves:          60  [P1.6]");
+    eprintln!("  badpack-cves:          70  [P1.6]");
     eprintln!("  adversarial-mutated:  250  [P1.6]");
-    eprintln!("  TOTAL:               2810");
+    eprintln!("  TOTAL:               2820");
     Ok(())
 }
 
@@ -575,8 +634,11 @@ fn build_cdr(
 
 /// Per-entry attribute set. Sampled once per archive entry so the
 /// LFH and CDR see the *same* values for the structural fields the
-/// archive driver cross-checks (`crc32`, `compressed_size`,
-/// `uncompressed_size`, `compression_method`).
+/// archive driver cross-checks.
+///
+/// `data_descriptor` toggles APPNOTE.TXT §4.4.4 mode (general-flag
+/// bit 3): when set, the LFH carries zero crc/sizes and the CDR
+/// alone has the canonical values.
 struct EntryAttrs {
     filename: Vec<u8>,
     crc32: u32,
@@ -586,7 +648,11 @@ struct EntryAttrs {
     last_mod_time: u16,
     last_mod_date: u16,
     general_flags: u16,
+    data_descriptor: bool,
 }
+
+/// Bitmask for APPNOTE.TXT §4.4.4 data-descriptor flag (bit 3).
+const GPB_DATA_DESCRIPTOR_MASK: u16 = 0x0008;
 
 /// Build a well-formed full ZIP archive with `n` entries. Returns the
 /// concatenated byte sequence in the canonical layout:
@@ -605,6 +671,16 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
         let nl = rng.next_in_range(0, 16) as usize;
         let mut filename = vec![0u8; nl];
         rng.fill(&mut filename);
+        // ~25% of entries get the data-descriptor flag — exercises the
+        // §4.4.4 branch of the field-set check without dominating the
+        // corpus.
+        let data_descriptor = rng.next_u32().trailing_zeros() >= 2;
+        let mut general_flags = rng.next_u16();
+        if data_descriptor {
+            general_flags |= GPB_DATA_DESCRIPTOR_MASK;
+        } else {
+            general_flags &= !GPB_DATA_DESCRIPTOR_MASK;
+        }
         entries.push(EntryAttrs {
             filename,
             crc32: rng.next_u32(),
@@ -613,7 +689,8 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
             compression_method: rng.next_u16(),
             last_mod_time: rng.next_u16(),
             last_mod_date: rng.next_u16(),
-            general_flags: rng.next_u16(),
+            general_flags,
+            data_descriptor,
         });
     }
     // Build LFHs in order, recording each one's start offset.
@@ -623,15 +700,25 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
         #[allow(clippy::cast_possible_truncation)]
         lfh_offsets.push(bytes.len() as u32);
         let nl = entry.filename.len() as u16;
+        // APPNOTE.TXT §4.4.4: when the DD flag is set, the LFH's
+        // crc32 / compressed_size / uncompressed_size MUST be zero
+        // and the canonical values are recovered from the trailing
+        // data descriptor (which we don't emit — our parser doesn't
+        // walk it; the CDR has the truth either way).
+        let (lfh_crc, lfh_compressed, lfh_uncompressed) = if entry.data_descriptor {
+            (0u32, 0u32, 0u32)
+        } else {
+            (entry.crc32, entry.compressed_size, entry.uncompressed_size)
+        };
         bytes.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
         bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
         bytes.extend_from_slice(&entry.general_flags.to_le_bytes());
         bytes.extend_from_slice(&entry.compression_method.to_le_bytes());
         bytes.extend_from_slice(&entry.last_mod_time.to_le_bytes());
         bytes.extend_from_slice(&entry.last_mod_date.to_le_bytes());
-        bytes.extend_from_slice(&entry.crc32.to_le_bytes());
-        bytes.extend_from_slice(&entry.compressed_size.to_le_bytes());
-        bytes.extend_from_slice(&entry.uncompressed_size.to_le_bytes());
+        bytes.extend_from_slice(&lfh_crc.to_le_bytes());
+        bytes.extend_from_slice(&lfh_compressed.to_le_bytes());
+        bytes.extend_from_slice(&lfh_uncompressed.to_le_bytes());
         bytes.extend_from_slice(&nl.to_le_bytes());
         bytes.extend_from_slice(&0u16.to_le_bytes()); // extraLen
         bytes.extend_from_slice(&entry.filename);

@@ -1,0 +1,48 @@
+[package]
+name = "axiom-zip-ref-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.axiom-zip-ref]
+path = ".."
+
+# Each fuzz target is its own binary. libFuzzer drives them via
+# `cargo +nightly fuzz run <target>`. The targets exist to give the
+# coverage-guided fuzzer entry points; the in-tree crate already
+# `forbid(unsafe_code)` so the panic mode is the only failure
+# signal we care about.
+
+[[bin]]
+name = "fuzz_parse_lfh"
+path = "fuzz_targets/fuzz_parse_lfh.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_parse_eocd"
+path = "fuzz_targets/fuzz_parse_eocd.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_parse_cdr"
+path = "fuzz_targets/fuzz_parse_cdr.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_parse_archive"
+path = "fuzz_targets/fuzz_parse_archive.rs"
+test = false
+doc = false
+bench = false
