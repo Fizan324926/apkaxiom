@@ -340,17 +340,27 @@ jobs:
           fi
 
   # -------------------------------------------------------------------------
-  # 4e) P1.5 ZIP layer drift + differential gates.
+  # 4e) ZIP layer drift + differential gates (P1.5 + P1.6).
   #
   # `p15-corpus-drift`: re-runs the deterministic corpus generator and
-  # asserts every committed corpus byte (1800 .bin files + 4
+  # asserts every committed corpus byte (2800 .bin files + 9
   # manifest.json) matches. Drift means the generator changed shape —
-  # treated as the LFH/EOCD freeze indicator the way schema-hash is
-  # for AXIOM-IR.
+  # treated as the LFH/EOCD/CDR/Archive freeze indicator the way
+  # schema-hash is for AXIOM-IR.
   #
-  # `p15-differential`: runs the Lean ↔ Rust harness on every corpus
-  # sample. 100% agreement is the binding gate; any disagreement
-  # flunks. ~2-3 minutes wall-clock with mathlib cache warm.
+  # `p15-differential`: runs the 3-way Lean ↔ Rust ↔ AOSP-probe
+  # harness on every corpus sample. 100% agreement is the binding
+  # gate; any disagreement flunks. The corpus covers nine subdirs:
+  #
+  #   - lfh-{valid,adversarial}       (P1.5)
+  #   - eocd-{valid,adversarial}      (P1.5)
+  #   - cdr-{valid,adversarial}       (P1.6)
+  #   - archive-valid                 (P1.6)
+  #   - badpack-cves                  (P1.6 — hand-crafted CVE-class)
+  #   - adversarial-mutated           (P1.6 — in-house mutation engine)
+  #
+  # ~7 minutes wall-clock with mathlib cache warm; bumped to 25 min
+  # cap per the §10 P1.6 hard floor.
   # -------------------------------------------------------------------------
   p15-corpus-drift:
     name: p15-corpus-drift
@@ -374,7 +384,7 @@ jobs:
     name: p15-differential
     needs: [p15-corpus-drift]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -389,9 +399,11 @@ jobs:
             lake-linux-x86_64-
       - name: Build Lean ZIP modules
         run: nix develop --command make p15-lean
+      - name: Build Lean P1.6 modules (CDR + Consistency)
+        run: nix develop --command make p16-lean
       - name: Build AOSP wire-format probe
         run: nix develop --command make p15-aosp-probe
-      - name: Run 3-way Lean ↔ Rust ↔ AOSP differential (1800 samples)
+      - name: Run 3-way Lean ↔ Rust ↔ AOSP differential (2800 samples)
         run: nix develop --command make p15-differential-3way
 
   libziparchive-pin:

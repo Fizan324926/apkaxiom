@@ -46,11 +46,20 @@ constexpr uint8_t kEocdBadSignature       = 2;
 constexpr uint8_t kEocdShortComment       = 3;
 constexpr uint8_t kEocdInconsistentDisks  = 4;
 
+// -------- CDR error taxonomy (matches Lean + Rust ParseError tags) --
+constexpr uint8_t kCdrShortHeader   = 1;
+constexpr uint8_t kCdrBadSignature  = 2;
+constexpr uint8_t kCdrShortName     = 3;
+constexpr uint8_t kCdrShortExtra    = 4;
+constexpr uint8_t kCdrShortComment  = 5;
+
 constexpr size_t kLfhFixedSize  = sizeof(LocalFileHeader);
 constexpr size_t kEocdFixedSize = sizeof(EocdRecord);
+constexpr size_t kCdrFixedSize  = sizeof(CentralDirectoryRecord);
 
 static_assert(kLfhFixedSize  == 30, "LFH struct must be 30 bytes");
 static_assert(kEocdFixedSize == 22, "EOCD struct must be 22 bytes");
+static_assert(kCdrFixedSize  == 46, "CDR struct must be 46 bytes");
 
 void print_ok(size_t consumed) {
   std::printf("ok %zu\n", consumed);
@@ -82,6 +91,166 @@ int parse_lfh(const std::vector<uint8_t>& bs) {
     return 0;
   }
   print_ok(extra_end);
+  return 0;
+}
+
+int parse_cdr(const std::vector<uint8_t>& bs) {
+  if (bs.size() < kCdrFixedSize) {
+    print_err(kCdrShortHeader);
+    return 0;
+  }
+  CentralDirectoryRecord rec;
+  std::memcpy(&rec, bs.data(), kCdrFixedSize);
+  if (rec.record_signature != CentralDirectoryRecord::kSignature) {
+    print_err(kCdrBadSignature);
+    return 0;
+  }
+  size_t name_end    = kCdrFixedSize + rec.file_name_length;
+  size_t extra_end   = name_end + rec.extra_field_length;
+  size_t comment_end = extra_end + rec.comment_length;
+  if (name_end > bs.size()) {
+    print_err(kCdrShortName);
+    return 0;
+  }
+  if (extra_end > bs.size()) {
+    print_err(kCdrShortExtra);
+    return 0;
+  }
+  if (comment_end > bs.size()) {
+    print_err(kCdrShortComment);
+    return 0;
+  }
+  print_ok(comment_end);
+  return 0;
+}
+
+// -------- Archive error taxonomy (matches Lean ArchiveError tags) ----
+constexpr uint8_t kArchiveNoEocd            = 1;
+constexpr uint8_t kArchiveEocdInvalid       = 2;
+constexpr uint8_t kArchiveCdOutOfRange      = 3;
+constexpr uint8_t kArchiveCdrInvalid        = 4;
+constexpr uint8_t kArchiveCdrCountMismatch  = 5;
+constexpr uint8_t kArchiveLfhOffsetOob      = 6;
+constexpr uint8_t kArchiveLfhInvalid        = 7;
+constexpr uint8_t kArchiveFilenameMismatch  = 8;
+
+// Suffix-locate the EOCD signature by scanning backwards from EOF.
+// Returns size_t(-1) if not found.
+size_t find_eocd(const std::vector<uint8_t>& bs) {
+  if (bs.size() < kEocdFixedSize) return static_cast<size_t>(-1);
+  for (size_t off = bs.size() - kEocdFixedSize;; --off) {
+    if (off + 4 <= bs.size()) {
+      uint32_t sig;
+      std::memcpy(&sig, bs.data() + off, 4);
+      if (sig == EocdRecord::kSignature) return off;
+    }
+    if (off == 0) break;
+  }
+  return static_cast<size_t>(-1);
+}
+
+// Whole-archive parse mirroring the Lean / Rust drivers. Uses AOSP's
+// authoritative LFH / CDR / EOCD struct definitions for wire-format
+// truth; applies the APKAXIOM cross-record consistency rules
+// (filename agreement, lfh-offset bounds) on top.
+int parse_archive(const std::vector<uint8_t>& bs) {
+  // (1) Locate the EOCD.
+  size_t eocd_off = find_eocd(bs);
+  if (eocd_off == static_cast<size_t>(-1)) {
+    print_err(kArchiveNoEocd);
+    return 0;
+  }
+  // (2) Parse the EOCD record at the located offset.
+  if (eocd_off + kEocdFixedSize > bs.size()) {
+    print_err(kArchiveEocdInvalid);
+    return 0;
+  }
+  EocdRecord eocd;
+  std::memcpy(&eocd, bs.data() + eocd_off, kEocdFixedSize);
+  if (eocd.eocd_signature != EocdRecord::kSignature) {
+    print_err(kArchiveEocdInvalid);
+    return 0;
+  }
+  if (eocd.disk_num != eocd.cd_start_disk) {
+    print_err(kArchiveEocdInvalid);
+    return 0;
+  }
+  size_t comment_end = eocd_off + kEocdFixedSize + eocd.comment_length;
+  if (comment_end > bs.size()) {
+    print_err(kArchiveEocdInvalid);
+    return 0;
+  }
+  // (3) Validate CD bounds.
+  size_t cd_start = eocd.cd_start_offset;
+  size_t cd_size  = eocd.cd_size;
+  if (cd_start + cd_size > bs.size()) {
+    print_err(kArchiveCdOutOfRange);
+    return 0;
+  }
+  // (4) Parse the CDR sequence in the CD region.
+  std::vector<CentralDirectoryRecord> cdrs;
+  std::vector<std::vector<uint8_t>> cdr_filenames;
+  std::vector<uint32_t> cdr_lfh_offsets;
+  size_t off = cd_start;
+  size_t cd_end = cd_start + cd_size;
+  while (off < cd_end) {
+    if (off + kCdrFixedSize > cd_end) {
+      print_err(kArchiveCdrInvalid);
+      return 0;
+    }
+    CentralDirectoryRecord cdr;
+    std::memcpy(&cdr, bs.data() + off, kCdrFixedSize);
+    if (cdr.record_signature != CentralDirectoryRecord::kSignature) {
+      print_err(kArchiveCdrInvalid);
+      return 0;
+    }
+    size_t name_off = off + kCdrFixedSize;
+    size_t extra_off = name_off + cdr.file_name_length;
+    size_t comment_off = extra_off + cdr.extra_field_length;
+    size_t cdr_end = comment_off + cdr.comment_length;
+    if (cdr_end > cd_end) {
+      print_err(kArchiveCdrInvalid);
+      return 0;
+    }
+    std::vector<uint8_t> fname(bs.data() + name_off,
+                               bs.data() + extra_off);
+    cdr_filenames.push_back(fname);
+    cdr_lfh_offsets.push_back(cdr.local_file_header_offset);
+    cdrs.push_back(cdr);
+    off = cdr_end;
+  }
+  // (5) Count agreement.
+  if (cdrs.size() != eocd.num_records) {
+    print_err(kArchiveCdrCountMismatch);
+    return 0;
+  }
+  // (6) Per-CDR LFH consistency.
+  for (size_t i = 0; i < cdrs.size(); ++i) {
+    size_t lo = cdr_lfh_offsets[i];
+    if (lo + kLfhFixedSize > bs.size()) {
+      print_err(kArchiveLfhOffsetOob);
+      return 0;
+    }
+    LocalFileHeader lfh;
+    std::memcpy(&lfh, bs.data() + lo, kLfhFixedSize);
+    if (lfh.lfh_signature != LocalFileHeader::kSignature) {
+      print_err(kArchiveLfhInvalid);
+      return 0;
+    }
+    size_t lfh_name_end = lo + kLfhFixedSize + lfh.file_name_length;
+    size_t lfh_extra_end = lfh_name_end + lfh.extra_field_length;
+    if (lfh_extra_end > bs.size()) {
+      print_err(kArchiveLfhInvalid);
+      return 0;
+    }
+    std::vector<uint8_t> lfh_fname(bs.data() + lo + kLfhFixedSize,
+                                   bs.data() + lfh_name_end);
+    if (lfh_fname != cdr_filenames[i]) {
+      print_err(kArchiveFilenameMismatch);
+      return 0;
+    }
+  }
+  print_ok(bs.size());
   return 0;
 }
 
@@ -123,13 +292,15 @@ std::vector<uint8_t> read_stdin() {
 
 int main(int argc, char** argv) {
   if (argc != 2) {
-    std::fprintf(stderr, "usage: zip-aosp-probe --lfh | --eocd\n");
+    std::fprintf(stderr, "usage: zip-aosp-probe --lfh | --eocd | --cdr\n");
     return 2;
   }
   const std::string mode(argv[1]);
   const auto bs = read_stdin();
-  if (mode == "--lfh")  return parse_lfh(bs);
-  if (mode == "--eocd") return parse_eocd(bs);
+  if (mode == "--lfh")     return parse_lfh(bs);
+  if (mode == "--eocd")    return parse_eocd(bs);
+  if (mode == "--cdr")     return parse_cdr(bs);
+  if (mode == "--archive") return parse_archive(bs);
   std::fprintf(stderr, "unknown mode: %s\n", mode.c_str());
   return 2;
 }

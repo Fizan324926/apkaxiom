@@ -10,10 +10,11 @@
 
 #ifndef DISALLOW_COPY_AND_ASSIGN
 // In production AOSP this macro deletes the copy constructor and
-// the copy-assignment operator. For a *header-only* read-only
-// probe that just `memcpy`s bytes into the structs, the macro is
-// pure documentation.
-#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName&) = delete;      \
-  TypeName& operator=(const TypeName&) = delete
+// the copy-assignment operator. For our header-only read-only probe
+// that `memcpy`s bytes into the structs and stores them in
+// `std::vector<…>`, deleting copy makes the structs non-vector-able.
+// Define the macro to a no-op declaration so the structs remain
+// trivially copyable for our purposes — production AOSP integrity
+// is unaffected because we don't link against AOSP runtime code.
+#define DISALLOW_COPY_AND_ASSIGN(TypeName)
 #endif

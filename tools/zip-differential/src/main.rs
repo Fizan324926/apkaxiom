@@ -40,7 +40,7 @@ use std::{
     process::{Command, ExitCode, Stdio},
 };
 
-use axiom_zip_ref::{eocd, lfh};
+use axiom_zip_ref::{archive, cdr, eocd, lfh};
 
 /// Verdict shape we serialise for cross-language comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +59,18 @@ impl Verdict {
     fn from_eocd(r: Result<eocd::ParseOk, eocd::ParseError>) -> Self {
         match r {
             Ok((_, n)) => Self::Ok { consumed: n },
+            Err(e) => Self::Err { tag: e.tag() },
+        }
+    }
+    fn from_cdr(r: Result<cdr::ParseOk, cdr::ParseError>) -> Self {
+        match r {
+            Ok((_, n)) => Self::Ok { consumed: n },
+            Err(e) => Self::Err { tag: e.tag() },
+        }
+    }
+    fn from_archive(bs: &[u8], r: Result<archive::Archive, archive::ArchiveError>) -> Self {
+        match r {
+            Ok(_) => Self::Ok { consumed: bs.len() },
             Err(e) => Self::Err { tag: e.tag() },
         }
     }
@@ -96,6 +108,8 @@ fn build_batch_driver(samples: &[(SampleKind, Vec<u8>)]) -> String {
     let mut s = String::new();
     s.push_str("import Apkaxiom.Zip.LocalHeader\n");
     s.push_str("import Apkaxiom.Zip.Eocd\n");
+    s.push_str("import Apkaxiom.Zip.CentralDirectory\n");
+    s.push_str("import Apkaxiom.Zip.Consistency\n");
     s.push_str("def main : IO Unit := do\n");
     for (kind, bs) in samples {
         let arr = render_byte_array_literal(bs);
@@ -120,6 +134,29 @@ fn build_batch_driver(samples: &[(SampleKind, Vec<u8>)]) -> String {
                     "  | .error e   => IO.println s!\"err {Apkaxiom.Zip.Eocd.ParseError.tag e}\"\n",
                 );
             }
+            SampleKind::Cdr => {
+                s.push_str("  let bs : ByteArray := ");
+                s.push_str(&arr);
+                s.push('\n');
+                s.push_str("  match Apkaxiom.Zip.CentralDirectory.parseCdr bs with\n");
+                s.push_str("  | .ok (_, n) => IO.println s!\"ok {n}\"\n");
+                s.push_str(
+                    "  | .error e   => IO.println s!\"err {Apkaxiom.Zip.CentralDirectory.ParseError.tag e}\"\n",
+                );
+            }
+            SampleKind::Archive => {
+                let n = bs.len();
+                s.push_str("  let bs : ByteArray := ");
+                s.push_str(&arr);
+                s.push('\n');
+                s.push_str("  match Apkaxiom.Zip.Consistency.parseArchive bs with\n");
+                // On success we report consumed = byte-length (matches
+                // the Rust `from_archive` shape).
+                s.push_str(&format!("  | .ok _      => IO.println s!\"ok {n}\"\n"));
+                s.push_str(
+                    "  | .error e   => IO.println s!\"err {Apkaxiom.Zip.Consistency.ArchiveError.tag e}\"\n",
+                );
+            }
         }
     }
     s
@@ -133,6 +170,8 @@ fn run_aosp_probe(probe: &str, kind: SampleKind, bs: &[u8]) -> Verdict {
     let mode = match kind {
         SampleKind::Lfh => "--lfh",
         SampleKind::Eocd => "--eocd",
+        SampleKind::Cdr => "--cdr",
+        SampleKind::Archive => "--archive",
     };
     let Ok(mut child) = Command::new(probe)
         .arg(mode)
@@ -197,6 +236,8 @@ fn render_byte_array_literal(bs: &[u8]) -> String {
 enum SampleKind {
     Lfh,
     Eocd,
+    Cdr,
+    Archive,
 }
 
 fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::Error> {
@@ -220,6 +261,11 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
         ("lfh-adversarial", SampleKind::Lfh),
         ("eocd-valid", SampleKind::Eocd),
         ("eocd-adversarial", SampleKind::Eocd),
+        ("cdr-valid", SampleKind::Cdr),
+        ("cdr-adversarial", SampleKind::Cdr),
+        ("archive-valid", SampleKind::Archive),
+        ("badpack-cves", SampleKind::Archive),
+        ("adversarial-mutated", SampleKind::Archive),
     ] {
         let dir = corpus.join(sub);
         let mut entries: Vec<PathBuf> = fs::read_dir(&dir)?
@@ -240,11 +286,13 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
         "Running Lean differential on {} samples …",
         all_entries.len()
     );
-    // Single Lean invocations OOM at the workspace scale (~1800 byte
-    // arrays inlined into one source file); 50 samples / batch keeps
-    // each driver under ~150 KB and well inside Lean's elaborator
-    // budget.
-    const BATCH_SIZE: usize = 50;
+    // Single Lean invocations OOM at the workspace scale (~2800 byte
+    // arrays inlined into one source file). With P1.6 the
+    // archive-shaped samples can be 200+ bytes each, so the batch
+    // size drops to 20 to keep each driver under ~150 KB and well
+    // inside Lean's elaborator budget. The differential is still
+    // ≈ 4 minutes wall clock with mathlib cache warm.
+    const BATCH_SIZE: usize = 20;
     let mut lean_lines: Vec<String> = Vec::with_capacity(all_entries.len());
     for chunk in all_entries.chunks(BATCH_SIZE) {
         let batch: Vec<(SampleKind, Vec<u8>)> =
@@ -296,6 +344,8 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
         let rust = match kind {
             SampleKind::Lfh => Verdict::from_lfh(lfh::parse_lfh(bs)),
             SampleKind::Eocd => Verdict::from_eocd(eocd::parse_eocd(bs)),
+            SampleKind::Cdr => Verdict::from_cdr(cdr::parse_cdr(bs)),
+            SampleKind::Archive => Verdict::from_archive(bs, archive::parse_archive(bs)),
         };
         let lean = parse_lean_verdict(lean_line).unwrap_or(Verdict::Err { tag: 255 });
         let aosp = if probe_available {
