@@ -129,6 +129,14 @@
           hyperfine
           graphviz
           tokei
+          # P1.4 wire-format validation. capnproto's `capnp` schema
+          # compiler validates `schema/axiom_ir_v0_1.capnp` syntax;
+          # invoked unconditionally by tools/ir-schema-check (no longer
+          # "skip if missing"). Per the closed §10-8 gap, this is the
+          # mandatory leg of the v0.1 wire-format contract; a Rust-side
+          # round-trip via generated bindings is deferred to Phase 4
+          # per ADR-0014.
+          capnproto
         ] ++ [
           # Pulled from nixpkgs-unstable; nixos-24.11 lags on these.
           # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0
@@ -143,6 +151,10 @@
           pkgsUnstable.cargo-cyclonedx
           pkgsUnstable.lean4
           pkgsUnstable.elan
+          # mermaid-cli (`mmdc`) — diagram renderer for spec §10-10's
+          # mermaid prong. nixos-24.11 ships an older version; we
+          # pull from unstable to get current syntax support.
+          pkgsUnstable.mermaid-cli
         ];
 
         # Heavy debugging tools — only loaded into the `repro-debug` shell so

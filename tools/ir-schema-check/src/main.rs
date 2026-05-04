@@ -2,26 +2,32 @@
 
 //! AXIOM-IR Cap'n Proto schema gate.
 //!
-//! Two-phase verification:
+//! Two-phase verification, both phases mandatory:
 //!
-//!   1. **Always:** SHA-256 of `schema/axiom_ir_v0_1.capnp` matches the
-//!      committed `docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt` pin.
+//!   1. SHA-256 of `schema/axiom_ir_v0_1.capnp` matches the committed
+//!      `docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt` pin.
 //!      Drift here means someone edited the schema text (or the pin)
 //!      without running `make p14-ir`.
 //!
-//!   2. **If `capnp` is on PATH:** invoke `capnp compile -onull` to
-//!      verify the schema is syntactically valid. We use `-onull` (the
-//!      no-op codegen output) because we don't actually need to
-//!      generate Rust code — Phase-4 inter-process IR transmission is
-//!      where capnp becomes load-bearing.
+//!   2. `capnp compile -onull` against the schema verifies syntax /
+//!      semantics. `capnp` is now in the flake (see ADR-0014); if it
+//!      is missing the tool fails — the v0.1 wire-format contract is
+//!      "schema is byte-stable AND syntactically valid", not "byte-
+//!      stable AND best-effort syntactically valid".
 //!
-//! Without capnp installed, only step 1 runs and the tool reports
-//! "skipped capnp compile (capnp not on PATH)" with exit 0. With capnp
-//! installed, both steps run; either failing exits non-zero.
+//! A Rust-side round-trip via generated bindings stays a Phase-4
+//! deliverable per ADR-0014: native capnp emit becomes load-bearing
+//! when inter-process IR transmission is real, and adding `capnp` /
+//! `capnpc` runtime crates as workspace deps now would inflate the
+//! Reindeer surface for no Phase-1 win.
 //!
-//! Wired into `make p14-ir` and the `p14-ir-drift` CI gate.
+//! Wired into `make p14-schema-check`, `make p14-ir`, and the
+//! `p14-ir-drift` CI gate.
 //!
 //! Usage: `ir-schema-check <repo-root>`
+//!        `ir-schema-check <repo-root> --allow-missing-capnp`
+//!            (escape hatch — operator-only, intended for rare
+//!             bring-up situations on hosts without capnp.)
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs, unreachable_pub)]
@@ -34,9 +40,16 @@ const PIN_PATH: &str = "docs/phase-1/P1.4/ir-data/schema-capnp-hash.txt";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    let [_, repo_root] = args.as_slice() else {
-        eprintln!("usage: ir-schema-check <repo-root>");
-        return ExitCode::from(2);
+    let (repo_root, allow_missing_capnp) = match args.as_slice() {
+        [_, root] => (root.clone(), false),
+        [_, root, flag] if flag == "--allow-missing-capnp" => (root.clone(), true),
+        _ => {
+            eprintln!(
+                "usage: ir-schema-check <repo-root> [--allow-missing-capnp]\n\
+                 (the --allow-missing-capnp escape hatch is operator-only; default is mandatory)"
+            );
+            return ExitCode::from(2);
+        }
     };
     let root = PathBuf::from(repo_root);
 
@@ -75,18 +88,25 @@ fn main() -> ExitCode {
     // Step 2 — invoke capnp if present.
     match find_capnp() {
         Some(capnp) => {
-            println!("FOUND: {capnp} — running `capnp compile -onull`");
-            let status = std::process::Command::new(&capnp)
-                .args(["compile", "-onull"])
+            // `capnp compile -ocapnp` re-emits the schema through the
+            // built-in canonical printer. The re-emit fully type-checks
+            // (parser + name resolution + slot layout); we discard the
+            // output. The earlier `-onull` form failed because `null`
+            // is not a built-in plugin.
+            println!("FOUND: {capnp} — running `capnp compile -ocapnp`");
+            let output = std::process::Command::new(&capnp)
+                .args(["compile", "-ocapnp"])
                 .arg(&schema)
-                .status();
-            match status {
-                Ok(s) if s.success() => {
-                    println!("PASS: capnp compile -onull");
+                .output();
+            match output {
+                Ok(out) if out.status.success() => {
+                    let bytes = out.stdout.len();
+                    println!("PASS: capnp compile -ocapnp ({bytes} bytes re-emitted)");
                     ExitCode::SUCCESS
                 }
-                Ok(s) => {
-                    eprintln!("FAIL: capnp compile exited with {s}");
+                Ok(out) => {
+                    eprintln!("FAIL: capnp compile exited with {}", out.status);
+                    eprintln!("stderr: {}", String::from_utf8_lossy(&out.stderr));
                     ExitCode::from(1)
                 }
                 Err(e) => {
@@ -95,12 +115,20 @@ fn main() -> ExitCode {
                 }
             }
         }
-        None => {
+        None if allow_missing_capnp => {
             println!(
-                "SKIP: capnp not on PATH — schema-text drift gate is sufficient. \
-                 Operator install: `nix-env -iA nixpkgs.capnproto` or `apt install capnproto`."
+                "SKIP: capnp not on PATH — escape hatch invoked via --allow-missing-capnp. \
+                 Schema-text drift gate is the only check that ran."
             );
             ExitCode::SUCCESS
+        }
+        None => {
+            eprintln!(
+                "FAIL: capnp not on PATH. capnproto is in the flake (see ADR-0014); \
+                 enter the dev shell with `nix develop`. \
+                 Escape hatch (operator-only): re-run with --allow-missing-capnp."
+            );
+            ExitCode::from(1)
         }
     }
 }

@@ -1,0 +1,54 @@
+%% AXIOM-IR v0.1 canonical-bytes encode/decode pipeline.
+%% Render: `mmdc -i axiom-ir-encode-pipeline.mmd -o axiom-ir-encode-pipeline.svg`.
+flowchart LR
+    classDef src     fill:#dbe7ff,stroke:#1e3a8a,color:#1e293b
+    classDef enc     fill:#dcfce7,stroke:#166534,color:#1e293b
+    classDef bytes   fill:#fff3d6,stroke:#854d0e,color:#1e293b
+    classDef dec     fill:#fde2e4,stroke:#9f1239,color:#1e293b
+    classDef hash    fill:#e9d5ff,stroke:#6b21a8,color:#1e293b
+    classDef gate    fill:#fef3c7,stroke:#854d0e,color:#1e293b,stroke-dasharray:5
+
+    subgraph In ["Producers (P1.4 emitters)"]
+        producer["axiom-l1-rs / lean-extractor /<br/>tools/ir-corpus<br/><i>(any source of axiom_ir::Module)</i>"]:::src
+    end
+
+    subgraph Enc ["canonical::encode"]
+        emit_magic["emit magic 'AXIR' + version"]:::enc
+        emit_schema["emit schema_id (16 bytes)"]:::enc
+        emit_module["depth-first walk Region → Block → Op<br/>varint length-prefixed records"]:::enc
+        emit_attrs["attribute tags 0x20–0x26<br/>type tags 0x10–0x18 / 0x80–0x81"]:::enc
+    end
+
+    bytes["canonical bytes<br/><i>byte-stable across hosts</i>"]:::bytes
+
+    subgraph Hash ["hash::sha256"]
+        h_in["sha256(canonical_bytes)"]:::hash
+        h_out["32-byte commitment<br/><i>= ir-data/schema-hash.txt</i>"]:::hash
+    end
+
+    subgraph Dec ["canonical::decode"]
+        check_magic["verify magic + version"]:::dec
+        check_schema["verify schema_id"]:::dec
+        rebuild["rebuild Region/Block/Op tree<br/>safe_capacity bounds Vec growth"]:::dec
+        forward_compat["unknown variant tag (0xFE)<br/>→ skip + diagnostic"]:::dec
+    end
+
+    out_module["axiom_ir::Module<br/><i>(byte-equal under round-trip)</i>"]:::src
+
+    subgraph Gates ["P1.4 invariants (CI-enforced)"]
+        gate_round["63-test in-crate suite<br/>+ 6 property tests × 90 K rounds"]:::gate
+        gate_fuzz["structured-mutation fuzz<br/>(caught Vec::with_capacity DoS)"]:::gate
+        gate_fwd["9-case forward-compat 0xFE matrix"]:::gate
+        gate_drift["p14-ir-drift CI gate"]:::gate
+        gate_capnp["p14-schema-check<br/>SHA pin + capnp compile -ocapnp"]:::gate
+    end
+
+    producer --> emit_magic --> emit_schema --> emit_module --> emit_attrs --> bytes
+    bytes --> h_in --> h_out
+    bytes --> check_magic --> check_schema --> rebuild --> out_module
+    rebuild -.-> forward_compat -.-> rebuild
+    bytes -. validates .-> gate_round
+    bytes -. validates .-> gate_fuzz
+    bytes -. validates .-> gate_fwd
+    h_out -. enforces .-> gate_drift
+    bytes -. orthogonal .-> gate_capnp

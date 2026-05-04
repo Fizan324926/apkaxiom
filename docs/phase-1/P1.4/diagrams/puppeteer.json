@@ -1,0 +1,4 @@
+{
+    "_comment": "Puppeteer config for mermaid-cli. `--no-sandbox` is required because the dev shell runs as root in CI / containers; without it Chromium refuses to launch (crbug 638180). Local dev outside a container can ignore this file.",
+    "args": ["--no-sandbox"]
+}

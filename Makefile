@@ -172,13 +172,16 @@ p14-ir: ## Re-derive P1.4 AXIOM-IR corpus + ir-data JSON via tools/ir-corpus.
 	bash $(ROOT)/scripts/p14-ir-corpus.sh
 
 .PHONY: p14-diagram
-p14-diagram: ## Re-render P1.4 type-lattice + lowering-flow diagrams.
+p14-diagram: ## Re-render P1.4 type-lattice + lowering-flow + encode-pipeline diagrams.
 	dot -Tsvg \
 	  $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-types.dot \
 	  -o $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-types.svg
 	dot -Tsvg \
 	  $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-flow.dot \
 	  -o $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-flow.svg
+	mmdc -p $(ROOT)/docs/phase-1/P1.4/diagrams/puppeteer.json \
+	  -i $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-encode-pipeline.mmd \
+	  -o $(ROOT)/docs/phase-1/P1.4/diagrams/axiom-ir-encode-pipeline.svg
 
 .PHONY: p14-schema-hash
 p14-schema-hash: ## Recompute SHA-256 of schema/axiom_ir_v0_1.capnp and pin to ir-data/.

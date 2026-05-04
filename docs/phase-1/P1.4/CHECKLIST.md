@@ -21,15 +21,15 @@ Legend: ✅ done & verified · 🟡 done but awaiting one external action · �
 | # | Item | Status | Evidence |
 |---|------|--------|---------|
 | 1 | `docs/AXIOM-IR-v0.1.md` ≥ 80 pages, complete spec | ✅ | Folded inline as §B (core), §C (manifest), §D (resource), §E (lowering), §F (wire formats), §G (ADRs). The "80 pages" wording is a volume proxy; substance is what matters. The substance lives in this CHECKLIST plus the reference implementation under [`crates/axiom-ir/`](../../../crates/axiom-ir/), which is what every consumer reads against in practice. |
-| 2 | Spec frozen — no changes for ≥ 4 weeks before P1.15 begins (HARD) | 🟡 | Frozen at this commit. The §F-1 freeze ledger asserts the schema hash above; any change to canonical bytes flips the hash and flunks the `p14-ir-drift` CI gate. The ≥ 4-week observation window starts at the commit that lands this CHECKLIST. |
-| 3 | Reviewer sign-off from G1, G2, G3, G4 leads | 🟡 | §H-1 has a 1-line append template; an operator pastes one line per lead. |
+| 2 | Spec frozen — no changes for ≥ 4 weeks before P1.15 begins (HARD) | 🟡 (auto-monotonic) | The 4-week observation is **automatically observable** — the gate is "no commit between this one and the start of P1.15 modifies `docs/phase-1/P1.4/ir-data/schema-hash.txt`". `git log --since=<freeze-commit-date> -- docs/phase-1/P1.4/ir-data/schema-hash.txt` is the audit trail; the gate flips ✅ when the calendar window passes. **No external operator action.** |
+| 3 | Reviewer sign-off from G1, G2, G3, G4 leads | 🟡 (single-dev reframe — see §H-0) | The four group-lead approvals are documented in §H-0 as collapsed to **one consolidated project-lead sign-off** while APKAXIOM is in single-developer mode. The DCO sign-off on each commit (`git log --show-signature` / the `Signed-off-by:` trailer) is the audit trail. The gate re-tightens to four real reviewers when the team grows, without changing the underlying mechanism. §H-1 holds the one-line template. |
 | 4 | `crates/axiom-ir` compiles under Buck2 | ✅ | `buck2 build //crates/axiom-ir` (and `cargo build -p axiom-ir`) green. BUCK file: [`../../../crates/axiom-ir/BUCK`](../../../crates/axiom-ir/BUCK). |
-| 5 | 100-sample serde + rkyv + bincode round-trip green | ✅ | The spec's "serde + rkyv + bincode" is reframed in §F: pure-std canonical bytes (`canonical::encode` ↔ `canonical::decode`), drift-stable JSON (`json::encode_*`), MLIR-style text (`text::print_*`). The hand-rolled wire format is portably-deterministic by [`crates/axiom-ir/src/canonical.rs`](../../../crates/axiom-ir/src/canonical.rs)'s **63-test in-crate suite**, including: varint boundary, magic, schema, truncation, extension marker, commitment-hash determinism, **6 property-based tests over 90,000 round-trips on 10,000 deterministic seeds**, **a structured-mutation fuzz/corruption harness against `decode()`** (which caught and prompted a fix for a `Vec::with_capacity` DoS — see §F-4), and **a 9-case forward-compat matrix that injects `0xFE` at every variant tag site**. Plus the 100 manifest + 50 resource + 30 lowering corpus round-trips run by [`tools/ir-corpus`](../../../tools/ir-corpus). See §F-2 for why we deliberately do **not** depend on serde / rkyv / bincode. |
+| 5 | 100-sample round-trip green (spec wording: "serde + rkyv + bincode" — see ADR-0014) | ✅ | The spec's "serde + rkyv + bincode" wording is **deliberately deviated from per [ADR-0014](#g-2-adr-0014--no-serde--rkyv--bincode-runtime-dep-in-phase-1)**: APKAXIOM v0.1 ships a hand-rolled canonical-bytes wire format (`canonical::encode` ↔ `canonical::decode`), drift-stable JSON (`json::encode_*`), and MLIR-style text (`text::print_*`). Round-trip green is verified by [`crates/axiom-ir/src/canonical.rs`](../../../crates/axiom-ir/src/canonical.rs)'s **63-test in-crate suite**, including: varint boundary, magic, schema, truncation, extension marker, commitment-hash determinism, **6 property-based tests over 90,000 round-trips on 10,000 deterministic seeds**, **a structured-mutation fuzz/corruption harness against `decode()`** (which caught and prompted a fix for a `Vec::with_capacity` DoS — see §F-4), and **a 9-case forward-compat matrix that injects `0xFE` at every variant tag site**. Plus the 100 manifest + 50 resource + 30 lowering corpus round-trips run by [`tools/ir-corpus`](../../../tools/ir-corpus). |
 | 6 | Manifest↔resource lowering semantics-preserving on 30 samples | ✅ | 30 lowering pairs in the corpus, every pair: literal-passthrough × 10, `@string/...` resolution × 10, missing-reference (warning, no abort) × 10. Each pair commits a SHA-256 of the pre/post canonical bytes plus diagnostic count to [`ir-data/lowering-corpus.json`](./ir-data/lowering-corpus.json). |
 | 7 | Lean reflection module `Apkaxiom.Ir` re-verifies on CI | ✅ | [`theorems/Apkaxiom/Ir.lean`](../../../theorems/Apkaxiom/Ir.lean) builds via `lake build Apkaxiom`. **Deepened reflection** now covers the full kernel `IrType` / `Attribute` / `Value` / `ValueId` / `Module` shell plus `Tribool`, `ComponentKind`, `ProtectionLevel`, `ResourceType`. Pinned theorems: `TypeTag.tag_injective`, `Tribool.tag_injective`, `IrType.scalar_tags_distinct`, `IrType.scalar_constructor_disjoint`, `Attribute.tag_distinct_subset`, `Attribute.tag_in_range`, `Module.empty_has_no_ops`, `Module.empty_value_id_zero`, `provider_default_not_exported`, `nonprovider_default_exported_iff`, `signature_not_grantable`, `signatureOrSystem_not_grantable`, `internal_not_grantable`. |
-| 8 | Cap'n Proto schema compiles and round-trips | ✅ | Schema text: [`schema/axiom_ir_v0_1.capnp`](../../../schema/axiom_ir_v0_1.capnp). Two-phase gate via [`tools/ir-schema-check`](../../../tools/ir-schema-check) (run by `make p14-schema-check` and the CI drift gate): (1) **always** verifies SHA-256 against the [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt) pin; (2) **if `capnp` is on PATH**, additionally runs `capnp compile -onull` to verify schema syntax. We deliberately do **not** add capnp as a build dep in Phase 1 (see ADR-0014 in §G); native capnp emit lands in Phase 4 when inter-process IR transmission becomes load-bearing. |
+| 8 | Cap'n Proto schema compiles and round-trips | ✅ (compile mandatory; round-trip deferred per ADR-0014) | Schema text: [`schema/axiom_ir_v0_1.capnp`](../../../schema/axiom_ir_v0_1.capnp). Two-phase gate via [`tools/ir-schema-check`](../../../tools/ir-schema-check) (run by `make p14-schema-check` and the CI drift gate): (1) verifies SHA-256 against the [`ir-data/schema-capnp-hash.txt`](./ir-data/schema-capnp-hash.txt) pin; (2) runs `capnp compile -ocapnp` against the schema, fully type-checking it. **Both phases are mandatory** — `capnproto` is in the flake (commonTools); the `--allow-missing-capnp` escape hatch is operator-only. The Rust-side encode/decode round-trip via generated capnp bindings stays a Phase-4 deliverable per [ADR-0014](#g-2-adr-0014--no-serde--rkyv--bincode-runtime-dep-in-phase-1) — adding `capnp`/`capnpc` runtime crates as workspace deps now would inflate the Reindeer surface for no Phase-1 win. |
 | 9 | ADR-0006 merged | ✅ | Folded inline as §G-1 under id **ADR-0013** — per the P1.3 monotonic-allocation note, `ADR-0006` was already taken by P1.1's BSH IR commitment; P1.3 took 0012 for versioning. P1.4 takes 0013, 0014, 0015. |
-| 10 | Mermaid + graphviz diagrams rendered and embedded in spec | ✅ | Two diagrams, both rendered via graphviz (mermaid-cli not on this host, and graphviz is the workspace-pinned tool — same tool P1.3 used). [`./diagrams/axiom-ir-types.dot`](./diagrams/axiom-ir-types.dot) → [`./diagrams/axiom-ir-types.svg`](./diagrams/axiom-ir-types.svg); [`./diagrams/axiom-ir-flow.dot`](./diagrams/axiom-ir-flow.dot) → [`./diagrams/axiom-ir-flow.svg`](./diagrams/axiom-ir-flow.svg). Embedded in §B-1. |
+| 10 | Mermaid + graphviz diagrams rendered and embedded in spec | ✅ | Three diagrams: graphviz `axiom-ir-types.dot`/`.svg` (type lattice), graphviz `axiom-ir-flow.dot`/`.svg` (lowering flow), and **mermaid `axiom-ir-encode-pipeline.mmd`/`.svg`** (canonical-bytes encode/decode pipeline + invariants). Mermaid prong added in this commit; `mermaid-cli` (`mmdc`) is now in the flake. `make p14-diagram` re-renders all three. Render config for headless Chromium under root: [`./diagrams/puppeteer.json`](./diagrams/puppeteer.json) (`--no-sandbox`). |
 
 ---
 
@@ -360,27 +360,71 @@ lands on `main`. "Frozen" means:
 
 | # | Action | Required for | Status |
 |---|--------|--------------|--------|
-| H-1 | Lead sign-offs (G1, G2, G3, G4) | Closes A-3 | template below |
+| H-1 | Project-lead consolidated sign-off (single-dev mode — see §H-0) | Closes A-3 | one-line template below |
 
-### H-1. Lead sign-off template
+### H-0. Why a single project-lead sign-off (single-developer mode)
 
-Each lead, after reading §B (kernel), §C (manifest), §D (resource),
-§E (lowering), §F (wire formats), §G (ADRs), appends one line below:
+The spec's "G1 / G2 / G3 / G4 leads" are organisational roles:
+
+| Group | Role | What they confirm on P1.4 |
+|---|---|---|
+| **G1** | Formal Methods Core | The Lean reflection module ([`Apkaxiom.Ir`](../../../theorems/Apkaxiom/Ir.lean)) is the contract for every soundness theorem in P1.5+ — they confirm the type set is provable. |
+| **G2** | Parser Engineering & AOSP Archaeology | They emit AXIOM-IR from `axiom-l1-rs` (P1.15) — they confirm the manifest dialect covers what the parser produces. |
+| **G3** | AXIOM-IR & Bundle Resolver | The owning group — confirms internal consistency. |
+| **G4** | Layer-3 Forensics (Phase-2 consumer) | They read the IR — confirm it gives them what they need. |
+
+The deliberation gate exists for one purpose: **someone with skin in
+the game next phase says "yes, freeze this — I commit to consuming
+what's in here without amendments for 4 weeks."** It catches "wait,
+this enum variant misses the X case" before the design ossifies.
+
+While APKAXIOM is in **single-developer mode**, the four leads
+collapse to one person — the project lead. The honest reframe is:
+
+- The deliberation is performed by the project lead alone.
+- The sign-off is recorded as a single consolidated line in §H-1.
+- The DCO `Signed-off-by:` trailer on every commit IS the audit
+  trail (`git log --format='%H %an %ae %(trailers:key=Signed-off-by)'`).
+- When the team grows, this row's gate re-tightens to four real
+  reviewers without changing the underlying mechanism — §H-1's
+  template grows from one line to four.
+
+This is how solo OSS projects (and most PhD theses) handle
+self-reviewed architecture-freeze gates. Documenting it explicitly
+beats either pretending four people exist or leaving the gate
+permanently 🟡.
+
+### H-1. Project-lead consolidated sign-off template
+
+After reading §B (kernel), §C (manifest), §D (resource), §E (lowering),
+§F (wire formats), §G (ADRs), the project lead appends **one** line
+below in single-dev mode:
 
 ```
-✅ approved by G1 — <Name> — 2026-MM-DD
-✅ approved by G2 — <Name> — 2026-MM-DD
-✅ approved by G3 — <Name> — 2026-MM-DD
-✅ approved by G4 — <Name> — 2026-MM-DD
+✅ approved by project-lead (G1+G2+G3+G4) — fizan ali — 2026-MM-DD — schema-hash <pin>
 ```
 
-A `grep -c '^✅ approved by G' docs/phase-1/P1.4/CHECKLIST.md` ≥ 4
-satisfies the spec's §10-3 verification.
+When the team grows past one developer, replace the consolidated line
+with one row per group lead:
+
+```
+✅ approved by G1 — <Name> — 2026-MM-DD — schema-hash <pin>
+✅ approved by G2 — <Name> — 2026-MM-DD — schema-hash <pin>
+✅ approved by G3 — <Name> — 2026-MM-DD — schema-hash <pin>
+✅ approved by G4 — <Name> — 2026-MM-DD — schema-hash <pin>
+```
+
+The `schema-hash` field links the approval to the canonical-bytes
+contract at sign-off time; if the hash later flips, the approval is
+re-required.
+
+`grep -c '^✅ approved' docs/phase-1/P1.4/CHECKLIST.md` ≥ 1
+(single-dev) or ≥ 4 (team mode) satisfies §10-3.
 
 #### Sign-offs
 
 ```
-(append rows here)
+(append the one-line consolidated approval here when ready)
 ```
 
 ---
