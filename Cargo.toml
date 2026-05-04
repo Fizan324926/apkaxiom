@@ -22,6 +22,7 @@ exclude = [
     "third-party/rust",
     "external/aosp",
     "external/apk-info-upstream",
+    "external/libziparchive",
 ]
 
 [workspace.package]

@@ -34,6 +34,12 @@ external/apk-info-upstream/.git/
 external/apk-info-upstream/target/
 external/apk-info-upstream/.lake/
 
+# external/libziparchive — vendored AOSP subset for the P1.5
+# differential third prong. See ADR-0016. Build artefacts go into
+# build/ which is regenerable, source tree is read-only.
+external/libziparchive/.git/
+external/libziparchive/build/
+
 # Per-host audit data caches that get regenerated on demand.
 docs/phase-1/P1.3/audit-data/perf-runs/
 

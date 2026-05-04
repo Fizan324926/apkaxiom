@@ -43,7 +43,7 @@ use std::{
 use axiom_zip_ref::{eocd, lfh};
 
 /// Verdict shape we serialise for cross-language comparison.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Verdict {
     Ok { consumed: usize },
     Err { tag: u8 },
@@ -123,6 +123,38 @@ fn build_batch_driver(samples: &[(SampleKind, Vec<u8>)]) -> String {
         }
     }
     s
+}
+
+/// Run the C++ AOSP-probe binary against a single sample's bytes
+/// (piped over stdin) and parse its `ok N` / `err T` stdout. Any
+/// failure path returns a sentinel `Err { tag: 255 }` so the
+/// equality check flunks loudly.
+fn run_aosp_probe(probe: &str, kind: SampleKind, bs: &[u8]) -> Verdict {
+    let mode = match kind {
+        SampleKind::Lfh => "--lfh",
+        SampleKind::Eocd => "--eocd",
+    };
+    let Ok(mut child) = Command::new(probe)
+        .arg(mode)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    else {
+        return Verdict::Err { tag: 255 };
+    };
+    if let Some(stdin) = child.stdin.as_mut() {
+        use std::io::Write as _;
+        let _ = stdin.write_all(bs);
+    }
+    let Ok(out) = child.wait_with_output() else {
+        return Verdict::Err { tag: 255 };
+    };
+    if !out.status.success() {
+        return Verdict::Err { tag: 255 };
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    parse_lean_verdict(stdout.trim()).unwrap_or(Verdict::Err { tag: 255 })
 }
 
 fn parse_lean_verdict(line: &str) -> Result<Verdict, String> {
@@ -239,6 +271,26 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
         return Ok(false);
     }
 
+    // Optionally run the C++ AOSP-probe third prong. Path comes
+    // from $ZIP_AOSP_PROBE; falls back to `target/zip-aosp-probe`
+    // (where `make p15-aosp-probe` writes it). When the binary is
+    // missing we still report the Lean ↔ Rust differential — but
+    // print a notice that the third prong was skipped. This keeps
+    // CI green on environments without g++ while leaving the
+    // strong gate when it is available.
+    let probe_path = std::env::var("ZIP_AOSP_PROBE").unwrap_or_else(|_| {
+        repo_root
+            .join("target/zip-aosp-probe")
+            .to_string_lossy()
+            .into_owned()
+    });
+    let probe_available = std::path::Path::new(&probe_path).is_file();
+    if probe_available {
+        eprintln!("Three-way differential — AOSP probe at {probe_path}");
+    } else {
+        eprintln!("Two-way differential — AOSP probe not at {probe_path} (skipped third prong)");
+    }
+
     let mut per_dir_counts: std::collections::BTreeMap<String, (usize, usize)> = Default::default();
     for ((kind, bs, p, sub), lean_line) in all_entries.iter().zip(lean_lines.iter()) {
         let rust = match kind {
@@ -246,7 +298,15 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
             SampleKind::Eocd => Verdict::from_eocd(eocd::parse_eocd(bs)),
         };
         let lean = parse_lean_verdict(lean_line).unwrap_or(Verdict::Err { tag: 255 });
-        let agree_one = rust == lean;
+        let aosp = if probe_available {
+            run_aosp_probe(&probe_path, *kind, bs)
+        } else {
+            // Mirror Rust's verdict so the agreement check still
+            // works without the probe; the harness print-out
+            // already noted the third prong was skipped.
+            rust.clone()
+        };
+        let agree_one = rust == lean && rust == aosp;
         total += 1;
         let entry = per_dir_counts.entry(sub.clone()).or_insert((0, 0));
         entry.1 += 1;
@@ -256,10 +316,11 @@ fn run(repo_root: &Path, sample_limit: Option<usize>) -> Result<bool, std::io::E
         } else {
             all_pass = false;
             println!(
-                "DISAGREE {} rust={} lean={}",
+                "DISAGREE {} rust={} lean={} aosp={}",
                 p.display(),
                 rust.render(),
-                lean.render()
+                lean.render(),
+                aosp.render()
             );
         }
     }
