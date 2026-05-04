@@ -22,6 +22,8 @@ name = "axiom-l1-rs"
 version = "0.0.0"
 dependencies = [
  "axiom-l0",
+ "axiom-zip-ref",
+ "thiserror",
 ]
 
 [[package]]
@@ -189,5 +191,21 @@ dependencies = [
 name = "zip-fuzz"
 version = "0.0.0"
 dependencies = [
+ "axiom-zip-ref",
+]
+
+[[package]]
+name = "zip-stream-bench"
+version = "0.0.0"
+dependencies = [
+ "axiom-l1-rs",
+ "axiom-zip-ref",
+]
+
+[[package]]
+name = "zip-stream-soak"
+version = "0.0.0"
+dependencies = [
+ "axiom-l1-rs",
  "axiom-zip-ref",
 ]

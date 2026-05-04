@@ -14,6 +14,8 @@ members = [
     "tools/zip-corpus-gen",
     "tools/zip-differential",
     "tools/zip-fuzz",
+    "tools/zip-stream-bench",
+    "tools/zip-stream-soak",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

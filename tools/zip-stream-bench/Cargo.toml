@@ -1,0 +1,10 @@
+[package]
+name = "zip-stream-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
