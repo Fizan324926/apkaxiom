@@ -100,6 +100,8 @@
     "root//third-party/rust:winapi-util-0.1",
     "root//third-party/rust:windows-link-0.2",
     "root//third-party/rust:windows-sys-0.61",
+    "root//tools/ir-corpus:ir-corpus",
+    "root//tools/ir-schema-check:ir-schema-check",
     "root//tools/lean-to-rust:lean-to-rust",
     "root//tools/lean-to-rust:lean-to-rust-test",
     "root//tools/translation-validator:translation-validator",

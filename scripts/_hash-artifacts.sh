@@ -52,6 +52,8 @@ if [[ "$BUILD" != "skip" ]]; then
     //tools/lean-to-rust:lean-to-rust-test \
     //tools/translation-validator:translation-validator \
     //tools/unsafe-census:unsafe-census \
+    //tools/ir-corpus:ir-corpus \
+    //tools/ir-schema-check:ir-schema-check \
     //theorems:hello \
     //:hello_world >&2
 fi
@@ -90,6 +92,8 @@ FIRST_PARTY_BINS=(
   lean_to_rust          # P1.2 prototype extractor
   translation_validator # P1.2 operational-equivalence harness
   unsafe_census         # P1.3 syn-based AST scanner
+  ir_corpus             # P1.4 IR corpus generator
+  ir_schema_check       # P1.4 capnp schema gate
 )
 VENDORED_CRATES=(thiserror thiserror_impl proc_macro2 quote syn unicode_ident)
 
