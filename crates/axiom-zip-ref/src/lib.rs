@@ -17,6 +17,19 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs, unreachable_pub)]
+// Test-only modules use deliberate u32→u16 / usize→u32 truncation
+// (sample sizes are bounded by construction). Allowing only at
+// cfg(test) keeps production code under the strict pedantic rules.
+#![cfg_attr(test, allow(clippy::cast_possible_truncation))]
 
 pub mod eocd;
 pub mod lfh;
+
+#[cfg(test)]
+mod fuzz_helpers;
+
+#[cfg(test)]
+mod fuzz;
+
+#[cfg(test)]
+mod round_trip;
