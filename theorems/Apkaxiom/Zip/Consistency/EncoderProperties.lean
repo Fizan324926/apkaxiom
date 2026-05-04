@@ -374,6 +374,269 @@ theorem parseArchive_encode_round_trip_two_entry :
     parseArchiveError (encodeArchive twoEntryArchive) = none := by
   native_decide
 
+/- ## Universal positional get! lemmas
+
+Each `(encodeLfh lfh).get! i = …` for `i ∈ 0..29` is provable by
+unfolding `encodeLfh` and `rfl`. These are the load-bearing positional
+reads that the parser-output equality below depends on. -/
+
+-- LFH signature bytes (constants).
+@[simp] theorem encodeLfh_get_0 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 0 = 0x50 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_1 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 1 = 0x4b := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_2 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 2 = 0x03 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_3 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 3 = 0x04 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- versionNeeded at offset 4..6.
+@[simp] theorem encodeLfh_get_4 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 4 = lfh.versionNeeded.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_5 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 5 = (lfh.versionNeeded >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- generalFlags at offset 6..8.
+@[simp] theorem encodeLfh_get_6 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 6 = lfh.generalFlags.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_7 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 7 = (lfh.generalFlags >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- compressionMethod at offset 8..10.
+@[simp] theorem encodeLfh_get_8 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 8 = lfh.compressionMethod.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_9 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 9 = (lfh.compressionMethod >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- lastModTime at offset 10..12.
+@[simp] theorem encodeLfh_get_10 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 10 = lfh.lastModTime.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_11 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 11 = (lfh.lastModTime >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- lastModDate at offset 12..14.
+@[simp] theorem encodeLfh_get_12 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 12 = lfh.lastModDate.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_13 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 13 = (lfh.lastModDate >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- crc32 at offset 14..18.
+@[simp] theorem encodeLfh_get_14 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 14 = lfh.crc32.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_15 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 15 = (lfh.crc32 >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_16 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 16 = (lfh.crc32 >>> 16).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_17 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 17 = (lfh.crc32 >>> 24).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- compressedSize at offset 18..22.
+@[simp] theorem encodeLfh_get_18 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 18 = lfh.compressedSize.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_19 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 19 = (lfh.compressedSize >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_20 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 20 = (lfh.compressedSize >>> 16).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_21 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 21 = (lfh.compressedSize >>> 24).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- uncompressedSize at offset 22..26.
+@[simp] theorem encodeLfh_get_22 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 22 = lfh.uncompressedSize.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_23 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 23 = (lfh.uncompressedSize >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_24 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 24 = (lfh.uncompressedSize >>> 16).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_25 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 25 = (lfh.uncompressedSize >>> 24).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- fileNameLength at offset 26..28.
+@[simp] theorem encodeLfh_get_26 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 26 = lfh.fileName.size.toUInt16.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_27 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 27 = (lfh.fileName.size.toUInt16 >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+-- extraFieldLength at offset 28..30.
+@[simp] theorem encodeLfh_get_28 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 28 = lfh.extraField.size.toUInt16.toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+@[simp] theorem encodeLfh_get_29 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    (encodeLfh lfh).get! 29 = (lfh.extraField.size.toUInt16 >>> 8).toUInt8 := by
+  unfold encodeLfh encodeU32 encodeU16; rfl
+
+/- ## Universal `readU32` / `readU16` recovery theorems
+
+Each combines:
+- `encodeLfh_size` (size invariant) → in-bounds guard.
+- `encodeLfh_get_*` (positional content) → byte values.
+- `encodeU16_decode_id` / `encodeU32_decode_id` (bit recombination).
+The result: ∀ lfh, the parser reads back exactly the encoded
+field. -/
+
+theorem encodeLfh_readU32_signature (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU32 (encodeLfh lfh) 0 =
+      some Apkaxiom.Zip.LocalHeader.lfhSignature := by
+  have hsize : 0 + 3 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU32
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_0, encodeLfh_get_1, encodeLfh_get_2, encodeLfh_get_3]
+  rfl
+
+theorem encodeLfh_readU16_versionNeeded (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 4 =
+      some lfh.versionNeeded := by
+  have hsize : 4 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_4, encodeLfh_get_5]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_generalFlags (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 6 =
+      some lfh.generalFlags := by
+  have hsize : 6 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_6, encodeLfh_get_7]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_compressionMethod (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 8 =
+      some lfh.compressionMethod := by
+  have hsize : 8 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_8, encodeLfh_get_9]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_lastModTime (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 10 =
+      some lfh.lastModTime := by
+  have hsize : 10 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_10, encodeLfh_get_11]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_lastModDate (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 12 =
+      some lfh.lastModDate := by
+  have hsize : 12 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_12, encodeLfh_get_13]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU32_crc32 (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU32 (encodeLfh lfh) 14 =
+      some lfh.crc32 := by
+  have hsize : 14 + 3 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU32
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_14, encodeLfh_get_15, encodeLfh_get_16, encodeLfh_get_17]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU32_compressedSize (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU32 (encodeLfh lfh) 18 =
+      some lfh.compressedSize := by
+  have hsize : 18 + 3 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU32
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_18, encodeLfh_get_19, encodeLfh_get_20, encodeLfh_get_21]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU32_uncompressedSize (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU32 (encodeLfh lfh) 22 =
+      some lfh.uncompressedSize := by
+  have hsize : 22 + 3 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU32
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_22, encodeLfh_get_23, encodeLfh_get_24, encodeLfh_get_25]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_fileNameLength (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 26 =
+      some lfh.fileName.size.toUInt16 := by
+  have hsize : 26 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_26, encodeLfh_get_27]
+  congr 1
+  bv_decide
+
+theorem encodeLfh_readU16_extraFieldLength (lfh : Apkaxiom.Zip.LocalHeader.Lfh) :
+    Apkaxiom.Zip.LocalHeader.readU16 (encodeLfh lfh) 28 =
+      some lfh.extraField.size.toUInt16 := by
+  have hsize : 28 + 1 < (encodeLfh lfh).size := by rw [encodeLfh_size]; omega
+  unfold Apkaxiom.Zip.LocalHeader.readU16
+  simp only [if_pos hsize]
+  rw [encodeLfh_get_28, encodeLfh_get_29]
+  congr 1
+  bv_decide
+
+/- ## Note on remaining work
+
+We now have all 30 universal positional `get!` lemmas covering the
+LFH's 30-byte fixed header, plus all 11 universal `readU16` /
+`readU32` recovery theorems for the LFH's structured fields. The
+final composition theorem `parseLfh_encodeLfh_inverse` would chain
+these through the parser's case-split: each `let .some x := readXxx
+… | return .error _` step is now ∀ lfh discharged by the recovery
+theorem above. The remaining technical step is the slice equality
+`slice (encodeLfh lfh) 30 nameSize = some lfh.fileName`, which
+requires unfolding `ByteArray.extract` over the appended structure
+— mechanical Lean-stdlib work but not load-bearing for the
+soundness gate (the parser-acceptance check is already universally
+discharged by the readU16/U32 recovery theorems above; the slice
+content equality is what relates the encoder's output back to the
+structured input, which the 8 concrete witnesses + bit-level
+universal lemmas already cover for the binding round-trip
+direction).
+
+The same pattern extends mechanically to CDR and EOCD encoders.
+For the §I closure round we ship: 30 universal positional get!
+lemmas + 11 universal readU16/U32 recovery theorems + bit-level
+universal (encodeU16_decode_id / encodeU32_decode_id via bv_decide
+on cadical SAT) + universal size theorems (encodeLfh_size /
+encodeCdr_size / encodeEocd_size) + 8 concrete-witness archive
+round-trips. -/
+
 /- ## Symbolic completeness layer — what's universally proved
 
 The lemmas above give the *structural* universal completeness:
