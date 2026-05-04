@@ -105,36 +105,41 @@ def parseEocd (bs : ByteArray) : Except ParseError (Eocd × Nat) := Id.run do
     , cdSize, cdOffset, comment }
   return .ok (header, fixedSize + commentLen.toNat)
 
+/-- Backward suffix-scan for the EOCD signature. Walks from `off`
+toward 0, returning the first offset where `readU32` matches the
+EOCD magic. **Terminating** — the recursion strictly decreases
+`off`, with `off = 0` as the base case.
+
+Pulled out as a top-level def (rather than nested `let rec`) so
+the `termination_by` / `decreasing_by` clauses bind cleanly. -/
+def findEocdGo (bs : ByteArray) (off : Nat) : Option Nat :=
+  if off + fixedSize > bs.size then
+    none
+  else
+    match readU32 bs off with
+    | some sig =>
+      if sig = eocdSignature then some off
+      else if h : off = 0 then none
+      else findEocdGo bs (off - 1)
+    | none => none
+termination_by off
+decreasing_by
+  simp_wf
+  omega
+
 /-- Locate the EOCD in a complete ZIP archive by scanning backwards
 from EOF for the signature. Returns the byte offset of the
 signature, or `none` if no candidate fits in the trailing
 `maxCommentLen + fixedSize` bytes (per APPNOTE.TXT, the comment is
 always the trailing region — so the signature is at most
 `fixedSize + maxCommentLen` from EOF). -/
-partial def findEocd (bs : ByteArray) : Option Nat :=
+def findEocd (bs : ByteArray) : Option Nat :=
   let last := bs.size
-  let scanFrom :=
-    if last < fixedSize then 0
-    else if last - fixedSize > maxCommentLen
-      then last - fixedSize - maxCommentLen
-      else 0
-  let rec go (off : Nat) : Option Nat :=
-    if off + fixedSize > last then
-      none
-    else
-      match readU32 bs off with
-      | some sig =>
-        if sig = eocdSignature then some off
-        else if off = 0 then none
-        else go (off - 1)
-      | none => none
   -- Start scanning from the latest legal position, working back.
   let startOff :=
     if last < fixedSize then 0
     else last - fixedSize
-  let _ := scanFrom  -- documenting the upper-bound; the linear scan
-                     -- below covers the same window via a backward walk
-  go startOff
+  findEocdGo bs startOff
 
 /-- Project the error component for elaboration-time checks. -/
 def parseError (bs : ByteArray) : Option ParseError :=

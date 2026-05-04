@@ -133,6 +133,7 @@ constexpr uint8_t kArchiveCdrCountMismatch  = 5;
 constexpr uint8_t kArchiveLfhOffsetOob      = 6;
 constexpr uint8_t kArchiveLfhInvalid        = 7;
 constexpr uint8_t kArchiveFilenameMismatch  = 8;
+constexpr uint8_t kArchiveFieldMismatch     = 9;
 
 // Suffix-locate the EOCD signature by scanning backwards from EOF.
 // Returns size_t(-1) if not found.
@@ -247,6 +248,17 @@ int parse_archive(const std::vector<uint8_t>& bs) {
                                    bs.data() + lfh_name_end);
     if (lfh_fname != cdr_filenames[i]) {
       print_err(kArchiveFilenameMismatch);
+      return 0;
+    }
+    // Field-set consistency: crc32, compressed_size, uncompressed_size,
+    // compression_method must agree byte-for-byte. Mirrors the Lean
+    // `cdrLfhFieldsAgree` definition.
+    const auto& cdr = cdrs[i];
+    if (cdr.crc32              != lfh.crc32 ||
+        cdr.compressed_size    != lfh.compressed_size ||
+        cdr.uncompressed_size  != lfh.uncompressed_size ||
+        cdr.compression_method != lfh.compression_method) {
+      print_err(kArchiveFieldMismatch);
       return 0;
     }
   }

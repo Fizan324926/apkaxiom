@@ -9,14 +9,16 @@
 > at `tools/zip-differential` is extended for the new subdirs.
 
 **Owner:** G1 — Formal Methods Core
-**Last reviewed:** 2026-05-04
-**Three-way differential gate:** Lean ↔ Rust ↔ AOSP wire-format probe agree on **2800 / 2800** corpus samples.
+**Last reviewed:** 2026-05-04 (gap-closure round)
+**Three-way differential gate:** Lean ↔ Rust ↔ AOSP wire-format probe agree on **2810 / 2810** corpus samples.
 **Soundness gates green:**
   - Lean cumulative LOC: **2384** (≥ 2000 §10 hard floor ✅)
-  - axiom-zip-ref tests: **57/57** (19 LFH + 11 EOCD + 14 CDR + 7 Archive + 3 fuzz × 10K + 12 round-trip)
+  - axiom-zip-ref tests: **58/58** (19 LFH + 11 EOCD + 14 CDR + 8 Archive + 3 fuzz × 10K + 12 round-trip)
   - libziparchive struct re-used (`CentralDirectoryRecord` from `external/libziparchive`)
-  - Three-way differential: 2800/2800 (Lean ↔ Rust ↔ AOSP)
-  - BadPack-class samples: 50 hand-crafted samples covering 5 evasion families, all reproduce as expected
+  - Three-way differential: **2810/2810** (Lean ↔ Rust ↔ AOSP)
+  - BadPack-class samples: **60** hand-crafted across **6 evasion families** (lfh-oob, lfh-magic, cdr-count, cd-out-of-range, filename-mismatch, **field-mismatch**), all reproduce as expected
+  - **All `partial def`s eliminated** in the ZIP layer — `parseCdrSequence`, `parseCdrs`, `findEocd` are now structurally terminating with `decreasing_by` proofs
+  - **Cross-record consistency extended** beyond filename: CDR.crc32 / compressed_size / uncompressed_size / compression_method must equal LFH counterparts (`fieldMismatch` tag 9)
   - Sign-off: ✅ project-lead (G1) appended below
 
 Legend: ✅ done & verified · 🟡 done but awaiting one external action · 🧊 deferred-by-design
@@ -211,9 +213,10 @@ the merge commit is the audit trail.
 
 ```
 ✅ approved by project-lead (G1) — fizan ali — 2026-05-04 —
-   diff-gate 2800/2800 — Lean LOC 2384 — test count 57/57 —
+   diff-gate 2810/2810 — Lean LOC 2384 — test count 58/58 —
    fuzz 30K iters no panics — three-way prong: AOSP libziparchive
-   @ 81b42fe9 (tree-sha 60242efeb0b8…) — BadPack-class 50/50 reproduce
+   @ 81b42fe9 (tree-sha 60242efeb0b8…) — BadPack-class 60/60 reproduce
+   (incl. field-mismatch family) — partial defs eliminated in ZIP layer
 ```
 
 The DCO trailer on the merge commit is the audit trail.

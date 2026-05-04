@@ -72,6 +72,13 @@ pub enum ArchiveError {
     /// `file_name`.
     #[error("filenameMismatch")]
     FilenameMismatch,
+    /// CDR's structural fields disagree with the referenced LFH's.
+    /// Checked: `crc32`, `compressed_size`, `uncompressed_size`,
+    /// `compression_method`. APPNOTE.TXT requires byte-identity on
+    /// these fields between the two records; BadPack-class evasions
+    /// commonly smuggle a mismatch past filename-only checkers.
+    #[error("fieldMismatch")]
+    FieldMismatch,
 }
 
 impl ArchiveError {
@@ -88,8 +95,20 @@ impl ArchiveError {
             Self::LfhOffsetOob => 6,
             Self::LfhInvalid => 7,
             Self::FilenameMismatch => 8,
+            Self::FieldMismatch => 9,
         }
     }
+}
+
+/// Structural-field equality between a CDR and its referenced LFH.
+/// Checked: `crc32`, `compressed_size`, `uncompressed_size`,
+/// `compression_method`. Mirrors
+/// `Apkaxiom.Zip.Consistency.cdrLfhFieldsAgree`.
+const fn cdr_lfh_fields_agree(cdr_record: &cdr::Cdr, lfh_record: &lfh::Lfh) -> bool {
+    cdr_record.crc32 == lfh_record.crc32
+        && cdr_record.compressed_size == lfh_record.compressed_size
+        && cdr_record.uncompressed_size == lfh_record.uncompressed_size
+        && cdr_record.compression_method == lfh_record.compression_method
 }
 
 /// Whole-archive driver. Mirrors
@@ -134,6 +153,9 @@ pub fn parse_archive(bs: &[u8]) -> Result<Archive, ArchiveError> {
         let (lfh_record, _) = lfh::parse_lfh(&bs[lo..]).map_err(|_| ArchiveError::LfhInvalid)?;
         if cdr_record.file_name != lfh_record.file_name {
             return Err(ArchiveError::FilenameMismatch);
+        }
+        if !cdr_lfh_fields_agree(cdr_record, &lfh_record) {
+            return Err(ArchiveError::FieldMismatch);
         }
         lfhs.push(lfh_record);
     }
@@ -298,5 +320,16 @@ mod tests {
         assert_eq!(ArchiveError::LfhOffsetOob.tag(), 6);
         assert_eq!(ArchiveError::LfhInvalid.tag(), 7);
         assert_eq!(ArchiveError::FilenameMismatch.tag(), 8);
+        assert_eq!(ArchiveError::FieldMismatch.tag(), 9);
+    }
+
+    #[test]
+    fn field_mismatch_rejected() {
+        // Patch the CDR's crc32 (offset 30+16 = 46) to non-zero while
+        // the LFH's crc32 stays zero.
+        let mut bytes = minimal_archive();
+        let crc_pos = 30 + 16;
+        bytes[crc_pos..crc_pos + 4].copy_from_slice(&0xdead_beefu32.to_le_bytes());
+        assert_eq!(parse_archive(&bytes), Err(ArchiveError::FieldMismatch));
     }
 }

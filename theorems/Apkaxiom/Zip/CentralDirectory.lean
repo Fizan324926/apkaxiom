@@ -186,25 +186,36 @@ def parseCdr (bs : ByteArray) : Except ParseError (Cdr × Nat) := Id.run do
 /-- Walk a byte stream that *only* contains contiguous CDRs (the
 "central directory" region of an archive, sliced out by the EOCD's
 `cdOffset` + `cdSize`) and return the list of parsed records.
-Stops on the first parse error and returns it. -/
-partial def parseCdrSequence (bs : ByteArray) : Except ParseError (List Cdr) :=
-  let rec go (off : Nat) (acc : List Cdr) : Except ParseError (List Cdr) :=
-    if off ≥ bs.size then
-      .ok acc.reverse
-    else
-      let view := bs.extract off bs.size
-      match parseCdr view with
-      | .error e          => .error e
-      | .ok (cdr, n)      =>
-          if n = 0 then
-            -- Defensive: a zero-length parse would loop forever.
-            -- The validated `parseCdr` always consumes ≥ fixedSize bytes
-            -- on success (bounded below by `fixedSize`), so this branch
-            -- is unreachable in practice.
-            .ok (cdr :: acc).reverse
-          else
-            go (off + n) (cdr :: acc)
-  go 0 []
+Stops on the first parse error and returns it.
+
+**Terminating** — the recursion is well-founded on the measure
+`bs.size - off`. Each successful step either exits (when
+`parseCdr` consumes zero bytes — defensive branch) or strictly
+decreases the measure (when `parseCdr` consumes ≥ 1 byte). -/
+def parseCdrSequenceGo (bs : ByteArray) (off : Nat)
+    (acc : List Cdr) : Except ParseError (List Cdr) :=
+  if _h : off ≥ bs.size then
+    .ok acc.reverse
+  else
+    let view := bs.extract off bs.size
+    match parseCdr view with
+    | .error e          => .error e
+    | .ok (cdr, n)      =>
+        if _hn : n = 0 then
+          -- Defensive: a zero-length parse would loop forever.
+          -- `parseCdr` always consumes ≥ `fixedSize` bytes on success,
+          -- so this branch is unreachable in practice. We exit early
+          -- to make the recursion terminating in *all* cases.
+          .ok (cdr :: acc).reverse
+        else
+          parseCdrSequenceGo bs (off + n) (cdr :: acc)
+termination_by bs.size - off
+decreasing_by
+  simp_wf
+  omega
+
+def parseCdrSequence (bs : ByteArray) : Except ParseError (List Cdr) :=
+  parseCdrSequenceGo bs 0 []
 
 /-- Project the error component of a parse result, for elaboration-time
 checks where `Cdr` itself lacks `DecidableEq` (because `ByteArray` does
