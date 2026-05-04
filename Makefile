@@ -245,6 +245,10 @@ p16-corpus: ## Re-derive the full ZIP corpus (P1.5 1800 + P1.6 1000 = 2800 sampl
 p16-differential-3way: p15-aosp-probe ## Alias for p15-differential-3way (full 2800-sample 3-way diff).
 	$(MAKE) p15-differential-3way
 
+.PHONY: p16-fuzz
+p16-fuzz: ## Production fuzz: radamsa → zip-fuzz, 60s per parser target.
+	bash $(ROOT)/scripts/p16-fuzz.sh
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

@@ -184,3 +184,10 @@ dependencies = [
  "axiom-zip-ref",
  "thiserror",
 ]
+
+[[package]]
+name = "zip-fuzz"
+version = "0.0.0"
+dependencies = [
+ "axiom-zip-ref",
+]

@@ -250,16 +250,33 @@ int parse_archive(const std::vector<uint8_t>& bs) {
       print_err(kArchiveFilenameMismatch);
       return 0;
     }
-    // Field-set consistency: crc32, compressed_size, uncompressed_size,
-    // compression_method must agree byte-for-byte. Mirrors the Lean
-    // `cdrLfhFieldsAgree` definition.
+    // Field-set consistency. Two cases (mirrors the Lean
+    // `cdrLfhFieldsAgree` definition):
+    //   1. No data descriptor (LFH bit 3 unset): strict equality on
+    //      crc32 / compressed_size / uncompressed_size /
+    //      compression_method.
+    //   2. Data descriptor present (LFH bit 3 set): LFH's three
+    //      crc/size fields must be zero (per APPNOTE.TXT §4.4.4),
+    //      compression_method must still agree.
     const auto& cdr = cdrs[i];
-    if (cdr.crc32              != lfh.crc32 ||
-        cdr.compressed_size    != lfh.compressed_size ||
-        cdr.uncompressed_size  != lfh.uncompressed_size ||
-        cdr.compression_method != lfh.compression_method) {
-      print_err(kArchiveFieldMismatch);
-      return 0;
+    constexpr uint16_t kGpbDataDescriptorMask = 0x0008;
+    bool dd = (lfh.gpb_flags & kGpbDataDescriptorMask) != 0;
+    if (dd) {
+      if (lfh.crc32              != 0 ||
+          lfh.compressed_size    != 0 ||
+          lfh.uncompressed_size  != 0 ||
+          cdr.compression_method != lfh.compression_method) {
+        print_err(kArchiveFieldMismatch);
+        return 0;
+      }
+    } else {
+      if (cdr.crc32              != lfh.crc32 ||
+          cdr.compressed_size    != lfh.compressed_size ||
+          cdr.uncompressed_size  != lfh.uncompressed_size ||
+          cdr.compression_method != lfh.compression_method) {
+        print_err(kArchiveFieldMismatch);
+        return 0;
+      }
     }
   }
   print_ok(bs.size());

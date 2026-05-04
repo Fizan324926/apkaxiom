@@ -100,15 +100,44 @@ impl ArchiveError {
     }
 }
 
+/// Bitmask for the APPNOTE.TXT §4.4.4 "data descriptor present" flag.
+///
+/// General-purpose bit 3. When set on the LFH, the LFH's `crc32`,
+/// `compressed_size`, `uncompressed_size` are zero and the real
+/// values trail in a data-descriptor record after the file body.
+pub const GPB_DATA_DESCRIPTOR_MASK: u16 = 0x0008;
+
+/// Whether the LFH's general-flag bit 3 is set.
+const fn lfh_has_data_descriptor(lfh_record: &lfh::Lfh) -> bool {
+    (lfh_record.general_flags & GPB_DATA_DESCRIPTOR_MASK) != 0
+}
+
 /// Structural-field equality between a CDR and its referenced LFH.
-/// Checked: `crc32`, `compressed_size`, `uncompressed_size`,
-/// `compression_method`. Mirrors
-/// `Apkaxiom.Zip.Consistency.cdrLfhFieldsAgree`.
+///
+/// Two cases (mirrors `Apkaxiom.Zip.Consistency.cdrLfhFieldsAgree`):
+///
+///   1. **No data descriptor** (LFH bit 3 unset): `crc32` /
+///      `compressed_size` / `uncompressed_size` / `compression_method`
+///      must be byte-identical between CDR and LFH (APPNOTE.TXT §4.4).
+///
+///   2. **Data descriptor present** (LFH bit 3 set): the LFH's
+///      `crc32` / `compressed_size` / `uncompressed_size` are
+///      *defined to be zero*; the CDR carries the canonical values.
+///      `compression_method` must still agree.
 const fn cdr_lfh_fields_agree(cdr_record: &cdr::Cdr, lfh_record: &lfh::Lfh) -> bool {
-    cdr_record.crc32 == lfh_record.crc32
-        && cdr_record.compressed_size == lfh_record.compressed_size
-        && cdr_record.uncompressed_size == lfh_record.uncompressed_size
-        && cdr_record.compression_method == lfh_record.compression_method
+    if lfh_has_data_descriptor(lfh_record) {
+        // DD branch: LFH fields must be zero, compression method must agree.
+        lfh_record.crc32 == 0
+            && lfh_record.compressed_size == 0
+            && lfh_record.uncompressed_size == 0
+            && cdr_record.compression_method == lfh_record.compression_method
+    } else {
+        // Strict-equality branch (the common case for APKs).
+        cdr_record.crc32 == lfh_record.crc32
+            && cdr_record.compressed_size == lfh_record.compressed_size
+            && cdr_record.uncompressed_size == lfh_record.uncompressed_size
+            && cdr_record.compression_method == lfh_record.compression_method
+    }
 }
 
 /// Whole-archive driver. Mirrors
@@ -330,6 +359,34 @@ mod tests {
         let mut bytes = minimal_archive();
         let crc_pos = 30 + 16;
         bytes[crc_pos..crc_pos + 4].copy_from_slice(&0xdead_beefu32.to_le_bytes());
+        assert_eq!(parse_archive(&bytes), Err(ArchiveError::FieldMismatch));
+    }
+
+    #[test]
+    fn data_descriptor_branch_accepts_zero_lfh_fields_with_nonzero_cdr() {
+        // Set LFH + CDR general-flag bit 3 (DD mode) and patch the CDR's
+        // crc32 to a non-zero value. The LFH keeps zero crc32 / sizes
+        // (per APPNOTE.TXT §4.4.4) — field-set check must accept.
+        let mut bytes = minimal_archive();
+        bytes[6] = 0x08;
+        bytes[7] = 0x00;
+        bytes[30 + 8] = 0x08;
+        bytes[30 + 9] = 0x00;
+        bytes[46..50].copy_from_slice(&0xdead_beefu32.to_le_bytes());
+        assert!(parse_archive(&bytes).is_ok());
+    }
+
+    #[test]
+    fn data_descriptor_branch_rejects_nonzero_lfh_fields() {
+        // DD flag set, but LFH's crc32 is non-zero — violates
+        // APPNOTE.TXT (LFH must be zero in DD mode). Reject with
+        // FieldMismatch.
+        let mut bytes = minimal_archive();
+        bytes[6] = 0x08;
+        bytes[7] = 0x00;
+        bytes[30 + 8] = 0x08;
+        bytes[30 + 9] = 0x00;
+        bytes[14..18].copy_from_slice(&0xdead_beefu32.to_le_bytes());
         assert_eq!(parse_archive(&bytes), Err(ArchiveError::FieldMismatch));
     }
 }

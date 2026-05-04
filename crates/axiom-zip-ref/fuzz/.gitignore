@@ -1,0 +1,7 @@
+# cargo-fuzz workspace artefacts. The fuzz targets and Cargo.toml are
+# committed; the corpora/, artifacts/, and target/ directories are
+# regenerated on every fuzz run and would inflate the repo.
+target/
+corpus/
+artifacts/
+coverage/
