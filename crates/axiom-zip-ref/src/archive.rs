@@ -79,6 +79,20 @@ pub enum ArchiveError {
     /// commonly smuggle a mismatch past filename-only checkers.
     #[error("fieldMismatch")]
     FieldMismatch,
+    // ↓ Runtime-parity checks: AOSP zip_archive.cc validations.
+    /// EOCD signature located beyond `kMaxEOCDSearch` (= 65557) bytes
+    /// from EOF. AOSP `MapCentralDirectory` rejects archives where
+    /// the trailer comment would exceed the comment-length cap.
+    #[error("eocdTooFarFromEof")]
+    EocdTooFarFromEof,
+    /// `cd_offset + cd_size > eocd_offset` — the central directory
+    /// region overlaps or follows the EOCD record. AOSP rejects.
+    #[error("cdAfterEocd")]
+    CdAfterEocd,
+    /// A CDR's filename violates AOSP's `IsValidEntryName` (NUL byte
+    /// or invalid UTF-8 sequence).
+    #[error("invalidEntryName")]
+    InvalidEntryName,
 }
 
 impl ArchiveError {
@@ -96,8 +110,53 @@ impl ArchiveError {
             Self::LfhInvalid => 7,
             Self::FilenameMismatch => 8,
             Self::FieldMismatch => 9,
+            Self::EocdTooFarFromEof => 10,
+            Self::CdAfterEocd => 11,
+            Self::InvalidEntryName => 12,
         }
     }
+}
+
+/// Maximum number of bytes the EOCD signature may sit from EOF. Mirrors
+/// AOSP `zip_archive.cc::kMaxEOCDSearch` = `kMaxCommentLen + sizeof(EocdRecord)`.
+pub const K_MAX_EOCD_SEARCH: usize = 65_557;
+
+/// Validate a filename byte sequence per AOSP's `IsValidEntryName`.
+/// Rejects NUL bytes and invalid UTF-8. The empty-name edge case is
+/// accepted (AOSP does too).
+const fn is_valid_entry_name(name: &[u8]) -> bool {
+    if name.len() > 0xffff {
+        return false;
+    }
+    let mut i = 0;
+    while i < name.len() {
+        let b = name[i];
+        if b == 0 {
+            return false;
+        }
+        if (b & 0x80) == 0 {
+            i += 1;
+            continue;
+        }
+        if (b & 0xc0) == 0x80 || (b & 0xfe) == 0xfe {
+            return false;
+        }
+        // Multi-byte sequence: count continuation bytes via the leading 1s.
+        let mut first = (b & 0x7f) << 1;
+        i += 1;
+        while (first & 0x80) != 0 {
+            if i >= name.len() {
+                return false;
+            }
+            let cont = name[i];
+            if (cont & 0xc0) != 0x80 {
+                return false;
+            }
+            i += 1;
+            first = (first & 0x7f) << 1;
+        }
+    }
+    true
 }
 
 /// Bitmask for the APPNOTE.TXT §4.4.4 "data descriptor present" flag.
@@ -150,6 +209,10 @@ const fn cdr_lfh_fields_agree(cdr_record: &cdr::Cdr, lfh_record: &lfh::Lfh) -> b
 pub fn parse_archive(bs: &[u8]) -> Result<Archive, ArchiveError> {
     // (1) Locate the EOCD.
     let eocd_off = eocd::find_eocd(bs).ok_or(ArchiveError::NoEocd)?;
+    // (1½) Runtime parity (AOSP kMaxEOCDSearch).
+    if bs.len() > eocd_off + K_MAX_EOCD_SEARCH {
+        return Err(ArchiveError::EocdTooFarFromEof);
+    }
     // (2) Parse the EOCD record.
     let (eocd_record, _) =
         eocd::parse_eocd(&bs[eocd_off..]).map_err(|_| ArchiveError::EocdInvalid)?;
@@ -162,9 +225,20 @@ pub fn parse_archive(bs: &[u8]) -> Result<Archive, ArchiveError> {
     if cd_end > bs.len() {
         return Err(ArchiveError::CdOutOfRange);
     }
+    // (3½) Runtime parity (AOSP MapCentralDirectory): CD region must
+    // end before the EOCD record itself.
+    if cd_end > eocd_off {
+        return Err(ArchiveError::CdAfterEocd);
+    }
     // (4) Parse the CDR sequence.
     let cdrs =
         cdr::parse_cdr_sequence(&bs[cd_start..cd_end]).map_err(|_| ArchiveError::CdrInvalid)?;
+    // (4½) Runtime parity (AOSP IsValidEntryName).
+    for cdr_record in &cdrs {
+        if !is_valid_entry_name(&cdr_record.file_name) {
+            return Err(ArchiveError::InvalidEntryName);
+        }
+    }
     // (5) The CDR count must match `total_entries`.
     if cdrs.len() != eocd_record.total_entries as usize {
         return Err(ArchiveError::CdrCountMismatch);
@@ -388,5 +462,62 @@ mod tests {
         bytes[30 + 9] = 0x00;
         bytes[14..18].copy_from_slice(&0xdead_beefu32.to_le_bytes());
         assert_eq!(parse_archive(&bytes), Err(ArchiveError::FieldMismatch));
+    }
+
+    #[test]
+    fn eocd_too_far_from_eof_rejected() {
+        let mut bytes = minimal_archive();
+        // Append > kMaxEOCDSearch trailing zeros.
+        bytes.resize(bytes.len() + 70_000, 0u8);
+        assert_eq!(parse_archive(&bytes), Err(ArchiveError::EocdTooFarFromEof));
+    }
+
+    #[test]
+    fn cd_after_eocd_rejected() {
+        let mut bytes = minimal_archive();
+        bytes.resize(bytes.len() + 50, 0u8);
+        let eocd_pos = bytes.len() - 50 - 22;
+        let new_cd_offset: u32 = (eocd_pos + 22 + 4) as u32;
+        let new_cd_size: u32 = 4;
+        bytes[eocd_pos + 12..eocd_pos + 16].copy_from_slice(&new_cd_size.to_le_bytes());
+        bytes[eocd_pos + 16..eocd_pos + 20].copy_from_slice(&new_cd_offset.to_le_bytes());
+        assert_eq!(parse_archive(&bytes), Err(ArchiveError::CdAfterEocd));
+    }
+
+    #[test]
+    fn invalid_entry_name_nul_rejected() {
+        // NUL byte in filename. Both LFH and CDR carry the NUL.
+        // Custom build: LFH (nameLen=1, fname=NUL) + CDR
+        // (nameLen=1, fname=NUL) + EOCD.
+        let mut v = Vec::new();
+        v.extend_from_slice(&LFH_SIG.to_le_bytes());
+        v.extend_from_slice(&[0x14, 0x00]);
+        v.extend_from_slice(&[0x00; 20]);
+        v.extend_from_slice(&1u16.to_le_bytes()); // nameLen=1
+        v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+        v.push(0x00); // LFH filename = NUL
+        debug_assert_eq!(v.len(), 31);
+        v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+        v.extend_from_slice(&[0x14, 0x00, 0x14, 0x00]);
+        v.extend_from_slice(&[0u8; 8]);
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&1u16.to_le_bytes()); // nameLen=1
+        v.extend_from_slice(&0u16.to_le_bytes());
+        v.extend_from_slice(&0u16.to_le_bytes());
+        v.extend_from_slice(&[0u8; 2]);
+        v.extend_from_slice(&[0u8; 2]);
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&0u32.to_le_bytes());
+        v.push(0x00); // CDR filename = NUL
+        v.extend_from_slice(&eocd::SIGNATURE.to_le_bytes());
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&47u32.to_le_bytes());
+        v.extend_from_slice(&31u32.to_le_bytes());
+        v.extend_from_slice(&0u16.to_le_bytes());
+        assert_eq!(parse_archive(&v), Err(ArchiveError::InvalidEntryName));
     }
 }

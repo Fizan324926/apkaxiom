@@ -134,6 +134,32 @@ constexpr uint8_t kArchiveLfhOffsetOob      = 6;
 constexpr uint8_t kArchiveLfhInvalid        = 7;
 constexpr uint8_t kArchiveFilenameMismatch  = 8;
 constexpr uint8_t kArchiveFieldMismatch     = 9;
+constexpr uint8_t kArchiveEocdTooFarFromEof = 10;
+constexpr uint8_t kArchiveCdAfterEocd       = 11;
+constexpr uint8_t kArchiveInvalidEntryName  = 12;
+
+// AOSP `kMaxEOCDSearch` = `kMaxCommentLen + sizeof(EocdRecord)`.
+constexpr size_t kMaxEocdSearch = 65557;
+
+// Validate a filename byte sequence per AOSP's `IsValidEntryName`
+// (entry_name_utils-inl.h). Rejects NUL bytes + invalid UTF-8.
+bool is_valid_entry_name(const uint8_t* name, size_t len) {
+  if (len > 0xffff) return false;
+  for (size_t i = 0; i < len; ++i) {
+    uint8_t b = name[i];
+    if (b == 0) return false;
+    if ((b & 0x80) == 0) continue;
+    if ((b & 0xc0) == 0x80 || (b & 0xfe) == 0xfe) return false;
+    uint8_t first = static_cast<uint8_t>((b & 0x7f) << 1);
+    while (first & 0x80) {
+      if (++i >= len) return false;
+      uint8_t cont = name[i];
+      if ((cont & 0xc0) != 0x80) return false;
+      first = static_cast<uint8_t>((first & 0x7f) << 1);
+    }
+  }
+  return true;
+}
 
 // Suffix-locate the EOCD signature by scanning backwards from EOF.
 // Returns size_t(-1) if not found.
@@ -161,6 +187,12 @@ int parse_archive(const std::vector<uint8_t>& bs) {
     print_err(kArchiveNoEocd);
     return 0;
   }
+  // (1½) Runtime parity: EOCD must be within kMaxEocdSearch bytes
+  // of EOF.
+  if (bs.size() > eocd_off + kMaxEocdSearch) {
+    print_err(kArchiveEocdTooFarFromEof);
+    return 0;
+  }
   // (2) Parse the EOCD record at the located offset.
   if (eocd_off + kEocdFixedSize > bs.size()) {
     print_err(kArchiveEocdInvalid);
@@ -186,6 +218,11 @@ int parse_archive(const std::vector<uint8_t>& bs) {
   size_t cd_size  = eocd.cd_size;
   if (cd_start + cd_size > bs.size()) {
     print_err(kArchiveCdOutOfRange);
+    return 0;
+  }
+  // (3½) Runtime parity: CD must end before the EOCD.
+  if (cd_start + cd_size > eocd_off) {
+    print_err(kArchiveCdAfterEocd);
     return 0;
   }
   // (4) Parse the CDR sequence in the CD region.
@@ -219,6 +256,14 @@ int parse_archive(const std::vector<uint8_t>& bs) {
     cdr_lfh_offsets.push_back(cdr.local_file_header_offset);
     cdrs.push_back(cdr);
     off = cdr_end;
+  }
+  // (4½) Runtime parity: every CDR's filename must be a valid entry
+  // name (UTF-8, no NUL bytes).
+  for (const auto& fname : cdr_filenames) {
+    if (!is_valid_entry_name(fname.data(), fname.size())) {
+      print_err(kArchiveInvalidEntryName);
+      return 0;
+    }
   }
   // (5) Count agreement.
   if (cdrs.size() != eocd.num_records) {
