@@ -452,6 +452,43 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
         write_sample(&badpack_dir, i, &bytes)?;
         badpack_manifest.push((format!("{i:04}.bin"), "FilenameMismatch"));
     }
+    for i in 50..60 {
+        // field-mismatch — minimal archive, patch CDR.crc32 (or one of
+        // the other three structural fields) so it disagrees with the
+        // LFH. Cycles through which field is patched so the bucket
+        // exercises all four cross-checked fields.
+        let mut bytes = build_minimal_archive(&mut rng);
+        // Field positions inside the CDR (which starts at archive
+        // offset 30):
+        //   crc32              @ CDR offset 16  → archive offset 46
+        //   compressedSize     @ CDR offset 20  → archive offset 50
+        //   uncompressedSize   @ CDR offset 24  → archive offset 54
+        //   compressionMethod  @ CDR offset 10  → archive offset 40
+        let (offset, expected_label) = match i % 4 {
+            0 => (46usize, "FieldMismatch[crc32]"),
+            1 => (50, "FieldMismatch[compressedSize]"),
+            2 => (54, "FieldMismatch[uncompressedSize]"),
+            _ => (40, "FieldMismatch[compressionMethod]"),
+        };
+        let bump_size = if expected_label.starts_with("FieldMismatch[compressionMethod]") {
+            // u16 field — bump 2 bytes
+            bytes[offset..offset + 2].copy_from_slice(&(rng.next_u16() | 0x0001).to_le_bytes());
+            2
+        } else {
+            // u32 field — bump 4 bytes
+            bytes[offset..offset + 4]
+                .copy_from_slice(&(rng.next_u32() | 0x0000_0001).to_le_bytes());
+            4
+        };
+        let _ = bump_size; // suppress unused
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::FieldMismatch),
+            "sample {i} ({expected_label}): expected FieldMismatch"
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "FieldMismatch"));
+    }
     write_manifest(
         &badpack_dir,
         &badpack_manifest
@@ -490,9 +527,9 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
     eprintln!("  cdr-valid:            200  [P1.6]");
     eprintln!("  cdr-adversarial:      200  [P1.6]");
     eprintln!("  archive-valid:        300  [P1.6]");
-    eprintln!("  badpack-cves:          50  [P1.6]");
+    eprintln!("  badpack-cves:          60  [P1.6]");
     eprintln!("  adversarial-mutated:  250  [P1.6]");
-    eprintln!("  TOTAL:               2800");
+    eprintln!("  TOTAL:               2810");
     Ok(())
 }
 
@@ -536,65 +573,89 @@ fn build_cdr(
     bytes
 }
 
+/// Per-entry attribute set. Sampled once per archive entry so the
+/// LFH and CDR see the *same* values for the structural fields the
+/// archive driver cross-checks (`crc32`, `compressed_size`,
+/// `uncompressed_size`, `compression_method`).
+struct EntryAttrs {
+    filename: Vec<u8>,
+    crc32: u32,
+    compressed_size: u32,
+    uncompressed_size: u32,
+    compression_method: u16,
+    last_mod_time: u16,
+    last_mod_date: u16,
+    general_flags: u16,
+}
+
 /// Build a well-formed full ZIP archive with `n` entries. Returns the
 /// concatenated byte sequence in the canonical layout:
 /// `lfh_0 || lfh_1 || … || cdr_0 || cdr_1 || … || eocd`.
 ///
-/// Each entry has a *consistent* filename byte sequence shared between
-/// its LFH and CDR, so the cross-record consistency check passes.
+/// Each entry's filename and structural fields (`crc32`,
+/// `compressed_size`, `uncompressed_size`, `compression_method`) are
+/// *shared* between its LFH and CDR so the field-set consistency
+/// check passes.
 fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
     debug_assert!(n >= 1, "archive must have ≥1 entry");
-    // Per-entry filename and offsets.
-    let mut filenames: Vec<Vec<u8>> = Vec::with_capacity(n);
+    // Per-entry attribute draws. Done in one pass so each entry has a
+    // single source of truth for the fields LFH and CDR share.
+    let mut entries: Vec<EntryAttrs> = Vec::with_capacity(n);
     for _ in 0..n {
         let nl = rng.next_in_range(0, 16) as usize;
-        let mut name = vec![0u8; nl];
-        rng.fill(&mut name);
-        filenames.push(name);
+        let mut filename = vec![0u8; nl];
+        rng.fill(&mut filename);
+        entries.push(EntryAttrs {
+            filename,
+            crc32: rng.next_u32(),
+            compressed_size: rng.next_u32(),
+            uncompressed_size: rng.next_u32(),
+            compression_method: rng.next_u16(),
+            last_mod_time: rng.next_u16(),
+            last_mod_date: rng.next_u16(),
+            general_flags: rng.next_u16(),
+        });
     }
     // Build LFHs in order, recording each one's start offset.
     let mut bytes: Vec<u8> = Vec::new();
     let mut lfh_offsets: Vec<u32> = Vec::with_capacity(n);
-    for fname in &filenames {
-        // Truncation safe: LFH starts in our ≤ 65 KB archive — well
-        // inside u32 range.
+    for entry in &entries {
         #[allow(clippy::cast_possible_truncation)]
         lfh_offsets.push(bytes.len() as u32);
-        let nl = fname.len() as u16;
-        // build LFH with deterministic body bytes; nameLen = fname.len(),
-        // extraLen = 0. Filename bytes are *appended literally* so the
-        // CDR's filename bytes will agree.
+        let nl = entry.filename.len() as u16;
         bytes.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
         bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
-        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // generalFlags
-        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // compressionMethod
-        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModTime
-        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModDate
-        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // crc32
-        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // compressedSize
-        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // uncompressedSize
-        bytes.extend_from_slice(&nl.to_le_bytes()); // nameLen
+        bytes.extend_from_slice(&entry.general_flags.to_le_bytes());
+        bytes.extend_from_slice(&entry.compression_method.to_le_bytes());
+        bytes.extend_from_slice(&entry.last_mod_time.to_le_bytes());
+        bytes.extend_from_slice(&entry.last_mod_date.to_le_bytes());
+        bytes.extend_from_slice(&entry.crc32.to_le_bytes());
+        bytes.extend_from_slice(&entry.compressed_size.to_le_bytes());
+        bytes.extend_from_slice(&entry.uncompressed_size.to_le_bytes());
+        bytes.extend_from_slice(&nl.to_le_bytes());
         bytes.extend_from_slice(&0u16.to_le_bytes()); // extraLen
-        bytes.extend_from_slice(fname);
+        bytes.extend_from_slice(&entry.filename);
     }
     // CD region starts here.
     #[allow(clippy::cast_possible_truncation)]
     let cd_start = bytes.len() as u32;
     let mut cd_bytes_size = 0u32;
-    for (fname, lfh_off) in filenames.iter().zip(lfh_offsets.iter()) {
-        let nl = fname.len() as u16;
+    for (entry, lfh_off) in entries.iter().zip(lfh_offsets.iter()) {
+        let nl = entry.filename.len() as u16;
         let cdr_bytes = {
             let mut v: Vec<u8> = Vec::new();
             v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
             v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionMadeBy
             v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
-            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // generalFlags
-            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // compressionMethod
-            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModTime
-            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModDate
-            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // crc32
-            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // compressedSize
-            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // uncompressedSize
+                                                                // Shared with LFH: general_flags, compression_method,
+                                                                // lastMod, crc32, compressed/uncompressed sizes.
+            v.extend_from_slice(&entry.general_flags.to_le_bytes());
+            v.extend_from_slice(&entry.compression_method.to_le_bytes());
+            v.extend_from_slice(&entry.last_mod_time.to_le_bytes());
+            v.extend_from_slice(&entry.last_mod_date.to_le_bytes());
+            v.extend_from_slice(&entry.crc32.to_le_bytes());
+            v.extend_from_slice(&entry.compressed_size.to_le_bytes());
+            v.extend_from_slice(&entry.uncompressed_size.to_le_bytes());
             v.extend_from_slice(&nl.to_le_bytes()); // nameLen
             v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
             v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
@@ -602,7 +663,7 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
             v.extend_from_slice(&rng.next_u16().to_le_bytes()); // internalAttrs
             v.extend_from_slice(&rng.next_u32().to_le_bytes()); // externalAttrs
             v.extend_from_slice(&lfh_off.to_le_bytes()); // lfhOffset
-            v.extend_from_slice(fname); // filename — must equal LFH's
+            v.extend_from_slice(&entry.filename); // shared filename bytes
             v
         };
         #[allow(clippy::cast_possible_truncation)]

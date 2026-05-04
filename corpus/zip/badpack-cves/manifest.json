@@ -49,6 +49,16 @@
     {"file": "0046.bin", "expected": "FilenameMismatch"},
     {"file": "0047.bin", "expected": "FilenameMismatch"},
     {"file": "0048.bin", "expected": "FilenameMismatch"},
-    {"file": "0049.bin", "expected": "FilenameMismatch"}
+    {"file": "0049.bin", "expected": "FilenameMismatch"},
+    {"file": "0050.bin", "expected": "FieldMismatch"},
+    {"file": "0051.bin", "expected": "FieldMismatch"},
+    {"file": "0052.bin", "expected": "FieldMismatch"},
+    {"file": "0053.bin", "expected": "FieldMismatch"},
+    {"file": "0054.bin", "expected": "FieldMismatch"},
+    {"file": "0055.bin", "expected": "FieldMismatch"},
+    {"file": "0056.bin", "expected": "FieldMismatch"},
+    {"file": "0057.bin", "expected": "FieldMismatch"},
+    {"file": "0058.bin", "expected": "FieldMismatch"},
+    {"file": "0059.bin", "expected": "FieldMismatch"}
   ]
 }

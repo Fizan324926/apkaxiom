@@ -67,6 +67,11 @@ inductive ArchiveError : Type where
                             -- fixed prefix would run past EOF)
   | lfhInvalid              -- bytes at a CDR's `lfhOffset` failed `parseLfh`
   | filenameMismatch        -- CDR.fileName ≠ LFH.fileName at the offset
+  | fieldMismatch           -- structural field disagreement between CDR and LFH:
+                            -- crc32, compressedSize, uncompressedSize, or
+                            -- compressionMethod. BadPack-class evasions
+                            -- frequently smuggle these mismatches past
+                            -- filename-only checks.
 deriving Repr, DecidableEq
 
 instance : ToString ArchiveError where
@@ -79,6 +84,7 @@ instance : ToString ArchiveError where
     | .lfhOffsetOob      => "lfhOffsetOob"
     | .lfhInvalid        => "lfhInvalid"
     | .filenameMismatch  => "filenameMismatch"
+    | .fieldMismatch     => "fieldMismatch"
 
 /-- Tag enumeration for cross-language interop. The Rust reference
 parser uses the same byte assignments. -/
@@ -91,20 +97,22 @@ def ArchiveError.tag : ArchiveError → UInt8
   | .lfhOffsetOob      => 6
   | .lfhInvalid        => 7
   | .filenameMismatch  => 8
+  | .fieldMismatch     => 9
 
 theorem ArchiveError.tag_injective : Function.Injective ArchiveError.tag := by
   intro a b h
   cases a <;> cases b <;> simp [ArchiveError.tag] at h <;> rfl
 
-/-- The eight tags fit in `[1,8]`. -/
+/-- The nine tags fit in `[1,9]`. -/
 theorem ArchiveError.tag_in_range (e : ArchiveError) :
-    1 ≤ e.tag.toNat ∧ e.tag.toNat ≤ 8 := by
+    1 ≤ e.tag.toNat ∧ e.tag.toNat ≤ 9 := by
   cases e <;> simp [ArchiveError.tag] <;> decide
 
-/-- The eight tags are exactly `{1,…,8}`. -/
+/-- The nine tags are exactly `{1,…,9}`. -/
 theorem ArchiveError.tag_codomain (e : ArchiveError) :
     e.tag = 1 ∨ e.tag = 2 ∨ e.tag = 3 ∨ e.tag = 4 ∨
-    e.tag = 5 ∨ e.tag = 6 ∨ e.tag = 7 ∨ e.tag = 8 := by
+    e.tag = 5 ∨ e.tag = 6 ∨ e.tag = 7 ∨ e.tag = 8 ∨
+    e.tag = 9 := by
   cases e <;> simp [ArchiveError.tag]
 
 /- ## Equality on filename byte sequences -/
@@ -131,39 +139,24 @@ theorem byteArrayEq_empty :
 
 /- ## parseArchive — executable driver -/
 
-/-- Walk the byte slice `cdBytes` (which starts at the archive's CD
-offset and is `cdSize` bytes long) parsing one CDR after another.
-Returns the list of CDRs in declared order, or the first error.
-
-This is a defensive `Nat`-bounded recursion — the loop variable
-decreases monotonically and is bounded above by `cdBytes.size`,
-ensuring termination even in the (impossible-by-construction)
-case where a CDR consumes zero bytes. -/
-partial def parseCdrs (cdBytes : ByteArray) :
-    Except Apkaxiom.Zip.CentralDirectory.ParseError
-           (List Apkaxiom.Zip.CentralDirectory.Cdr) :=
-  let rec go (off : Nat)
-             (acc : List Apkaxiom.Zip.CentralDirectory.Cdr) :
-      Except Apkaxiom.Zip.CentralDirectory.ParseError
-             (List Apkaxiom.Zip.CentralDirectory.Cdr) :=
-    if off ≥ cdBytes.size then
-      .ok acc.reverse
-    else
-      let view := cdBytes.extract off cdBytes.size
-      match Apkaxiom.Zip.CentralDirectory.parseCdr view with
-      | .error e        => .error e
-      | .ok (cdr, n)    =>
-          if n = 0 then
-            -- Defensive: parseCdr always consumes ≥ 46 bytes on success
-            -- (bounded by `fixedSize`), so this branch is unreachable.
-            .ok (cdr :: acc).reverse
-          else
-            go (off + n) (cdr :: acc)
-  go 0 []
+/-- Test whether a CDR's structural fields agree with the
+referenced LFH's. Checked: `crc32`, `compressedSize`,
+`uncompressedSize`, `compressionMethod`. These four fields
+are *required* by APPNOTE.TXT to be byte-identical between the
+two records (the data-descriptor general-flag bit 3 is
+not yet honoured — see ADR-0019 for the v0.2 plan). -/
+def cdrLfhFieldsAgree
+    (cdr : Apkaxiom.Zip.CentralDirectory.Cdr)
+    (lfh : Apkaxiom.Zip.LocalHeader.Lfh) : Bool :=
+  cdr.crc32             = lfh.crc32 &&
+  cdr.compressedSize    = lfh.compressedSize &&
+  cdr.uncompressedSize  = lfh.uncompressedSize &&
+  cdr.compressionMethod = lfh.compressionMethod
 
 /-- Per-CDR consistency check: validate one CDR's `lfhOffset`, parse
-the LFH at that offset, and check filename agreement. Returns the
-resolved LFH on success, or the appropriate `ArchiveError` tag.
+the LFH at that offset, and check filename + field-set agreement.
+Returns the resolved LFH on success, or the appropriate
+`ArchiveError` tag.
 
 This is split out from the archive driver so the universal
 correctness theorems (below) can be proved by induction over
@@ -179,10 +172,12 @@ def checkCdrAgainstBytes (bs : ByteArray)
     match Apkaxiom.Zip.LocalHeader.parseLfh lfhBytes with
     | .error _ => .error .lfhInvalid
     | .ok (lfh, _) =>
-        if byteArrayEq cdr.fileName lfh.fileName then
-          .ok lfh
-        else
+        if ¬ byteArrayEq cdr.fileName lfh.fileName then
           .error .filenameMismatch
+        else if ¬ cdrLfhFieldsAgree cdr lfh then
+          .error .fieldMismatch
+        else
+          .ok lfh
 
 /-- Recursively process every CDR, accumulating the resolved LFHs.
 Returns the LFH list (in CD order) on success or the first error.
@@ -219,8 +214,9 @@ def parseArchive (bs : ByteArray) : Except ArchiveError Archive :=
         .error .cdOutOfRange
       else
         -- (4) Parse the CDR sequence inside the CD region.
-        match parseCdrs (bs.extract eocd.cdOffset.toNat
-                          (eocd.cdOffset.toNat + eocd.cdSize.toNat)) with
+        match Apkaxiom.Zip.CentralDirectory.parseCdrSequence
+                (bs.extract eocd.cdOffset.toNat
+                  (eocd.cdOffset.toNat + eocd.cdSize.toNat)) with
         | .error _ => .error .cdrInvalid
         | .ok cdrs =>
           -- (5) The CDR count must match `totalEntries`.
@@ -525,6 +521,49 @@ def badpack_filename_mismatch_bytes : ByteArray :=
 theorem badpack_filename_mismatch_rejected :
     parseArchiveError badpack_filename_mismatch_bytes
       = some ArchiveError.filenameMismatch := by
+  native_decide
+
+/-- BadPack-7: CDR's structural fields disagree with the referenced
+LFH's. Specifically: CDR claims `crc32 = 0xdeadbeef` while the LFH
+at offset 0 has `crc32 = 0`. Same filename, same lfh_offset, same
+fixed-prefix layout — only the field disagrees. The driver must
+reject with `fieldMismatch`. -/
+def badpack_field_mismatch_bytes : ByteArray :=
+  ByteArray.mk #[
+    -- LFH at offset 0 — minimal, crc32 = 0
+    0x50, 0x4b, 0x03, 0x04,
+    0x14, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    -- CDR at offset 30 — same filename (none), but crc32 = 0xdeadbeef
+    0x50, 0x4b, 0x01, 0x02,
+    0x14, 0x00, 0x14, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    -- crc32 = 0xdeadbeef (offset 16..20 inside CDR; bytes 46..50 in archive)
+    0xef, 0xbe, 0xad, 0xde,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    -- EOCD at offset 76
+    0x50, 0x4b, 0x05, 0x06,
+    0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x01, 0x00,
+    0x2e, 0x00, 0x00, 0x00,
+    0x1e, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  ]
+
+/-- BadPack-7 (CDR.crc32 ≠ LFH.crc32) is rejected. -/
+theorem badpack_field_mismatch_rejected :
+    parseArchiveError badpack_field_mismatch_bytes
+      = some ArchiveError.fieldMismatch := by
   native_decide
 
 /- ## Soundness — universal statements -/
