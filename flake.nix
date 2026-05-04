@@ -142,12 +142,18 @@
           # coverage-guided fuzzing). cargo-fuzz drives libFuzzer for
           # Rust crates; radamsa is the mutation-only black-box fuzzer
           # the spec calls out by name; honggfuzz is the alt-coverage
-          # alternative for cross-checking. AFL++ stays out for now —
-          # it requires its own instrumented compiler and would inflate
-          # the dev-shell closure significantly.
+          # alternative; aflplusplus is the original instrumented-
+          # compiler fuzzer the spec also names. The four together
+          # exercise the full coverage-guided / mutation-only spectrum.
           cargo-fuzz
           radamsa
           honggfuzz
+          aflplusplus
+          # P1.6 Lean bitvector decision procedure dependency.
+          # Lean's `bv_decide` tactic shells out to a SAT solver
+          # (cadical by default) for UInt16/UInt32 bit-level
+          # equalities the round-trip lemmas need.
+          cadical
         ] ++ [
           # Pulled from nixpkgs-unstable; nixos-24.11 lags on these.
           # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0

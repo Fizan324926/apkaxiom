@@ -126,18 +126,22 @@ pub const MAX_COMMENT_LEN: usize = 0xffff;
 
 /// Locate the EOCD by scanning backwards from EOF for the signature.
 /// Returns the byte offset of the signature, or `None` if no
-/// candidate fits in the trailing `MAX_COMMENT_LEN + FIXED_SIZE`
-/// bytes.
+/// candidate is found.
 ///
-/// Mirrors `theorems/Apkaxiom/Zip/Eocd.lean` `findEocd`.
+/// Mirrors `theorems/Apkaxiom/Zip/Eocd.lean` `findEocd` — both scan
+/// the *full* range from `len - FIXED_SIZE` down to `0`. The
+/// `kMaxEOCDSearch` (= `MAX_COMMENT_LEN + FIXED_SIZE`) constraint
+/// is enforced by the *archive layer* (`archive::parse_archive`'s
+/// runtime-parity check on `bs.len() - eocd_off`), not by the
+/// EOCD locator itself, so divergent scan ranges don't surface as
+/// Lean ↔ Rust differential disagreements.
 #[must_use]
 pub fn find_eocd(bs: &[u8]) -> Option<usize> {
     let len = bs.len();
     if len < FIXED_SIZE {
         return None;
     }
-    let scan_from = len.saturating_sub(MAX_COMMENT_LEN + FIXED_SIZE);
-    (scan_from..=len - FIXED_SIZE)
+    (0..=len - FIXED_SIZE)
         .rev()
         .find(|&off| read_u32(bs, off) == Some(SIGNATURE))
 }

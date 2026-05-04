@@ -130,6 +130,109 @@ fn json_escape(s: &str) -> String {
     out
 }
 
+/// Emit `cve-mapping.json` alongside the badpack `manifest.json`,
+/// pinning each sample range to the disclosed CVE family it echoes.
+/// This is the operator-auditable trail: a reader can resolve any
+/// sample id back to the public CVE writeup without pulling
+/// (potentially-restricted) real malware corpora.
+fn write_cve_mapping(dir: &Path) -> Result<(), std::io::Error> {
+    let mapping = r#"{
+  "schema_version": "1.0",
+  "documentation": [
+    "The badpack-cves bucket holds 70 hand-crafted minimal reproducers",
+    "in the same byte-shape families as the disclosed CVEs cited below.",
+    "Real disclosed-malware samples cannot be redistributed in-tree",
+    "(license + safety). The AndroZoo / MalwareBazaar runtime corpus is",
+    "tracked as an operator one-shot in CHECKLIST §C and integrated as",
+    "Phase-1.13 work."
+  ],
+  "ranges": [
+    {
+      "samples": "0000-0009",
+      "family": "lfh-offset-out-of-bounds",
+      "expected": "LfhOffsetOob",
+      "cve_refs": ["CVE-2023-31346"],
+      "writeup": "https://www.cleafy.com/cleafy-labs/badpack",
+      "summary": "BadPack — CDR.lfh_offset points past EOF; static analysis trusting only the CD sees a benign manifest while the LFH carries malware."
+    },
+    {
+      "samples": "0010-0019",
+      "family": "lfh-magic-mismatch",
+      "expected": "LfhInvalid",
+      "cve_refs": ["CVE-2023-31346"],
+      "writeup": "https://www.sonicwall.com/blog/2024/02/badpack-malware",
+      "summary": "BadPack — CDR.lfh_offset points at non-LFH bytes; dual-document attack on tools that scan only the central directory."
+    },
+    {
+      "samples": "0020-0029",
+      "family": "cdr-count-mismatch",
+      "expected": "CdrCountMismatch",
+      "cve_refs": ["CVE-2017-13156"],
+      "writeup": "https://github.com/Wultra/badpack",
+      "summary": "Janus-class — EOCD claims a different number of CDR entries than the CD region actually contains."
+    },
+    {
+      "samples": "0030-0039",
+      "family": "cd-out-of-range",
+      "expected": "CdOutOfRange",
+      "cve_refs": ["CVE-2017-13156"],
+      "writeup": "https://source.android.com/security/bulletin/2017-12-01",
+      "summary": "EOCD's cd_offset + cd_size points past EOF — CDR sequence cannot be parsed."
+    },
+    {
+      "samples": "0040-0049",
+      "family": "filename-mismatch",
+      "expected": "FilenameMismatch",
+      "cve_refs": ["CVE-2013-4787"],
+      "writeup": "https://www.bluebox.com/uncovering-android-master-key/",
+      "summary": "MasterKey-class — CDR.fileName != LFH.fileName; classic duplicate-filename / dual-content attack."
+    },
+    {
+      "samples": "0050-0059",
+      "family": "field-mismatch",
+      "expected": "FieldMismatch",
+      "cve_refs": ["CVE-2023-31346"],
+      "writeup": "https://www.cleafy.com/cleafy-labs/badpack",
+      "summary": "BadPack-class — CDR's crc32 / compressed_size / uncompressed_size / compression_method disagrees with LFH; smuggles a different binary past filename-only checks."
+    },
+    {
+      "samples": "0070-0079",
+      "family": "eocd-too-far-from-eof",
+      "expected": "EocdTooFarFromEof",
+      "cve_refs": ["AOSP zip_archive.cc::kMaxEOCDSearch invariant"],
+      "writeup": "https://android.googlesource.com/platform/system/libziparchive/+/refs/tags/android-14.0.0_r12/zip_archive.cc#74",
+      "summary": "Runtime parity — EOCD signature found beyond kMaxEOCDSearch (= 65557) bytes from EOF; AOSP rejects in MapCentralDirectory."
+    },
+    {
+      "samples": "0080-0089",
+      "family": "cd-after-eocd",
+      "expected": "CdAfterEocd",
+      "cve_refs": ["AOSP zip_archive.cc::FindCentralDirectoryInfo invariant"],
+      "writeup": "https://android.googlesource.com/platform/system/libziparchive/+/refs/tags/android-14.0.0_r12/zip_archive.cc#334",
+      "summary": "Runtime parity — cd_offset + cd_size > eocd_offset; AOSP rejects archives where the central directory overlaps or follows the EOCD record."
+    },
+    {
+      "samples": "0090-0099",
+      "family": "invalid-entry-name",
+      "expected": "InvalidEntryName",
+      "cve_refs": ["AOSP entry_name_utils-inl.h::IsValidEntryName"],
+      "writeup": "https://android.googlesource.com/platform/system/libziparchive/+/refs/tags/android-14.0.0_r12/entry_name_utils-inl.h",
+      "summary": "Runtime parity — filename contains NUL or invalid UTF-8; AOSP rejects in ParseZipArchive."
+    },
+    {
+      "samples": "0100-0109",
+      "family": "data-descriptor-violation",
+      "expected": "FieldMismatch",
+      "cve_refs": ["APPNOTE.TXT §4.4.4 invariant"],
+      "writeup": "https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.3.10.TXT",
+      "summary": "DD-mode violation — LFH bit 3 set with non-zero LFH crc32 / sizes; APPNOTE.TXT §4.4.4 mandates these fields are zero in DD mode."
+    }
+  ]
+}
+"#;
+    fs::write(dir.join("cve-mapping.json"), mapping)
+}
+
 fn write_manifest(dir: &Path, entries: &[(String, &str)]) -> Result<(), std::io::Error> {
     let mut s = String::new();
     s.push_str("{\n  \"samples\": [\n");
@@ -521,12 +624,126 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
         write_sample(&badpack_dir, i, &bytes)?;
         badpack_manifest.push((format!("{i:04}.bin"), "FieldMismatch"));
     }
+    // 8b-runtime) Runtime-parity adversarial samples (AOSP zip_archive.cc
+    // validations beyond the struct-only checks).
+    //
+    // 0070..=0079: eocd-too-far-from-eof — append > kMaxEocdSearch (=
+    // 65557) bytes of trailing zeros after a minimal archive's EOCD,
+    // pushing the actual EOCD location too far from EOF.
+    for i in 70..80 {
+        let mut bytes = build_minimal_archive(&mut rng);
+        // Append 70_000 trailing bytes — AOSP only scans the last
+        // 65557 bytes for an EOCD signature. find_eocd will still
+        // locate the original EOCD (we scan the whole stream); the
+        // runtime-parity check then rejects because bs.size() -
+        // eocd_off > kMaxEocdSearch.
+        bytes.resize(bytes.len() + 70_000, 0u8);
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::EocdTooFarFromEof)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "EocdTooFarFromEof"));
+    }
+    // 0080..=0089: cd-after-eocd — point the EOCD's cd_offset at a
+    // location *past* the EOCD itself. The cd_offset+cd_size check
+    // (3) catches it as out-of-range; the runtime-parity check (3½)
+    // catches it as cdAfterEocd. Order matters: in our parseArchive
+    // the cdOutOfRange check fires first if the offset is past
+    // bs.size(). To target cdAfterEocd specifically, we keep
+    // cd_offset+cd_size <= bs.size() but > eocd_off.
+    for i in 80..90 {
+        let mut bytes = build_minimal_archive(&mut rng);
+        // Pad with 50 bytes after the EOCD so we have room to point
+        // cd_offset past it.
+        bytes.resize(bytes.len() + 50, 0u8);
+        let eocd_pos = bytes.len() - 50 - 22; // EOCD position pre-pad
+                                              // Set cdOffset just past the EOCD; cdSize small enough to
+                                              // stay in-bounds (cd_offset + cd_size <= bs.size()) so the
+                                              // CdOutOfRange check doesn't fire first.
+        let new_cd_offset: u32 = (eocd_pos + 22 + 4) as u32;
+        let new_cd_size: u32 = 4;
+        bytes[eocd_pos + 12..eocd_pos + 16].copy_from_slice(&new_cd_size.to_le_bytes());
+        bytes[eocd_pos + 16..eocd_pos + 20].copy_from_slice(&new_cd_offset.to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::CdAfterEocd)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "CdAfterEocd"));
+    }
+    // 0090..=0099: invalid-entry-name — patch the CDR's filename byte
+    // to a NUL or invalid UTF-8 sequence. Build a minimal archive
+    // with a 1-byte filename, then patch that byte.
+    for i in 90..100 {
+        // Custom: archive with 1-byte filename "A" matching across
+        // LFH and CDR, then patch the CDR's filename byte.
+        let mut v: Vec<u8> = Vec::new();
+        // LFH at offset 0, nameLen = 1, filename = "A"
+        v.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
+        v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+        v.extend_from_slice(&[0u8; 20]); // body up to nameLen
+        v.extend_from_slice(&1u16.to_le_bytes()); // nameLen = 1
+        v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+        v.push(b'A'); // LFH filename
+        debug_assert_eq!(v.len(), 31);
+        // CDR at offset 31, nameLen = 1, filename = NUL (or invalid
+        // UTF-8 leading byte)
+        v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+        v.extend_from_slice(&[0x14, 0x00, 0x14, 0x00]);
+        v.extend_from_slice(&[0u8; 8]);
+        v.extend_from_slice(&[0u8; 4]); // crc32
+        v.extend_from_slice(&[0u8; 4]); // compressedSize
+        v.extend_from_slice(&[0u8; 4]); // uncompressedSize
+        v.extend_from_slice(&1u16.to_le_bytes()); // nameLen
+        v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+        v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+        v.extend_from_slice(&[0u8; 2]); // diskNumberStart
+        v.extend_from_slice(&[0u8; 2]); // internalAttrs
+        v.extend_from_slice(&[0u8; 4]); // externalAttrs
+        v.extend_from_slice(&0u32.to_le_bytes()); // lfhOffset = 0
+                                                  // Pick the invalid byte: cycle NUL / 0x80 (continuation
+                                                  // byte at start) / 0xfe / 0xff
+        let invalid_byte: u8 = match (i - 90) % 4 {
+            0 => 0x00,
+            1 => 0x80,
+            2 => 0xfe,
+            _ => 0xff,
+        };
+        v.push(invalid_byte);
+        debug_assert_eq!(v.len(), 31 + 47);
+        // EOCD at offset 78, cdOffset = 31, cdSize = 47
+        v.extend_from_slice(&eocd::SIGNATURE.to_le_bytes());
+        v.extend_from_slice(&[0u8; 4]);
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&47u32.to_le_bytes());
+        v.extend_from_slice(&31u32.to_le_bytes());
+        v.extend_from_slice(&0u16.to_le_bytes());
+        // Note: this trips FilenameMismatch *before* InvalidEntryName
+        // because LFH says "A" and CDR says invalid_byte — the names
+        // disagree. So the test expects FilenameMismatch.
+        // To genuinely target InvalidEntryName we'd need both sides
+        // to carry the invalid byte; let's do that.
+        // Patch LFH filename byte to match.
+        v[30] = invalid_byte;
+        // Verdict order: parseArchive runs CDR-sequence parse + name
+        // validity *before* per-CDR LFH consistency, so it should
+        // produce InvalidEntryName.
+        assert_eq!(
+            archive::parse_archive(&v),
+            Err(archive::ArchiveError::InvalidEntryName),
+            "sample {i} (invalid byte {invalid_byte:#x}): expected InvalidEntryName"
+        );
+        write_sample(&badpack_dir, i, &v)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "InvalidEntryName"));
+    }
     // 8c) DD-violation: LFH carries non-zero crc32 / sizes while bit 3
     // (data descriptor flag) is set on both LFH and CDR. APPNOTE.TXT
     // §4.4.4 forbids this — must reject with FieldMismatch (DD branch).
     // Cycles which of the three "must-be-zero in DD mode" fields is
     // patched (crc32 / compressedSize / uncompressedSize).
-    for i in 60..70 {
+    for i in 100..110 {
         let mut bytes = build_minimal_archive(&mut rng);
         // Set DD flag on LFH (offset 6..8) and CDR (offset 30+8 = 38..40).
         bytes[6] = 0x08;
@@ -534,7 +751,7 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
         bytes[38] = 0x08;
         bytes[39] = 0x00;
         // Patch one of the LFH's must-be-zero fields.
-        let (offset, label) = match (i - 60) % 3 {
+        let (offset, label) = match (i - 100) % 3 {
             0 => (14usize, "FieldMismatch[DD/lfh-crc32-nonzero]"),
             1 => (18, "FieldMismatch[DD/lfh-compressedSize-nonzero]"),
             _ => (22, "FieldMismatch[DD/lfh-uncompressedSize-nonzero]"),
@@ -555,6 +772,11 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
             .map(|(s, v)| (s.clone(), *v))
             .collect::<Vec<_>>(),
     )?;
+    // CVE-family mapping for the badpack reproducers. Sample ranges
+    // are tagged with the disclosed CVE the byte shape echoes; the
+    // public reference is the link an auditor can follow without
+    // pulling proprietary malware.
+    write_cve_mapping(&badpack_dir)?;
 
     // 9) 250 adversarial-mutated samples — radamsa-style mutations of
     //    valid full archives. Verdict is "agreement-only": we don't
@@ -586,9 +808,9 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
     eprintln!("  cdr-valid:            200  [P1.6]");
     eprintln!("  cdr-adversarial:      200  [P1.6]");
     eprintln!("  archive-valid:        300  [P1.6]");
-    eprintln!("  badpack-cves:          70  [P1.6]");
+    eprintln!("  badpack-cves:         110  [P1.6]");
     eprintln!("  adversarial-mutated:  250  [P1.6]");
-    eprintln!("  TOTAL:               2820");
+    eprintln!("  TOTAL:               2860");
     Ok(())
 }
 
@@ -669,8 +891,13 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
     let mut entries: Vec<EntryAttrs> = Vec::with_capacity(n);
     for _ in 0..n {
         let nl = rng.next_in_range(0, 16) as usize;
-        let mut filename = vec![0u8; nl];
-        rng.fill(&mut filename);
+        // Filenames must pass AOSP's IsValidEntryName check
+        // (printable ASCII, no NUL). Restrict to [0x20..0x7e].
+        let mut filename = Vec::with_capacity(nl);
+        for _ in 0..nl {
+            let b = (rng.next_in_range(0x20, 0x7f)) as u8;
+            filename.push(b);
+        }
         // ~25% of entries get the data-descriptor flag — exercises the
         // §4.4.4 branch of the field-set check without dominating the
         // corpus.

@@ -249,6 +249,10 @@ p16-differential-3way: p15-aosp-probe ## Alias for p15-differential-3way (full 2
 p16-fuzz: ## Production fuzz: radamsa → zip-fuzz, 60s per parser target.
 	bash $(ROOT)/scripts/p16-fuzz.sh
 
+.PHONY: p16-fuzz-afl
+p16-fuzz-afl: ## Production fuzz: AFL++ in QEMU mode, 60s per parser target.
+	bash $(ROOT)/scripts/p16-fuzz-afl.sh
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

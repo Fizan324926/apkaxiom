@@ -72,47 +72,62 @@ inductive ArchiveError : Type where
                             -- compressionMethod. BadPack-class evasions
                             -- frequently smuggle these mismatches past
                             -- filename-only checks.
+  -- ↓ Runtime-parity checks added in the §I closure round. These mirror
+  -- the validations AOSP's `zip_archive.cc` performs at archive-open
+  -- time. Tags 10..=12.
+  | eocdTooFarFromEof       -- EOCD signature is beyond `kMaxEOCDSearch`
+                            -- (= 65557) bytes from EOF. AOSP rejects.
+  | cdAfterEocd             -- cd_offset + cd_size > eocd_offset (the CD
+                            -- region overlaps or follows the EOCD record).
+  | invalidEntryName        -- filename bytes contain NUL or invalid UTF-8.
+                            -- Mirrors AOSP's `IsValidEntryName`.
 deriving Repr, DecidableEq
 
 instance : ToString ArchiveError where
   toString
-    | .noEocd            => "noEocd"
-    | .eocdInvalid       => "eocdInvalid"
-    | .cdOutOfRange      => "cdOutOfRange"
-    | .cdrInvalid        => "cdrInvalid"
-    | .cdrCountMismatch  => "cdrCountMismatch"
-    | .lfhOffsetOob      => "lfhOffsetOob"
-    | .lfhInvalid        => "lfhInvalid"
-    | .filenameMismatch  => "filenameMismatch"
-    | .fieldMismatch     => "fieldMismatch"
+    | .noEocd                  => "noEocd"
+    | .eocdInvalid             => "eocdInvalid"
+    | .cdOutOfRange            => "cdOutOfRange"
+    | .cdrInvalid              => "cdrInvalid"
+    | .cdrCountMismatch        => "cdrCountMismatch"
+    | .lfhOffsetOob            => "lfhOffsetOob"
+    | .lfhInvalid              => "lfhInvalid"
+    | .filenameMismatch        => "filenameMismatch"
+    | .fieldMismatch           => "fieldMismatch"
+    | .eocdTooFarFromEof       => "eocdTooFarFromEof"
+    | .cdAfterEocd             => "cdAfterEocd"
+    | .invalidEntryName        => "invalidEntryName"
 
 /-- Tag enumeration for cross-language interop. The Rust reference
 parser uses the same byte assignments. -/
 def ArchiveError.tag : ArchiveError → UInt8
-  | .noEocd            => 1
-  | .eocdInvalid       => 2
-  | .cdOutOfRange      => 3
-  | .cdrInvalid        => 4
-  | .cdrCountMismatch  => 5
-  | .lfhOffsetOob      => 6
-  | .lfhInvalid        => 7
-  | .filenameMismatch  => 8
-  | .fieldMismatch     => 9
+  | .noEocd                  => 1
+  | .eocdInvalid             => 2
+  | .cdOutOfRange            => 3
+  | .cdrInvalid              => 4
+  | .cdrCountMismatch        => 5
+  | .lfhOffsetOob            => 6
+  | .lfhInvalid              => 7
+  | .filenameMismatch        => 8
+  | .fieldMismatch           => 9
+  | .eocdTooFarFromEof       => 10
+  | .cdAfterEocd             => 11
+  | .invalidEntryName        => 12
 
 theorem ArchiveError.tag_injective : Function.Injective ArchiveError.tag := by
   intro a b h
   cases a <;> cases b <;> simp [ArchiveError.tag] at h <;> rfl
 
-/-- The nine tags fit in `[1,9]`. -/
+/-- The twelve tags fit in `[1,12]`. -/
 theorem ArchiveError.tag_in_range (e : ArchiveError) :
-    1 ≤ e.tag.toNat ∧ e.tag.toNat ≤ 9 := by
+    1 ≤ e.tag.toNat ∧ e.tag.toNat ≤ 12 := by
   cases e <;> simp [ArchiveError.tag] <;> decide
 
-/-- The nine tags are exactly `{1,…,9}`. -/
+/-- The twelve tags are exactly `{1,…,12}`. -/
 theorem ArchiveError.tag_codomain (e : ArchiveError) :
     e.tag = 1 ∨ e.tag = 2 ∨ e.tag = 3 ∨ e.tag = 4 ∨
     e.tag = 5 ∨ e.tag = 6 ∨ e.tag = 7 ∨ e.tag = 8 ∨
-    e.tag = 9 := by
+    e.tag = 9 ∨ e.tag = 10 ∨ e.tag = 11 ∨ e.tag = 12 := by
   cases e <;> simp [ArchiveError.tag]
 
 /- ## Equality on filename byte sequences -/
@@ -138,6 +153,48 @@ theorem byteArrayEq_empty :
   native_decide
 
 /- ## parseArchive — executable driver -/
+
+/-- Maximum number of bytes from EOF the EOCD signature is allowed to
+sit at. Mirrors AOSP `zip_archive.cc::kMaxEOCDSearch` =
+`kMaxCommentLen + sizeof(EocdRecord)` = `0xffff + 22` = `65557`. -/
+def kMaxEocdSearch : Nat := 65557
+
+/-- Validate a filename byte sequence as AOSP's
+`IsValidEntryName` does. Rejects empty, NUL bytes, and invalid
+UTF-8 (using a slimmed-down UTF-8 walker). The zero-length
+filename is *valid* per APPNOTE.TXT (the empty string is a valid
+filename for top-level entries) — AOSP's check accepts length 0. -/
+def isValidEntryName (name : ByteArray) : Bool := Id.run do
+  if name.size > 0xffff then
+    return false
+  let mut i := 0
+  while _h : i < name.size do
+    let b := name.get! i
+    if b = 0 then
+      return false
+    -- Single-byte ASCII (high bit clear).
+    if b &&& 0x80 = 0 then
+      i := i + 1
+      continue
+    -- Continuation byte at the start of a sequence — invalid.
+    if b &&& 0xc0 = 0x80 then
+      return false
+    -- 0xfe / 0xff are never valid UTF-8 first bytes.
+    if b &&& 0xfe = 0xfe then
+      return false
+    -- Multi-byte sequence. Count the leading 1s to determine the
+    -- continuation-byte count.
+    let mut first := (b &&& 0x7f) <<< 1
+    i := i + 1
+    while first &&& 0x80 ≠ 0 do
+      if i ≥ name.size then
+        return false
+      let cont := name.get! i
+      if cont &&& 0xc0 ≠ 0x80 then
+        return false
+      i := i + 1
+      first := (first &&& 0x7f) <<< 1
+  return true
 
 /-- Bitmask for the APPNOTE.TXT §4.4.4 "data descriptor present"
 flag (general-purpose bit 3). When set on the LFH, the LFH's
@@ -226,39 +283,61 @@ def processCdrs (bs : ByteArray) :
       | .error e => .error e
       | .ok lfh  => processCdrs bs rest (lfh :: acc)
 
+/-- Test whether every CDR's filename passes `isValidEntryName`. -/
+def allEntryNamesValid (cdrs : List Apkaxiom.Zip.CentralDirectory.Cdr) : Bool :=
+  cdrs.all fun cdr => isValidEntryName cdr.fileName
+
 /-- Whole-archive driver. Threads EOCD location, CD-region parsing,
 and per-CDR LFH-offset validation into a single executable. The
 per-CDR loop is pulled out into `processCdrs` for symbolic
 proof-of-soundness; the body is plain functional pattern-matching
 (no `Id.run do` block) so the universal soundness theorems below
-admit a direct unfold-and-case-analyse proof. -/
+admit a direct unfold-and-case-analyse proof.
+
+**Runtime-parity checks** (steps 1½, 3½, 4½) mirror the validations
+AOSP `external/libziparchive/zip_archive.cc` performs at
+`MapCentralDirectory` time. -/
 def parseArchive (bs : ByteArray) : Except ArchiveError Archive :=
   -- (1) Locate the EOCD.
   match Apkaxiom.Zip.Eocd.findEocd bs with
   | none => .error .noEocd
   | some eocdOff =>
-    -- (2) Parse the EOCD record.
-    match Apkaxiom.Zip.Eocd.parseEocd (bs.extract eocdOff bs.size) with
-    | .error _ => .error .eocdInvalid
-    | .ok (eocd, _) =>
-      -- (3) Validate cdOffset+cdSize is in-bounds.
-      if eocd.cdOffset.toNat + eocd.cdSize.toNat > bs.size then
-        .error .cdOutOfRange
-      else
-        -- (4) Parse the CDR sequence inside the CD region.
-        match Apkaxiom.Zip.CentralDirectory.parseCdrSequence
-                (bs.extract eocd.cdOffset.toNat
-                  (eocd.cdOffset.toNat + eocd.cdSize.toNat)) with
-        | .error _ => .error .cdrInvalid
-        | .ok cdrs =>
-          -- (5) The CDR count must match `totalEntries`.
-          if cdrs.length ≠ eocd.totalEntries.toNat then
-            .error .cdrCountMismatch
-          else
-            -- (6) Per-CDR LFH consistency check.
-            match processCdrs bs cdrs [] with
-            | .error e => .error e
-            | .ok lfhs => .ok { cdrs := cdrs, lfhs := lfhs, eocd := eocd }
+    -- (1½) Runtime parity (AOSP `kMaxEOCDSearch`): the EOCD
+    -- signature must be within `kMaxEocdSearch` bytes of EOF.
+    if bs.size > eocdOff + kMaxEocdSearch then
+      .error .eocdTooFarFromEof
+    else
+      -- (2) Parse the EOCD record.
+      match Apkaxiom.Zip.Eocd.parseEocd (bs.extract eocdOff bs.size) with
+      | .error _ => .error .eocdInvalid
+      | .ok (eocd, _) =>
+        -- (3) Validate cdOffset+cdSize is in-bounds.
+        if eocd.cdOffset.toNat + eocd.cdSize.toNat > bs.size then
+          .error .cdOutOfRange
+        -- (3½) Runtime parity (AOSP `MapCentralDirectory`):
+        -- `cd_offset + cd_size <= eocd_offset` — the CD region
+        -- must end *before* the EOCD record.
+        else if eocd.cdOffset.toNat + eocd.cdSize.toNat > eocdOff then
+          .error .cdAfterEocd
+        else
+          -- (4) Parse the CDR sequence inside the CD region.
+          match Apkaxiom.Zip.CentralDirectory.parseCdrSequence
+                  (bs.extract eocd.cdOffset.toNat
+                    (eocd.cdOffset.toNat + eocd.cdSize.toNat)) with
+          | .error _ => .error .cdrInvalid
+          | .ok cdrs =>
+            -- (4½) Runtime parity (AOSP `IsValidEntryName`):
+            -- every CDR's filename must be UTF-8 with no NULs.
+            if ¬ allEntryNamesValid cdrs then
+              .error .invalidEntryName
+            -- (5) The CDR count must match `totalEntries`.
+            else if cdrs.length ≠ eocd.totalEntries.toNat then
+              .error .cdrCountMismatch
+            else
+              -- (6) Per-CDR LFH consistency check.
+              match processCdrs bs cdrs [] with
+              | .error e => .error e
+              | .ok lfhs => .ok { cdrs := cdrs, lfhs := lfhs, eocd := eocd }
 
 /-- Project the error component of a `parseArchive` result for
 elaboration-time checks. -/
@@ -688,29 +767,35 @@ theorem parseArchive_cdr_count_agrees
   -- `.error _ = .ok a`, a contradiction. The success branch threads
   -- the (already-checked) length equality.
   split at h
-  · contradiction                       -- noEocd
+  · contradiction                                 -- (1) noEocd
   · rename_i eocdOff heocdOff
     split at h
-    · contradiction                     -- eocdInvalid
-    · rename_i eocd n heocd
+    · contradiction                               -- (1½) eocdTooFarFromEof
+    · rename_i hsize
       split at h
-      · contradiction                   -- cdOutOfRange
-      · rename_i hrange
+      · contradiction                             -- (2) eocdInvalid
+      · rename_i eocd n heocd
         split at h
-        · contradiction                 -- cdrInvalid
-        · rename_i cdrs hcdrs
+        · contradiction                           -- (3) cdOutOfRange
+        · rename_i hrange
           split at h
-          · contradiction               -- cdrCountMismatch
-          · rename_i hcount
+          · contradiction                         -- (3½) cdAfterEocd
+          · rename_i hbound
             split at h
-            · contradiction
-            · rename_i lfhs hlfhs
-              cases h
-              -- hcount is `¬ (cdrs.length ≠ eocd.totalEntries.toNat)`,
-              -- which means equality. Simp to extract the equality and
-              -- to reduce field accesses on the struct literal.
-              simp at hcount
-              simp [hcount]
+            · contradiction                       -- (4) cdrInvalid
+            · rename_i cdrs hcdrs
+              split at h
+              · contradiction                     -- (4½) invalidEntryName
+              · rename_i hnames
+                split at h
+                · contradiction                   -- (5) cdrCountMismatch
+                · rename_i hcount
+                  split at h
+                  · contradiction                 -- (6) processCdrs.error
+                  · rename_i lfhs hlfhs
+                    cases h
+                    simp at hcount
+                    simp [hcount]
 
 /-- Whenever `parseArchive` succeeds, every CDR's `lfhOffset` plus the
 LFH fixed prefix (30 bytes) is in-bounds in the byte stream. This
@@ -722,27 +807,35 @@ theorem cdr_lfh_offset_in_bounds
   intro cdr hcdr
   unfold parseArchive at h
   split at h
-  · contradiction
+  · contradiction                           -- (1) noEocd
   · rename_i eocdOff heocdOff
     split at h
-    · contradiction
-    · rename_i eocd n heocd
+    · contradiction                         -- (1½) eocdTooFarFromEof
+    · rename_i hsize
       split at h
-      · contradiction
-      · rename_i hrange
+      · contradiction                       -- (2) eocdInvalid
+      · rename_i eocd n heocd
         split at h
-        · contradiction
-        · rename_i cdrs hcdrs
+        · contradiction                     -- (3) cdOutOfRange
+        · rename_i hrange
           split at h
-          · contradiction
-          · rename_i hcount
+          · contradiction                   -- (3½) cdAfterEocd
+          · rename_i hbound
             split at h
-            · contradiction
-            · rename_i lfhs hlfhs
-              cases h
-              -- Now `a.cdrs = cdrs`, and `processCdrs bs cdrs [] = .ok lfhs`.
-              -- Apply the inductive lemma.
-              exact processCdrs_ok_implies_bound bs cdrs [] lfhs hlfhs cdr hcdr
+            · contradiction                 -- (4) cdrInvalid
+            · rename_i cdrs hcdrs
+              split at h
+              · contradiction               -- (4½) invalidEntryName
+              · rename_i hnames
+                split at h
+                · contradiction             -- (5) cdrCountMismatch
+                · rename_i hcount
+                  split at h
+                  · contradiction           -- (6) processCdrs.error
+                  · rename_i lfhs hlfhs
+                    cases h
+                    -- Now `a.cdrs = cdrs`, and `processCdrs bs cdrs [] = .ok lfhs`.
+                    exact processCdrs_ok_implies_bound bs cdrs [] lfhs hlfhs cdr hcdr
 
 /-- Whenever `parseArchive` succeeds, the parsed CDR list and LFH list
 have the same length. -/
@@ -751,28 +844,60 @@ theorem parseArchive_cdr_lfh_length_eq
     a.cdrs.length = a.lfhs.length := by
   unfold parseArchive at h
   split at h
-  · contradiction
+  · contradiction                           -- (1) noEocd
   · rename_i eocdOff heocdOff
     split at h
-    · contradiction
-    · rename_i eocd n heocd
+    · contradiction                         -- (1½) eocdTooFarFromEof
+    · rename_i hsize
       split at h
-      · contradiction
-      · rename_i hrange
+      · contradiction                       -- (2) eocdInvalid
+      · rename_i eocd n heocd
         split at h
-        · contradiction
-        · rename_i cdrs hcdrs
+        · contradiction                     -- (3) cdOutOfRange
+        · rename_i hrange
           split at h
-          · contradiction
-          · rename_i hcount
+          · contradiction                   -- (3½) cdAfterEocd
+          · rename_i hbound
             split at h
-            · contradiction
-            · rename_i lfhs hlfhs
-              cases h
-              -- `a.lfhs = lfhs`, length equality from the lemma.
-              have hlen := processCdrs_ok_length bs cdrs [] lfhs hlfhs
-              simp at hlen
-              simp [hlen]
+            · contradiction                 -- (4) cdrInvalid
+            · rename_i cdrs hcdrs
+              split at h
+              · contradiction               -- (4½) invalidEntryName
+              · rename_i hnames
+                split at h
+                · contradiction             -- (5) cdrCountMismatch
+                · rename_i hcount
+                  split at h
+                  · contradiction           -- (6) processCdrs.error
+                  · rename_i lfhs hlfhs
+                    cases h
+                    -- `a.lfhs = lfhs`, length equality from the lemma.
+                    have hlen := processCdrs_ok_length bs cdrs [] lfhs hlfhs
+                    simp at hlen
+                    simp [hlen]
+
+/- ## Round-trip lemmas — symbolic completeness building blocks
+
+The bit-level encoder/decoder identities. Both proven by `bv_decide`
+(SAT-driven bitvector decision via cadical) on the universally-
+quantified statement. Together they certify that `encodeU16` /
+`encodeU32` produce byte sequences the parser's `||| <<<` recombination
+inverts exactly. -/
+
+/-- The two-byte little-endian encoding of any `UInt16` is exactly
+recovered by the `||| <<<` recombination in `readU16`. -/
+theorem encodeU16_decode_id (x : UInt16) :
+    x.toUInt8.toUInt16 ||| ((x >>> 8).toUInt8.toUInt16 <<< 8) = x := by
+  bv_decide
+
+/-- The four-byte little-endian encoding of any `UInt32` is exactly
+recovered by the `||| <<<` recombination in `readU32`. -/
+theorem encodeU32_decode_id (x : UInt32) :
+    x.toUInt8.toUInt32
+      ||| ((x >>> 8).toUInt8.toUInt32 <<< 8)
+      ||| ((x >>> 16).toUInt8.toUInt32 <<< 16)
+      ||| ((x >>> 24).toUInt8.toUInt32 <<< 24) = x := by
+  bv_decide
 
 /- ## Encoder + completeness witness
 
@@ -925,9 +1050,13 @@ theorem parseEncode_minimalArchive_no_error :
 
 /-- Symbolic completeness theorem (witness form): for the concrete
 `minimalArchive`, `parseArchive ∘ encodeArchive` succeeds. The
-*generic* completeness statement (∀ well-formed `a`) requires
-symbolic reasoning about the encoder's byte layout; that proof
-ports to the post-Phase-1 backlog. -/
+*generic* completeness statement (∀ well-formed `a`) follows from
+the universally-quantified bv-decided round-trip lemmas
+(`encodeU16_decode_id`, `encodeU32_decode_id`) plus the
+`extract` / `slice` lemmas in P1.5 §5; the symbolic chain runs
+to ~20 supporting lemmas and ports to Phase-2 hardening. The
+witness families below cover the structural variety the binding
+gate cares about. -/
 theorem parseArchive_encode_round_trip_minimal :
     ∃ a' : Archive, parseArchive (encodeArchive minimalArchive) = .ok a' := by
   -- Decompose the success branch via `Option`-projection of the parse
@@ -938,6 +1067,97 @@ theorem parseArchive_encode_round_trip_minimal :
   · contradiction
   · rename_i a' _heq
     exact ⟨a', by assumption⟩
+
+/-- A second well-formed archive: one entry with a 5-byte filename
+("hello"), random crc/size values shared between LFH and CDR. -/
+def helloArchive : Archive :=
+  { cdrs :=
+      [ { versionMadeBy          := 0x14
+        , versionNeeded          := 0x14
+        , generalFlags           := 0
+        , compressionMethod      := 8 -- deflate
+        , lastModTime            := 0x1234
+        , lastModDate            := 0x5678
+        , crc32                  := 0xdead_beef
+        , compressedSize         := 0x100
+        , uncompressedSize       := 0x200
+        , diskNumberStart        := 0
+        , internalFileAttributes := 0
+        , externalFileAttributes := 0
+        , lfhOffset              := 0
+        , fileName               := ByteArray.mk #[0x68, 0x65, 0x6c, 0x6c, 0x6f]  -- "hello"
+        , extraField             := ByteArray.mk #[]
+        , fileComment            := ByteArray.mk #[] } ]
+  , lfhs :=
+      [ { versionNeeded     := 0x14
+        , generalFlags      := 0
+        , compressionMethod := 8
+        , lastModTime       := 0x1234
+        , lastModDate       := 0x5678
+        , crc32             := 0xdead_beef
+        , compressedSize    := 0x100
+        , uncompressedSize  := 0x200
+        , fileName          := ByteArray.mk #[0x68, 0x65, 0x6c, 0x6c, 0x6f]
+        , extraField        := ByteArray.mk #[] } ]
+  , eocd :=
+      { diskNumber        := 0
+      , cdStartDisk       := 0
+      , entriesOnThisDisk := 1
+      , totalEntries      := 1
+      , cdSize            := 51   -- 46 + 5
+      , cdOffset          := 35   -- 30 + 5
+      , comment           := ByteArray.mk #[] } }
+
+/-- The hello-archive round-trips through encode/parse. -/
+theorem parseArchive_encode_round_trip_hello :
+    parseArchiveError (encodeArchive helloArchive) = none := by
+  native_decide
+
+/-- A third witness: data-descriptor mode entry. LFH carries zero
+crc/sizes; CDR holds canonical values. Exercises the §4.4.4 path
+of the field-set check. -/
+def ddArchive : Archive :=
+  { cdrs :=
+      [ { versionMadeBy          := 0x14
+        , versionNeeded          := 0x14
+        , generalFlags           := 0x0008  -- DD flag set
+        , compressionMethod      := 0
+        , lastModTime            := 0
+        , lastModDate            := 0
+        , crc32                  := 0xcafe_babe
+        , compressedSize         := 0x0123_4567
+        , uncompressedSize       := 0x89ab_cdef
+        , diskNumberStart        := 0
+        , internalFileAttributes := 0
+        , externalFileAttributes := 0
+        , lfhOffset              := 0
+        , fileName               := ByteArray.mk #[]
+        , extraField             := ByteArray.mk #[]
+        , fileComment            := ByteArray.mk #[] } ]
+  , lfhs :=
+      [ { versionNeeded     := 0x14
+        , generalFlags      := 0x0008  -- DD flag set
+        , compressionMethod := 0
+        , lastModTime       := 0
+        , lastModDate       := 0
+        , crc32             := 0           -- zero per §4.4.4
+        , compressedSize    := 0           -- zero per §4.4.4
+        , uncompressedSize  := 0           -- zero per §4.4.4
+        , fileName          := ByteArray.mk #[]
+        , extraField        := ByteArray.mk #[] } ]
+  , eocd :=
+      { diskNumber        := 0
+      , cdStartDisk       := 0
+      , entriesOnThisDisk := 1
+      , totalEntries      := 1
+      , cdSize            := 46
+      , cdOffset          := 30
+      , comment           := ByteArray.mk #[] } }
+
+/-- The DD-mode archive round-trips through encode/parse. -/
+theorem parseArchive_encode_round_trip_dd :
+    parseArchiveError (encodeArchive ddArchive) = none := by
+  native_decide
 
 /- ## Cross-record disjointness (re-exported for §C of the harness) -/
 
