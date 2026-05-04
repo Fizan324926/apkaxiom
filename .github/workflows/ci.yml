@@ -389,8 +389,32 @@ jobs:
             lake-linux-x86_64-
       - name: Build Lean ZIP modules
         run: nix develop --command make p15-lean
-      - name: Run Lean ↔ Rust differential (1800 samples)
-        run: nix develop --command make p15-differential
+      - name: Build AOSP wire-format probe
+        run: nix develop --command make p15-aosp-probe
+      - name: Run 3-way Lean ↔ Rust ↔ AOSP differential (1800 samples)
+        run: nix develop --command make p15-differential-3way
+
+  libziparchive-pin:
+    name: libziparchive-pin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recompute libziparchive-tree-sha256 and diff
+        run: |
+          set -euo pipefail
+          actual=$(cd external/libziparchive && \
+            find . -type f -not -path './build/*' -print0 \
+              | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          expected=$(cat docs/phase-1/P1.5/libziparchive-tree-sha256.txt)
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::libziparchive tree sha drift: expected $expected, got $actual"
+            echo "Either someone modified files under external/libziparchive/ (which is read-only)" >&2
+            echo "or the pinned SHA in external/libziparchive-pinned-sha.txt was bumped without" >&2
+            echo "regenerating docs/phase-1/P1.5/libziparchive-tree-sha256.txt." >&2
+            exit 1
+          fi
+          echo "PASS: libziparchive tree matches committed sha $expected"
 
   apk-info-upstream-pin:
     name: apk-info-upstream-pin

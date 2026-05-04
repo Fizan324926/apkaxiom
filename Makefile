@@ -209,6 +209,25 @@ p15-differential: ## Lean ↔ Rust differential on every corpus sample (~2 min).
 p15-lean: ## Build the Lean ZIP modules (LocalHeader + Eocd).
 	lake build Apkaxiom.Zip.LocalHeader Apkaxiom.Zip.Eocd
 
+.PHONY: p15-aosp-probe
+p15-aosp-probe: ## Compile the C++ third-prong AOSP probe (header-only against vendored libziparchive).
+	@# IMPORTANT: build under the same shell that will run the
+	@# differential — i.e., always under `nix develop`. The probe
+	@# links against the active glibc; the differential harness
+	@# spawns it from inside `nix develop` and a system-glibc binary
+	@# will fail with `GLIBC_ABI_DT_X86_64_PLT not found`.
+	@mkdir -p $(ROOT)/target
+	g++ -std=c++20 -O2 -Wall -DZLIB_CONST \
+	  -I$(ROOT) -I$(ROOT)/tools/zip-aosp-probe/include \
+	  -o $(ROOT)/target/zip-aosp-probe \
+	  $(ROOT)/tools/zip-aosp-probe/src/zip-aosp-probe.cpp
+
+.PHONY: p15-differential-3way
+p15-differential-3way: p15-aosp-probe ## Three-way Lean ↔ Rust ↔ AOSP-probe differential.
+	cargo build -q -p zip-differential --release
+	ZIP_AOSP_PROBE=$(ROOT)/target/zip-aosp-probe \
+	  $(ROOT)/target/release/zip-differential $(ROOT)
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info
