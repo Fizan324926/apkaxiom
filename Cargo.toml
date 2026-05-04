@@ -5,11 +5,14 @@ members = [
     "crates/axiom-l1-rs",
     "crates/axiom-ir",
     "crates/axiom-extract-hello",
+    "crates/axiom-zip-ref",
     "tools/ir-corpus",
     "tools/ir-schema-check",
     "tools/lean-to-rust",
     "tools/translation-validator",
     "tools/unsafe-census",
+    "tools/zip-corpus-gen",
+    "tools/zip-differential",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

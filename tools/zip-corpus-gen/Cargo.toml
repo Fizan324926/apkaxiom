@@ -1,0 +1,21 @@
+[package]
+name = "zip-corpus-gen"
+description = "P1.5 — deterministic corpus generator for ZIP local file headers + EOCD records. Produces ≥1,500 samples (1000 valid LFH + 500 adversarial LFH + 100 valid EOCD + 200 adversarial EOCD) under corpus/zip/. Fully reproducible from a single seed; the differential harness gates on byte-equality of the generated corpus."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "zip-corpus-gen"
+path = "src/main.rs"
+
+[dependencies]
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

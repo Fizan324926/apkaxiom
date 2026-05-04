@@ -1,0 +1,16 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.5 — Lean ↔ Rust differential harness for ZIP LFH + EOCD.
+
+rust_binary(
+    name = "zip-differential",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zip_differential",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

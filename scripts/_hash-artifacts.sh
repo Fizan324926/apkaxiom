@@ -54,6 +54,10 @@ if [[ "$BUILD" != "skip" ]]; then
     //tools/unsafe-census:unsafe-census \
     //tools/ir-corpus:ir-corpus \
     //tools/ir-schema-check:ir-schema-check \
+    //crates/axiom-zip-ref:axiom-zip-ref \
+    //crates/axiom-zip-ref:axiom-zip-ref-test \
+    //tools/zip-corpus-gen:zip-corpus-gen \
+    //tools/zip-differential:zip-differential \
     //theorems:hello \
     //:hello_world >&2
 fi
@@ -87,6 +91,7 @@ FIRST_PARTY_CRATES=(
   axiom_l1_rs
   axiom_ir
   axiom_extract_hello   # P1.2 — auto-extracted from Hello.lean
+  axiom_zip_ref         # P1.5 — Rust reference parser (LFH + EOCD)
 )
 FIRST_PARTY_BINS=(
   lean_to_rust          # P1.2 prototype extractor
@@ -94,6 +99,8 @@ FIRST_PARTY_BINS=(
   unsafe_census         # P1.3 syn-based AST scanner
   ir_corpus             # P1.4 IR corpus generator
   ir_schema_check       # P1.4 capnp schema gate
+  zip_corpus_gen        # P1.5 ZIP corpus generator
+  zip_differential      # P1.5 Lean ↔ Rust differential harness
 )
 VENDORED_CRATES=(thiserror thiserror_impl proc_macro2 quote syn unicode_ident)
 

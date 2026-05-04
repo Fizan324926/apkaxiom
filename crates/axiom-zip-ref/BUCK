@@ -1,0 +1,23 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.5 — Rust reference parser for ZIP local file headers + EOCD.
+# Mirrors theorems/Apkaxiom/Zip/{LocalHeader,Eocd}.lean byte-for-byte.
+
+rust_library(
+    name = "axiom-zip-ref",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_zip_ref",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = ["//third-party/rust:thiserror"],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-zip-ref-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_zip_ref",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = ["//third-party/rust:thiserror"],
+)

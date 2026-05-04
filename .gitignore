@@ -43,6 +43,11 @@ docs/phase-1/P1.3/audit-data/perf-runs/
 **/crates/*/*.cdx.json
 **/tools/*/*.cdx.json
 
+# ----- P1.5 differential summary -----
+# Regenerable; per-host wall-clock varies. The structural agreement
+# count IS deterministic and lives in the CHECKLIST.
+tools/zip-differential/differential-summary.json
+
 # ----- Nix -----
 result
 result-*

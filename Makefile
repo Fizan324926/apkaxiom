@@ -194,6 +194,21 @@ p14-schema-hash: ## Recompute SHA-256 of schema/axiom_ir_v0_1.capnp and pin to i
 p14-schema-check: ## Verify capnp schema SHA-pin (and run capnp compile if installed).
 	cargo run -q -p ir-schema-check -- $(ROOT)
 
+##@ P1.5 ZIP layer
+
+.PHONY: p15-corpus
+p15-corpus: ## Re-derive the 1800-sample ZIP corpus under corpus/zip/.
+	buck2 run //tools/zip-corpus-gen -- $(ROOT)/corpus/zip
+
+.PHONY: p15-differential
+p15-differential: ## Lean ↔ Rust differential on every corpus sample (~2 min).
+	cargo build -q -p zip-differential --release
+	$(ROOT)/target/release/zip-differential $(ROOT)
+
+.PHONY: p15-lean
+p15-lean: ## Build the Lean ZIP modules (LocalHeader + Eocd).
+	lake build Apkaxiom.Zip.LocalHeader Apkaxiom.Zip.Eocd
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info
