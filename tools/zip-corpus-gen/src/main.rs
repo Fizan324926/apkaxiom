@@ -35,7 +35,7 @@ use std::{
     process::ExitCode,
 };
 
-use axiom_zip_ref::{eocd, lfh};
+use axiom_zip_ref::{archive, cdr, eocd, lfh};
 
 /// Linear-congruential PRNG. Numerical Recipes constants. Tiny but
 /// adequate for corpus generation; we don't need cryptographic
@@ -146,7 +146,7 @@ fn write_manifest(dir: &Path, entries: &[(String, &str)]) -> Result<(), std::io:
     fs::write(dir.join("manifest.json"), s)
 }
 
-#[allow(clippy::too_many_lines)] // single deterministic generator end-to-end
+#[allow(clippy::too_many_lines, clippy::cognitive_complexity)] // single deterministic generator end-to-end
 fn run(out_root: &Path) -> Result<(), std::io::Error> {
     let mut rng = Lcg::new(0xa9c1_d4b1_f7e2_3d51); // schema id from capnp
     let lfh_valid_dir = out_root.join("lfh-valid");
@@ -283,13 +283,474 @@ fn run(out_root: &Path) -> Result<(), std::io::Error> {
             .collect::<Vec<_>>(),
     )?;
 
+    // ----- P1.6 additions -----------------------------------------------
+    // The P1.6 corpus extends the P1.5 base with CDR + whole-archive
+    // samples plus a hand-crafted BadPack-class adversarial set and a
+    // mutation-engine bucket.
+
+    // 5) 200 valid CDR samples — varying name + extra + comment lengths.
+    let cdr_valid_dir = out_root.join("cdr-valid");
+    let mut cdr_valid_manifest = Vec::with_capacity(200);
+    for i in 0..200 {
+        let name_len = (rng.next_in_range(0, 32)) as u16;
+        let extra_len = (rng.next_in_range(0, 16)) as u16;
+        let comment_len = (rng.next_in_range(0, 24)) as u16;
+        let bytes = build_cdr(&mut rng, name_len, extra_len, comment_len, 0);
+        assert!(cdr::parse_cdr(&bytes).is_ok());
+        write_sample(&cdr_valid_dir, i, &bytes)?;
+        cdr_valid_manifest.push((format!("{i:04}.bin"), "ok"));
+    }
+    write_manifest(
+        &cdr_valid_dir,
+        &cdr_valid_manifest
+            .iter()
+            .map(|(s, v)| (s.clone(), *v))
+            .collect::<Vec<_>>(),
+    )?;
+
+    // 6) 200 adversarial CDR samples — 40 per ParseError variant.
+    let cdr_adv_dir = out_root.join("cdr-adversarial");
+    let mut cdr_adv_manifest = Vec::with_capacity(200);
+    // 6a) ShortHeader: 0..40
+    for i in 0..40 {
+        let cut = (rng.next_in_range(0, 46)) as usize;
+        let bytes = vec![0u8; cut];
+        assert_eq!(cdr::parse_cdr(&bytes), Err(cdr::ParseError::ShortHeader));
+        write_sample(&cdr_adv_dir, i, &bytes)?;
+        cdr_adv_manifest.push((format!("{i:04}.bin"), "ShortHeader"));
+    }
+    // 6b) BadSignature: 40..80
+    for i in 40..80 {
+        let mut bytes = build_cdr(&mut rng, 0, 0, 0, 0);
+        bytes[0] = bytes[0].wrapping_add(1);
+        assert_eq!(cdr::parse_cdr(&bytes), Err(cdr::ParseError::BadSignature));
+        write_sample(&cdr_adv_dir, i, &bytes)?;
+        cdr_adv_manifest.push((format!("{i:04}.bin"), "BadSignature"));
+    }
+    // 6c) ShortName: 80..120
+    for i in 80..120 {
+        let mut bytes = build_cdr(&mut rng, 0, 0, 0, 0);
+        let big = rng.next_in_range(50, 1000) as u16;
+        bytes[28..30].copy_from_slice(&big.to_le_bytes());
+        assert_eq!(cdr::parse_cdr(&bytes), Err(cdr::ParseError::ShortName));
+        write_sample(&cdr_adv_dir, i, &bytes)?;
+        cdr_adv_manifest.push((format!("{i:04}.bin"), "ShortName"));
+    }
+    // 6d) ShortExtra: 120..160
+    for i in 120..160 {
+        let mut bytes = build_cdr(&mut rng, 0, 0, 0, 0);
+        let big = rng.next_in_range(50, 1000) as u16;
+        bytes[30..32].copy_from_slice(&big.to_le_bytes());
+        assert_eq!(cdr::parse_cdr(&bytes), Err(cdr::ParseError::ShortExtra));
+        write_sample(&cdr_adv_dir, i, &bytes)?;
+        cdr_adv_manifest.push((format!("{i:04}.bin"), "ShortExtra"));
+    }
+    // 6e) ShortComment: 160..200
+    for i in 160..200 {
+        let mut bytes = build_cdr(&mut rng, 0, 0, 0, 0);
+        let big = rng.next_in_range(50, 1000) as u16;
+        bytes[32..34].copy_from_slice(&big.to_le_bytes());
+        assert_eq!(cdr::parse_cdr(&bytes), Err(cdr::ParseError::ShortComment));
+        write_sample(&cdr_adv_dir, i, &bytes)?;
+        cdr_adv_manifest.push((format!("{i:04}.bin"), "ShortComment"));
+    }
+    write_manifest(
+        &cdr_adv_dir,
+        &cdr_adv_manifest
+            .iter()
+            .map(|(s, v)| (s.clone(), *v))
+            .collect::<Vec<_>>(),
+    )?;
+
+    // 7) 300 valid full archives — 1..=4 entries each.
+    let archive_valid_dir = out_root.join("archive-valid");
+    let mut archive_valid_manifest = Vec::with_capacity(300);
+    for i in 0..300 {
+        let n_entries = rng.next_in_range(1, 5) as usize;
+        let bytes = build_archive(&mut rng, n_entries);
+        assert!(
+            archive::parse_archive(&bytes).is_ok(),
+            "sample {i} failed to round-trip; n_entries={n_entries}"
+        );
+        write_sample(&archive_valid_dir, i, &bytes)?;
+        archive_valid_manifest.push((format!("{i:04}.bin"), "ok"));
+    }
+    write_manifest(
+        &archive_valid_dir,
+        &archive_valid_manifest
+            .iter()
+            .map(|(s, v)| (s.clone(), *v))
+            .collect::<Vec<_>>(),
+    )?;
+
+    // 8) 50 BadPack-class CVE-style adversarial archives.
+    //
+    //    Five families × 10 samples each:
+    //      - lfh-oob          (CDR.lfh_offset > bs.size)
+    //      - lfh-magic        (CDR.lfh_offset points at non-LFH bytes)
+    //      - cdr-count        (EOCD.totalEntries != actual count)
+    //      - cd-out-of-range  (EOCD.cdOffset + cdSize > bs.size)
+    //      - filename-mismatch (CDR filename != LFH filename)
+    let badpack_dir = out_root.join("badpack-cves");
+    let mut badpack_manifest = Vec::with_capacity(50);
+    for i in 0..10 {
+        // lfh-oob: minimal archive (LFH@0, CDR@30, EOCD@76); patch
+        // CDR's lfh_offset (bytes 72..76) past EOF.
+        let mut bytes = build_minimal_archive(&mut rng);
+        bytes[72..76].copy_from_slice(&0xffff_ffffu32.to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::LfhOffsetOob)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "LfhOffsetOob"));
+    }
+    for i in 10..20 {
+        // lfh-magic: minimal archive; patch CDR's lfh_offset to 1 so
+        // the parser sees non-LFH bytes at the offset.
+        let mut bytes = build_minimal_archive(&mut rng);
+        bytes[72..76].copy_from_slice(&1u32.to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::LfhInvalid)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "LfhInvalid"));
+    }
+    for i in 20..30 {
+        // cdr-count: minimal archive; patch EOCD totalEntries to 2.
+        let mut bytes = build_minimal_archive(&mut rng);
+        let eocd_pos = bytes.len() - 22;
+        bytes[eocd_pos + 8..eocd_pos + 10].copy_from_slice(&2u16.to_le_bytes());
+        bytes[eocd_pos + 10..eocd_pos + 12].copy_from_slice(&2u16.to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::CdrCountMismatch)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "CdrCountMismatch"));
+    }
+    for i in 30..40 {
+        // cd-out-of-range: minimal archive; patch EOCD's cdOffset.
+        let mut bytes = build_minimal_archive(&mut rng);
+        let eocd_pos = bytes.len() - 22;
+        bytes[eocd_pos + 16..eocd_pos + 20].copy_from_slice(&0xffff_ffffu32.to_le_bytes());
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::CdOutOfRange)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "CdOutOfRange"));
+    }
+    for i in 40..50 {
+        // filename-mismatch — build the canonical asymmetric archive
+        let bytes = build_filename_mismatch_archive(&mut rng);
+        assert_eq!(
+            archive::parse_archive(&bytes),
+            Err(archive::ArchiveError::FilenameMismatch)
+        );
+        write_sample(&badpack_dir, i, &bytes)?;
+        badpack_manifest.push((format!("{i:04}.bin"), "FilenameMismatch"));
+    }
+    write_manifest(
+        &badpack_dir,
+        &badpack_manifest
+            .iter()
+            .map(|(s, v)| (s.clone(), *v))
+            .collect::<Vec<_>>(),
+    )?;
+
+    // 9) 250 adversarial-mutated samples — radamsa-style mutations of
+    //    valid full archives. Verdict is "agreement-only": we don't
+    //    predict the verdict, just assert all three parsers agree at
+    //    differential time. The manifest records "agreement" as the
+    //    expectation.
+    let mut_dir = out_root.join("adversarial-mutated");
+    let mut mut_manifest = Vec::with_capacity(250);
+    for i in 0..250 {
+        let n = rng.next_in_range(1, 4) as usize;
+        let base = build_archive(&mut rng, n);
+        let bytes = mutate(&mut rng, base);
+        write_sample(&mut_dir, i, &bytes)?;
+        mut_manifest.push((format!("{i:04}.bin"), "agreement"));
+    }
+    write_manifest(
+        &mut_dir,
+        &mut_manifest
+            .iter()
+            .map(|(s, v)| (s.clone(), *v))
+            .collect::<Vec<_>>(),
+    )?;
+
     eprintln!("Wrote corpus under {}", out_root.display());
-    eprintln!("  lfh-valid:        1000");
-    eprintln!("  lfh-adversarial:   500");
-    eprintln!("  eocd-valid:        100");
-    eprintln!("  eocd-adversarial:  200");
-    eprintln!("  TOTAL:           1800");
+    eprintln!("  lfh-valid:           1000");
+    eprintln!("  lfh-adversarial:      500");
+    eprintln!("  eocd-valid:           100");
+    eprintln!("  eocd-adversarial:     200");
+    eprintln!("  cdr-valid:            200  [P1.6]");
+    eprintln!("  cdr-adversarial:      200  [P1.6]");
+    eprintln!("  archive-valid:        300  [P1.6]");
+    eprintln!("  badpack-cves:          50  [P1.6]");
+    eprintln!("  adversarial-mutated:  250  [P1.6]");
+    eprintln!("  TOTAL:               2800");
     Ok(())
+}
+
+/// Build a single CDR record with the given variable-length region
+/// sizes and `lfh_offset` field. Mirrors `Apkaxiom.Zip.CentralDirectory`.
+fn build_cdr(
+    rng: &mut Lcg,
+    name_len: u16,
+    extra_len: u16,
+    comment_len: u16,
+    lfh_offset: u32,
+) -> Vec<u8> {
+    let total = cdr::FIXED_SIZE + name_len as usize + extra_len as usize + comment_len as usize;
+    let mut bytes = Vec::with_capacity(total);
+    bytes.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionMadeBy
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // generalFlags
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // compressionMethod
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModTime
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModDate
+    bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // crc32
+    bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // compressedSize
+    bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // uncompressedSize
+    bytes.extend_from_slice(&name_len.to_le_bytes()); // nameLen
+    bytes.extend_from_slice(&extra_len.to_le_bytes()); // extraLen
+    bytes.extend_from_slice(&comment_len.to_le_bytes()); // commentLen
+    bytes.extend_from_slice(&[0u8; 2]); // diskNumberStart
+    bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // internalAttrs
+    bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // externalAttrs
+    bytes.extend_from_slice(&lfh_offset.to_le_bytes()); // lfhOffset
+    let mut name = vec![0u8; name_len as usize];
+    rng.fill(&mut name);
+    bytes.extend_from_slice(&name);
+    let mut extra = vec![0u8; extra_len as usize];
+    rng.fill(&mut extra);
+    bytes.extend_from_slice(&extra);
+    let mut comment = vec![0u8; comment_len as usize];
+    rng.fill(&mut comment);
+    bytes.extend_from_slice(&comment);
+    bytes
+}
+
+/// Build a well-formed full ZIP archive with `n` entries. Returns the
+/// concatenated byte sequence in the canonical layout:
+/// `lfh_0 || lfh_1 || … || cdr_0 || cdr_1 || … || eocd`.
+///
+/// Each entry has a *consistent* filename byte sequence shared between
+/// its LFH and CDR, so the cross-record consistency check passes.
+fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
+    debug_assert!(n >= 1, "archive must have ≥1 entry");
+    // Per-entry filename and offsets.
+    let mut filenames: Vec<Vec<u8>> = Vec::with_capacity(n);
+    for _ in 0..n {
+        let nl = rng.next_in_range(0, 16) as usize;
+        let mut name = vec![0u8; nl];
+        rng.fill(&mut name);
+        filenames.push(name);
+    }
+    // Build LFHs in order, recording each one's start offset.
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut lfh_offsets: Vec<u32> = Vec::with_capacity(n);
+    for fname in &filenames {
+        // Truncation safe: LFH starts in our ≤ 65 KB archive — well
+        // inside u32 range.
+        #[allow(clippy::cast_possible_truncation)]
+        lfh_offsets.push(bytes.len() as u32);
+        let nl = fname.len() as u16;
+        // build LFH with deterministic body bytes; nameLen = fname.len(),
+        // extraLen = 0. Filename bytes are *appended literally* so the
+        // CDR's filename bytes will agree.
+        bytes.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
+        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // generalFlags
+        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // compressionMethod
+        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModTime
+        bytes.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModDate
+        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // crc32
+        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // compressedSize
+        bytes.extend_from_slice(&rng.next_u32().to_le_bytes()); // uncompressedSize
+        bytes.extend_from_slice(&nl.to_le_bytes()); // nameLen
+        bytes.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+        bytes.extend_from_slice(fname);
+    }
+    // CD region starts here.
+    #[allow(clippy::cast_possible_truncation)]
+    let cd_start = bytes.len() as u32;
+    let mut cd_bytes_size = 0u32;
+    for (fname, lfh_off) in filenames.iter().zip(lfh_offsets.iter()) {
+        let nl = fname.len() as u16;
+        let cdr_bytes = {
+            let mut v: Vec<u8> = Vec::new();
+            v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionMadeBy
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // generalFlags
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // compressionMethod
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModTime
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // lastModDate
+            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // crc32
+            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // compressedSize
+            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // uncompressedSize
+            v.extend_from_slice(&nl.to_le_bytes()); // nameLen
+            v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+            v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+            v.extend_from_slice(&[0u8; 2]); // diskNumberStart
+            v.extend_from_slice(&rng.next_u16().to_le_bytes()); // internalAttrs
+            v.extend_from_slice(&rng.next_u32().to_le_bytes()); // externalAttrs
+            v.extend_from_slice(&lfh_off.to_le_bytes()); // lfhOffset
+            v.extend_from_slice(fname); // filename — must equal LFH's
+            v
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            cd_bytes_size += cdr_bytes.len() as u32;
+        }
+        bytes.extend_from_slice(&cdr_bytes);
+    }
+    // EOCD trailer.
+    bytes.extend_from_slice(&eocd::SIGNATURE.to_le_bytes());
+    bytes.extend_from_slice(&[0u8; 4]); // diskNumber + cdStartDisk = 0
+    let entries_u16 = u16::try_from(n).unwrap_or(u16::MAX);
+    bytes.extend_from_slice(&entries_u16.to_le_bytes()); // entriesOnThisDisk
+    bytes.extend_from_slice(&entries_u16.to_le_bytes()); // totalEntries
+    bytes.extend_from_slice(&cd_bytes_size.to_le_bytes()); // cdSize
+    bytes.extend_from_slice(&cd_start.to_le_bytes()); // cdOffset
+    bytes.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+    bytes
+}
+
+/// Build the canonical minimal well-formed archive: 1 entry with
+/// zero-length filename / extra / comment. Layout:
+///
+///   - LFH at offset 0 (30 bytes)
+///   - CDR at offset 30 (46 bytes)
+///   - EOCD at offset 76 (22 bytes)
+///
+/// Total: 98 bytes. This is the substrate the BadPack-class samples
+/// patch — guaranteeing the patch offsets are stable across rng
+/// states.
+fn build_minimal_archive(rng: &mut Lcg) -> Vec<u8> {
+    let mut v: Vec<u8> = Vec::with_capacity(98);
+    // LFH at offset 0 (30 bytes total: 4 sig + 2 ver + 20 body + 2 nl + 2 el)
+    v.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+    v.extend_from_slice(&[0u8; 20]); // body up to nameLen
+    v.extend_from_slice(&0u16.to_le_bytes()); // nameLen = 0
+    v.extend_from_slice(&0u16.to_le_bytes()); // extraLen = 0
+    assert_eq!(v.len(), 30);
+    // CDR at offset 30 (46 bytes)
+    v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&[0x14, 0x00, 0x14, 0x00]);
+    v.extend_from_slice(&[0u8; 8]);
+    v.extend_from_slice(&[0u8; 4]); // crc32
+    v.extend_from_slice(&[0u8; 4]); // compressedSize
+    v.extend_from_slice(&[0u8; 4]); // uncompressedSize
+    v.extend_from_slice(&0u16.to_le_bytes()); // nameLen = 0
+    v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+    v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+    v.extend_from_slice(&[0u8; 2]); // diskNumberStart
+    v.extend_from_slice(&[0u8; 2]); // internalAttrs
+    v.extend_from_slice(&[0u8; 4]); // externalAttrs
+    v.extend_from_slice(&0u32.to_le_bytes()); // lfhOffset = 0
+    debug_assert_eq!(v.len(), 76);
+    // EOCD at offset 76 (22 bytes)
+    v.extend_from_slice(&eocd::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&[0u8; 4]); // diskNumber + cdStartDisk
+    v.extend_from_slice(&1u16.to_le_bytes()); // entriesOnThisDisk
+    v.extend_from_slice(&1u16.to_le_bytes()); // totalEntries
+    v.extend_from_slice(&46u32.to_le_bytes()); // cdSize
+    v.extend_from_slice(&30u32.to_le_bytes()); // cdOffset
+    v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+    debug_assert_eq!(v.len(), 98);
+    v
+}
+
+/// Build a deliberately-asymmetric archive where the CDR's filename
+/// (1 byte: `b'A'`) disagrees with the LFH's filename (empty).
+fn build_filename_mismatch_archive(rng: &mut Lcg) -> Vec<u8> {
+    let mut v: Vec<u8> = Vec::new();
+    // LFH at offset 0, nameLen = 0, no filename appended.
+    v.extend_from_slice(&lfh::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&rng.next_u16().to_le_bytes()); // versionNeeded
+    v.extend_from_slice(&[0u8; 20]); // body up to nameLen (20 bytes)
+    v.extend_from_slice(&0u16.to_le_bytes()); // nameLen = 0
+    v.extend_from_slice(&0u16.to_le_bytes()); // extraLen = 0
+    assert_eq!(v.len(), 30);
+    // CDR at offset 30, nameLen = 1, filename "A".
+    v.extend_from_slice(&cdr::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&[0x14, 0x00, 0x14, 0x00]);
+    v.extend_from_slice(&[0u8; 8]);
+    v.extend_from_slice(&[0u8; 4]); // crc32
+    v.extend_from_slice(&[0u8; 4]); // compressedSize
+    v.extend_from_slice(&[0u8; 4]); // uncompressedSize
+    v.extend_from_slice(&1u16.to_le_bytes()); // nameLen = 1
+    v.extend_from_slice(&0u16.to_le_bytes()); // extraLen
+    v.extend_from_slice(&0u16.to_le_bytes()); // commentLen
+    v.extend_from_slice(&[0u8; 2]); // diskNumberStart
+    v.extend_from_slice(&[0u8; 2]); // internalAttrs
+    v.extend_from_slice(&[0u8; 4]); // externalAttrs
+    v.extend_from_slice(&0u32.to_le_bytes()); // lfhOffset = 0
+    v.push(b'A'); // filename "A"
+    debug_assert_eq!(v.len(), 30 + 47);
+    // EOCD at offset 77, cdSize = 47, cdOffset = 30.
+    v.extend_from_slice(&eocd::SIGNATURE.to_le_bytes());
+    v.extend_from_slice(&[0u8; 4]);
+    v.extend_from_slice(&1u16.to_le_bytes());
+    v.extend_from_slice(&1u16.to_le_bytes());
+    v.extend_from_slice(&47u32.to_le_bytes());
+    v.extend_from_slice(&30u32.to_le_bytes());
+    v.extend_from_slice(&0u16.to_le_bytes());
+    v
+}
+
+/// In-house radamsa-style mutation engine. Picks one of four mutation
+/// kinds at random and applies it to the input bytes:
+///
+///   - bit-flip a single byte at a random offset
+///   - delete a random byte
+///   - insert a random byte
+///   - bump a random length-field-shaped u16
+///
+/// The output is *deterministic* given the rng state.
+fn mutate(rng: &mut Lcg, mut bytes: Vec<u8>) -> Vec<u8> {
+    if bytes.is_empty() {
+        return bytes;
+    }
+    let kind = rng.next_in_range(0, 4);
+    let off = (rng.next_u32() as usize) % bytes.len();
+    match kind {
+        0 => {
+            // bit-flip one byte
+            let mask = 1u8 << (rng.next_u32() % 8);
+            bytes[off] ^= mask;
+        }
+        1 => {
+            // delete one byte (skip if length 1)
+            if bytes.len() > 1 {
+                bytes.remove(off);
+            }
+        }
+        2 => {
+            // insert one random byte at off
+            #[allow(clippy::cast_possible_truncation)]
+            let b = (rng.next_u32() & 0xff) as u8;
+            bytes.insert(off, b);
+        }
+        _ => {
+            // bump a u16 at a random aligned offset
+            if bytes.len() >= 2 {
+                let pos = off.min(bytes.len() - 2);
+                let cur = u16::from_le_bytes([bytes[pos], bytes[pos + 1]]);
+                let bumped = cur.wrapping_add(rng.next_u16());
+                bytes[pos..pos + 2].copy_from_slice(&bumped.to_le_bytes());
+            }
+        }
+    }
+    bytes
 }
 
 fn main() -> ExitCode {

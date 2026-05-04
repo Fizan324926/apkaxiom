@@ -228,6 +228,23 @@ p15-differential-3way: p15-aosp-probe ## Three-way Lean ↔ Rust ↔ AOSP-probe 
 	ZIP_AOSP_PROBE=$(ROOT)/target/zip-aosp-probe \
 	  $(ROOT)/target/release/zip-differential $(ROOT)
 
+##@ P1.6 ZIP layer (CDR + Consistency)
+
+.PHONY: p16-lean
+p16-lean: ## Build the Lean P1.6 modules (CDR + Properties + Consistency).
+	lake build \
+	  Apkaxiom.Zip.CentralDirectory \
+	  Apkaxiom.Zip.CentralDirectory.Properties \
+	  Apkaxiom.Zip.Consistency
+
+.PHONY: p16-corpus
+p16-corpus: ## Re-derive the full ZIP corpus (P1.5 1800 + P1.6 1000 = 2800 samples).
+	buck2 run //tools/zip-corpus-gen -- $(ROOT)/corpus/zip
+
+.PHONY: p16-differential-3way
+p16-differential-3way: p15-aosp-probe ## Alias for p15-differential-3way (full 2800-sample 3-way diff).
+	$(MAKE) p15-differential-3way
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

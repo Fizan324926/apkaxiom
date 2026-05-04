@@ -9,3 +9,6 @@ import Apkaxiom.Zip.LocalHeader
 import Apkaxiom.Zip.LocalHeader.Properties
 import Apkaxiom.Zip.Eocd
 import Apkaxiom.Zip.Eocd.Properties
+import Apkaxiom.Zip.CentralDirectory
+import Apkaxiom.Zip.CentralDirectory.Properties
+import Apkaxiom.Zip.Consistency

@@ -22,6 +22,8 @@
 // cfg(test) keeps production code under the strict pedantic rules.
 #![cfg_attr(test, allow(clippy::cast_possible_truncation))]
 
+pub mod archive;
+pub mod cdr;
 pub mod eocd;
 pub mod lfh;
 
