@@ -7,3 +7,4 @@ publish.workspace = true
 
 [dependencies]
 axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }

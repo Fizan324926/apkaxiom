@@ -31,6 +31,7 @@ run_target() {
   local src
   case "$tgt" in
     archive) src="$ROOT/corpus/zip/archive-valid" ;;
+    stream)  src="$ROOT/corpus/zip/archive-valid" ;;
     *)       src="$ROOT/corpus/zip/$tgt-valid" ;;
   esac
   if [ ! -d "$src" ]; then
@@ -59,11 +60,11 @@ run_target() {
   return 0
 }
 
-for tgt in lfh eocd cdr archive; do
+for tgt in lfh eocd cdr archive stream; do
   if ! run_target "$tgt"; then
     exit 1
   fi
 done
 
 echo
-echo "p16-fuzz: 4 targets × ${DURATION}s, 0 panics across all campaigns"
+echo "p16-fuzz: 5 targets × ${DURATION}s, 0 panics across all campaigns"

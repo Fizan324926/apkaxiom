@@ -152,6 +152,108 @@ impl ParseEvent {
             Self::ParseComplete { .. } => 10,
         }
     }
+
+    /// Serialise this event as a JSON-compatible line. The shape is
+    /// `{"tag": "<name>", "fields": {…}}` — stable across versions
+    /// (P1.10's Merkle-commit hooks consume this format).
+    ///
+    /// We don't use `serde` here because the project's
+    /// reindeer-vendored third-party set deliberately excludes
+    /// `serde_core` (its `build.rs` needs `CARGO_PKG_VERSION_PATCH`
+    /// which Reindeer doesn't pass — see `third-party/rust/Cargo.toml`).
+    /// `tools/unsafe-census` uses the same hand-rolled approach.
+    #[must_use]
+    pub fn to_json(&self) -> String {
+        match self {
+            Self::ZipEntryHeader {
+                file_name,
+                compression_method,
+                compressed_size,
+                uncompressed_size,
+                crc32,
+                general_flags,
+            } => format!(
+                "{{\"tag\":\"ZipEntryHeader\",\"file_name\":{},\"compression_method\":{},\"compressed_size\":{},\"uncompressed_size\":{},\"crc32\":{},\"general_flags\":{}}}",
+                json_byte_array(file_name),
+                compression_method,
+                compressed_size,
+                uncompressed_size,
+                crc32,
+                general_flags,
+            ),
+            Self::ZipEntryData { offset, bytes } => format!(
+                "{{\"tag\":\"ZipEntryData\",\"offset\":{},\"len\":{},\"bytes\":{}}}",
+                offset,
+                bytes.len(),
+                json_byte_array(bytes),
+            ),
+            Self::EocdSeen { total_entries, cd_offset, cd_size } => format!(
+                "{{\"tag\":\"EocdSeen\",\"total_entries\":{total_entries},\"cd_offset\":{cd_offset},\"cd_size\":{cd_size}}}",
+            ),
+            Self::ManifestStart => "{\"tag\":\"ManifestStart\"}".to_string(),
+            Self::ManifestField { tag, value } => format!(
+                "{{\"tag\":\"ManifestField\",\"name\":{},\"value\":{}}}",
+                json_string(tag),
+                json_string(value),
+            ),
+            Self::ManifestEnd => "{\"tag\":\"ManifestEnd\"}".to_string(),
+            Self::ResourceStart => "{\"tag\":\"ResourceStart\"}".to_string(),
+            Self::ResourceEntry { resource_id, value } => format!(
+                "{{\"tag\":\"ResourceEntry\",\"resource_id\":{},\"value\":{}}}",
+                resource_id,
+                resource_value_to_json(value),
+            ),
+            Self::ResourceEnd => "{\"tag\":\"ResourceEnd\"}".to_string(),
+            Self::ParseComplete { entries, bytes } => format!(
+                "{{\"tag\":\"ParseComplete\",\"entries\":{entries},\"bytes\":{bytes}}}",
+            ),
+        }
+    }
+}
+
+/// Serialise a byte array as a JSON array of integers. Stable across
+/// versions; the consumer can reassemble bytes from the integer
+/// sequence.
+fn json_byte_array(bs: &[u8]) -> String {
+    let mut s = String::with_capacity(bs.len() * 4 + 2);
+    s.push('[');
+    for (i, b) in bs.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(&b.to_string());
+    }
+    s.push(']');
+    s
+}
+
+/// Serialise a UTF-8 string as a JSON string literal (RFC 8259 §7).
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn resource_value_to_json(v: &ResourceValue) -> String {
+    match v {
+        ResourceValue::Int32(i) => format!("{{\"kind\":\"Int32\",\"value\":{i}}}"),
+        ResourceValue::StringRef(r) => format!("{{\"kind\":\"StringRef\",\"value\":{r}}}"),
+        ResourceValue::Bool(b) => format!("{{\"kind\":\"Bool\",\"value\":{b}}}"),
+    }
 }
 
 #[cfg(test)]

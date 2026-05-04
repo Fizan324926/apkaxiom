@@ -38,6 +38,7 @@ use std::{
     process::ExitCode,
 };
 
+use axiom_l1_rs::ApkParser;
 use axiom_zip_ref::{archive, cdr, eocd, lfh};
 
 /// Which parser entry point to fuzz.
@@ -47,7 +48,9 @@ enum Target {
     Eocd,
     Cdr,
     Archive,
-    /// All four parsers — invoke each on every input.
+    /// P1.7 streaming parser entry point.
+    Stream,
+    /// All five parsers — invoke each on every input.
     All,
 }
 
@@ -66,12 +69,30 @@ impl Target {
             Self::Archive => {
                 let _ = archive::parse_archive(bs);
             }
+            Self::Stream => {
+                fuzz_stream(bs);
+            }
             Self::All => {
                 let _ = lfh::parse_lfh(bs);
                 let _ = eocd::parse_eocd(bs);
                 let _ = cdr::parse_cdr(bs);
                 let _ = archive::parse_archive(bs);
+                fuzz_stream(bs);
             }
+        }
+    }
+}
+
+/// Drive the streaming parser to termination on `bs`. Pass condition
+/// is "no panic"; the streaming parser must terminate (return Ok(None)
+/// or Err) for every input.
+fn fuzz_stream(bs: &[u8]) {
+    let mut parser = ApkParser::from_reader(bs);
+    loop {
+        match parser.next_event() {
+            Ok(Some(_)) => continue,
+            Ok(None) => break,
+            Err(_) => break,
         }
     }
 }
@@ -91,6 +112,7 @@ fn parse_args() -> Result<(Target, Option<usize>, Option<PathBuf>), String> {
                     "eocd" => Target::Eocd,
                     "cdr" => Target::Cdr,
                     "archive" => Target::Archive,
+                    "stream" => Target::Stream,
                     "all" => Target::All,
                     other => return Err(format!("unknown target: {other}")),
                 };
@@ -113,7 +135,7 @@ fn parse_args() -> Result<(Target, Option<usize>, Option<PathBuf>), String> {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "usage: zip-fuzz [--target lfh|eocd|cdr|archive|all] \
+                    "usage: zip-fuzz [--target lfh|eocd|cdr|archive|stream|all] \
                      [--iters N] [--corpus-dir PATH]"
                 );
                 eprintln!(

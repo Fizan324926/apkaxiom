@@ -22,7 +22,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use axiom_l1_rs::{ApkParser, ParseEvent};
+use axiom_l1_rs::{ApkParser, ParseEvent, DEFAULT_CHUNK_SIZE, MAX_HEADER_PAYLOAD};
 
 /// Synthetic infinite-stream reader that returns the same archive
 /// repeated forever. Models a wire-speed feeder without needing
@@ -120,6 +120,15 @@ fn main() {
     let mut total_bytes = 0u64;
     let mut total_archives = 0u64;
     let mut total_events = 0u64;
+    // Memory-growth assertion: track the maximum buffer capacity
+    // observed across every parser instance. The streaming parser's
+    // internal buffer is fixed-size at construction, so this should
+    // be exactly `buf_capacity(DEFAULT_CHUNK_SIZE)`.
+    let mut max_buf_cap: usize = 0;
+    // Spec §9 bound: buffer never exceeds
+    //   `MAX_HEADER_PAYLOAD + DEFAULT_CHUNK_SIZE + LFH_FIXED_SIZE`
+    // (the architectural cap from `buf_capacity` in stream.rs).
+    let mem_bound = MAX_HEADER_PAYLOAD as usize + DEFAULT_CHUNK_SIZE + 64;
 
     while start.elapsed() < target {
         let reader = InfiniteArchive::new(archive.clone());
@@ -128,6 +137,14 @@ fn main() {
             match parser.next_event() {
                 Ok(Some(ev)) => {
                     total_events += 1;
+                    let cap = parser.buf_capacity();
+                    if cap > max_buf_cap {
+                        max_buf_cap = cap;
+                    }
+                    if cap > mem_bound {
+                        eprintln!("::error::soak: buffer grew to {cap} bytes (bound {mem_bound})");
+                        std::process::exit(1);
+                    }
                     if matches!(ev, ParseEvent::ParseComplete { .. }) {
                         total_bytes += archive_len as u64;
                         total_archives += 1;
@@ -152,6 +169,9 @@ fn main() {
         total_bytes,
         elapsed.as_secs_f64(),
         mbps
+    );
+    println!(
+        "soak: max buffer capacity observed: {max_buf_cap} bytes (bound {mem_bound}, spec §9: no unbounded growth)"
     );
 
     if (mbps as u64) < min_mbps {
