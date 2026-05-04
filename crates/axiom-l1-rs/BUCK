@@ -8,6 +8,8 @@ rust_library(
     edition = "2021",
     deps = [
         "//crates/axiom-l0:axiom-l0",
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:thiserror",
     ],
     visibility = ["PUBLIC"],
 )
@@ -20,5 +22,7 @@ rust_test(
     edition = "2021",
     deps = [
         "//crates/axiom-l0:axiom-l0",
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:thiserror",
     ],
 )

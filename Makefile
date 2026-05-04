@@ -274,6 +274,18 @@ p16-fuzz: ## Production fuzz: radamsa → zip-fuzz, 60s per parser target.
 p16-fuzz-afl: ## Production fuzz: AFL++ in QEMU mode, 60s per parser target.
 	bash $(ROOT)/scripts/p16-fuzz-afl.sh
 
+##@ P1.7 streaming reader
+
+.PHONY: p17-bench
+p17-bench: ## Run the streaming-vs-file parser microbench (10K iters per arm).
+	cargo run -q -p zip-stream-bench --release -- --iters 10000
+
+.PHONY: p17-soak
+p17-soak: ## Sustained-throughput soak (default 60s, gate ≥ 500 Mbps; tune via P17_DURATION/P17_MIN_MBPS).
+	cargo run -q -p zip-stream-soak --release -- \
+	  --duration-secs $(P17_DURATION:60) \
+	  --min-mbps $(P17_MIN_MBPS:500)
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info
