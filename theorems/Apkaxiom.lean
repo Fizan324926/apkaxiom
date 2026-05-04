@@ -12,3 +12,4 @@ import Apkaxiom.Zip.Eocd.Properties
 import Apkaxiom.Zip.CentralDirectory
 import Apkaxiom.Zip.CentralDirectory.Properties
 import Apkaxiom.Zip.Consistency
+import Apkaxiom.Zip.Consistency.EncoderProperties

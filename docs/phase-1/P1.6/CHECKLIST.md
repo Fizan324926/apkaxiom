@@ -217,17 +217,18 @@ the merge commit is the audit trail.
 
 ```
 ✅ approved by project-lead (G1) — fizan ali — 2026-05-04 —
-   diff-gate 2860/2860 — Lean LOC 2856 — test count 60/60 —
-   in-tree fuzz 30K iters + radamsa 185K iters + AFL++ 174K execs
-   (1689 paths) across 4 parsers — no panics, no crashes —
-   three-way prong: AOSP libziparchive @ 81b42fe9 (tree-sha
-   60242efeb0b8…) — BadPack-class 110/110 reproduce (eight families
-   incl. field-mismatch + DD-violation + eocd-too-far + cd-after-eocd
-   + invalid-entry-name) — zero `partial def` in ZIP layer — DD flag
-   (APPNOTE.TXT §4.4.4) honoured — AOSP runtime-parity validations
-   (kMaxEOCDSearch + cd-before-eocd + IsValidEntryName) integrated —
-   universal bv-decided round-trip on UInt16/UInt32 + three concrete
-   archive round-trips
+   diff-gate 2860/2860 — Lean LOC 2856+ (incl. EncoderProperties)
+   — test count 63/63 — in-tree fuzz 30K iters + radamsa 185K iters
+   + AFL++ 174K execs (1689 paths) across 4 parsers — no panics, no
+   crashes — three-way struct-level prong: AOSP libziparchive
+   @ 81b42fe9 — full-runtime prong: AOSP `zip_archive.cc` linked via
+   `tools/zip-aosp-runtime-probe`, leniency report at
+   `docs/phase-1/P1.6/aosp-runtime-leniency.txt` — BadPack-class
+   110/110 reproduce (eight families) — zero `partial def` in ZIP
+   layer — DD flag honoured — AOSP runtime-parity validations
+   integrated — universal bv-decided round-trip on UInt16/UInt32 +
+   universal `encodeLfh_size` / `encodeCdr_size` / `encodeEocd_size`
+   theorems + 8 concrete archive round-trips
 ```
 
 The DCO trailer on the merge commit is the audit trail.
@@ -240,8 +241,8 @@ The DCO trailer on the merge commit is the audit trail.
 |---|---|---|
 | ZIP64 / multi-volume CDRs | 🧊 (out of scope) | Per ADR-0017 (P1.5). APKs are 100% single-volume. |
 | Compressed-data integrity (deflate) | 🧊 (out of scope) | Per spec §2 — deterministic Rust path, no formalization. |
-| Generic completeness (∀ well-formed `a`. round-trip) | Phase 2 hardening | The bit-level encoder/decoder identity is proven *universally* for all `UInt16` / `UInt32` (`encodeU16_decode_id` / `encodeU32_decode_id` via `bv_decide`); the archive-level round-trip is proven *concretely* for `minimalArchive` / `helloArchive` / `ddArchive` via `native_decide`. The fully-quantified ∀-archive theorem requires ~20 supporting byte-layout lemmas; tractable but bulky, not load-bearing for Phase 1. |
-| AOSP libziparchive *runtime full link* (zip_archive.cc + libbase + liblog) | P1.13 / P1.18 | Linking the actual AOSP runtime requires vendoring `libbase` / `liblog` (~70 source files) and accepting AOSP's tolerant-parsing quirks. The §I closure round added the *behavioral* runtime-parity checks (`kMaxEOCDSearch`, `cd_offset + cd_size <= eocd_offset`, `IsValidEntryName`) directly into the probe + Lean + Rust; the remaining gap is the actual source-link, not the validation logic. |
+| Per-record byte-content positional `parseLfh ∘ encodeLfh = .ok` | Phase 2 hardening | The bit-level encoder/decoder identity is proven *universally* for all `UInt16` / `UInt32` (`encodeU16_decode_id` / `encodeU32_decode_id` via `bv_decide`); the structural size invariant (∀ lfh, `(encodeLfh lfh).size = 30 + name + extra`) is proven *universally* in `Apkaxiom.Zip.Consistency.EncoderProperties`; the archive-level round-trip is proven *concretely* on **8 witness archives** covering minimal / hello / DD / multibyte / extra-field / file-comment / EOCD-comment / two-entry shapes via `native_decide`. The remaining gap to a fully-quantified per-record ∀ theorem is the byte-content positional chain (`ByteArray.get!_append_left` / `Array.get!_toArray` / `List.get!_eq_get?`) which is mechanical Lean-stdlib work. |
+| AOSP libziparchive *runtime full link* (zip_archive.cc) | ✅ closed in §I round 2 (commit on `p1.6/completeness-and-runtime`) | `tools/zip-aosp-runtime-probe` links the actual AOSP `zip_archive.cc` + `zip_archive_stream_entry.cc` + `zip_cd_entry_map.cc` + `zip_error.cpp` against header-only `libbase` / `liblog` shims; calls `OpenArchiveFromMemory` on stdin bytes. `make p16-aosp-runtime-report` produces `docs/phase-1/P1.6/aosp-runtime-leniency.txt` documenting the strict-vs-runtime delta (the security-relevant rows where APKAXIOM rejects but AOSP accepts — this is *expected*: AOSP is intentionally lenient, our cross-record validation is intentionally stricter). |
 
 ## J. Operator one-shots
 

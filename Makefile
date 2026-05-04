@@ -222,6 +222,27 @@ p15-aosp-probe: ## Compile the C++ third-prong AOSP probe (header-only against v
 	  -o $(ROOT)/target/zip-aosp-probe \
 	  $(ROOT)/tools/zip-aosp-probe/src/zip-aosp-probe.cpp
 
+.PHONY: p16-aosp-runtime-probe
+p16-aosp-runtime-probe: ## Compile the C++ runtime probe linking AOSP zip_archive.cc end-to-end.
+	@mkdir -p $(ROOT)/target
+	g++ -std=c++20 -O2 -Wno-class-memaccess -Wno-unused-parameter \
+	  -DZLIB_CONST -D_LARGEFILE64_SOURCE -include sys/stat.h \
+	  -I$(ROOT)/external/libziparchive/include \
+	  -I$(ROOT)/external/libziparchive \
+	  -I$(ROOT)/tools/zip-aosp-runtime-probe/include \
+	  -I$(ROOT) \
+	  -o $(ROOT)/target/zip-aosp-runtime-probe \
+	  $(ROOT)/tools/zip-aosp-runtime-probe/src/zip-aosp-runtime-probe.cpp \
+	  $(ROOT)/external/libziparchive/zip_archive.cc \
+	  $(ROOT)/external/libziparchive/zip_archive_stream_entry.cc \
+	  $(ROOT)/external/libziparchive/zip_cd_entry_map.cc \
+	  $(ROOT)/external/libziparchive/zip_error.cpp \
+	  -lz
+
+.PHONY: p16-aosp-runtime-report
+p16-aosp-runtime-report: p16-aosp-runtime-probe ## Run the AOSP runtime probe across the corpus and report leniency.
+	bash $(ROOT)/scripts/p16-aosp-runtime-report.sh
+
 .PHONY: p15-differential-3way
 p15-differential-3way: p15-aosp-probe ## Three-way Lean ↔ Rust ↔ AOSP-probe differential.
 	cargo build -q -p zip-differential --release
