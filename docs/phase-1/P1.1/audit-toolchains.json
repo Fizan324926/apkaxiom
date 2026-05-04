@@ -74,6 +74,8 @@
     "root//crates/axiom-l0:axiom-l0-test",
     "root//crates/axiom-l1-rs:axiom-l1-rs",
     "root//crates/axiom-l1-rs:axiom-l1-rs-test",
+    "root//crates/axiom-zip-ref:axiom-zip-ref",
+    "root//crates/axiom-zip-ref:axiom-zip-ref-test",
     "root//theorems:hello",
     "root//theorems:lean-build-driver",
     "root//third-party/rust:_thiserror-impl-1",
@@ -105,6 +107,8 @@
     "root//tools/lean-to-rust:lean-to-rust",
     "root//tools/lean-to-rust:lean-to-rust-test",
     "root//tools/translation-validator:translation-validator",
-    "root//tools/unsafe-census:unsafe-census"
+    "root//tools/unsafe-census:unsafe-census",
+    "root//tools/zip-corpus-gen:zip-corpus-gen",
+    "root//tools/zip-differential:zip-differential"
   ]
 }

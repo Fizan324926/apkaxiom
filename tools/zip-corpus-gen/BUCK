@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.5 — deterministic ZIP corpus generator. Produces 1800 samples
+# under corpus/zip/ (1000 valid LFH + 500 adversarial LFH + 100 valid
+# EOCD + 200 adversarial EOCD).
+
+rust_binary(
+    name = "zip-corpus-gen",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zip_corpus_gen",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

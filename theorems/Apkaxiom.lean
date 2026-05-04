@@ -4,3 +4,5 @@
 import Apkaxiom.Hello
 import Apkaxiom.Ir
 import Apkaxiom.MathlibProbe
+import Apkaxiom.Zip.LocalHeader
+import Apkaxiom.Zip.Eocd

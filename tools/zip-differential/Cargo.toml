@@ -1,0 +1,21 @@
+[package]
+name = "zip-differential"
+description = "P1.5 — Lean ↔ Rust differential harness on the ZIP corpus. For every sample under corpus/zip/, runs (a) axiom-zip-ref's parser, (b) a Lean driver that invokes parseLfh/parseEocd via `lake env lean --run`, and asserts (verdict, error_tag) agreement. Required: 100% on all 1800 samples."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "zip-differential"
+path = "src/main.rs"
+
+[dependencies]
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
