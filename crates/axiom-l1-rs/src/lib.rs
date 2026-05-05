@@ -25,12 +25,15 @@
 )]
 
 pub mod apk;
+pub mod apk_async;
+pub mod apk_data;
 pub mod event;
 pub mod state;
 pub mod stream;
 pub mod stream_async;
 
 pub use apk::{Apk, ApkError, EntryMeta, Manifest, Resources, SignatureBlock};
+pub use apk_async::ApkAsync;
 pub use event::{ParseEvent, ResourceValue};
 pub use state::{FullyParsed, SigVariant, SignatureVerified, Unverified, V2, V3, V4};
 pub use stream::{ApkParser, StreamError, DEFAULT_CHUNK_SIZE, MAX_HEADER_PAYLOAD};

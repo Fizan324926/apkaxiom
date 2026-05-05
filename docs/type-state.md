@@ -1,9 +1,15 @@
 # Type-State Phantom Mapping (Rust ↔ Lean)
 
-> P1.8 deliverable. The `Apk<S>` phantom universe maps 1-to-1 to the
-> Lean inductive that P1.9's translation-validation pass will
-> reflect. Adding a new state on either side without updating the
-> other breaks P1.9's build.
+> P1.8 deliverable. The `Apk<S>` (sync) and `ApkAsync<S>` (async)
+> phantom universes map 1-to-1 to the Lean inductive that P1.9's
+> translation-validation pass will reflect. Adding a new state on
+> either side without updating the other breaks P1.9's build.
+>
+> P1.8 §I revision (2026-05-05): the Rust side now carries a
+> per-state `Data` payload via the `ApkState::Data` associated
+> type. The Lean side will mirror this via constructor-indexed
+> records when P1.9 reflects the inductive — see "Per-state
+> payload" below.
 
 The Rust side is `crates/axiom-l1-rs/src/state.rs`. The Lean side
 will live in `lean/Axiom/L1/State.lean` (P1.9 owns the file). This
@@ -107,6 +113,49 @@ type system can't reject, since both `parse_v2` and `parse_v3` are
 in scope on `Apk<SignatureVerified>` — the runtime guard covers it).
 
 ---
+
+## Per-state payload (`ApkState::Data`)
+
+P1.8's §I revision moves runtime fields out of a one-size-fits-all
+`ApkInner` and into per-state `S::Data` payloads. Each state
+carries only the fields that *change* with the state; the
+structural entry table lives on the outer `Apk<S>` struct shared
+across every state.
+
+| State | `S::Data` | Fields |
+|---|---|---|
+| `Unverified` | `UnverifiedData` | `captured: CapturedBodies` (3× `Option<Vec<u8>>` for META-INF carrier, AndroidManifest.xml, resources.arsc bytes captured during streaming) |
+| `SignatureVerified` | `SignatureVerifiedData` | `manifest_bytes: Option<Vec<u8>>`, `resources_bytes: Option<Vec<u8>>`, `signature_block: SignatureBlock` |
+| `FullyParsed<V>` | `FullyParsedData` | `signature_block: SignatureBlock`, `manifest: Manifest`, `resources: Resources` |
+
+Lean side (target shape, P1.9 will reflect):
+
+```lean
+namespace Axiom.L1.State
+
+structure CapturedBodies where
+  signing_block : Option ByteArray
+  manifest      : Option ByteArray
+  resources     : Option ByteArray
+
+structure UnverifiedData where
+  captured : CapturedBodies
+
+structure SignatureVerifiedData where
+  manifest_bytes  : Option ByteArray
+  resources_bytes : Option ByteArray
+  sig_block       : SignatureBlock
+
+structure FullyParsedData where
+  sig_block : SignatureBlock
+  manifest  : Manifest
+  resources : Resources
+
+end Axiom.L1.State
+```
+
+P1.9's TV pass will additionally check that each Rust struct's
+field set matches the Lean structure's field set.
 
 ## Translation-validation contract (for P1.9)
 
