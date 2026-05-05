@@ -24,9 +24,14 @@ name = "axiom-l0"
 version = "0.0.0"
 
 [[package]]
+name = "axiom-l0-zip-lfh-extracted"
+version = "0.0.0"
+
+[[package]]
 name = "axiom-l0-zip-lfh-verified"
 version = "0.0.0"
 dependencies = [
+ "axiom-l0-zip-lfh-extracted",
  "axiom-zip-ref",
 ]
 
@@ -45,6 +50,13 @@ name = "axiom-zip-ref"
 version = "0.0.0"
 dependencies = [
  "thiserror",
+]
+
+[[package]]
+name = "eocd-eval-rust"
+version = "0.0.0"
+dependencies = [
+ "axiom-zip-ref",
 ]
 
 [[package]]
@@ -68,6 +80,13 @@ name = "lean-to-rust"
 version = "0.0.0"
 dependencies = [
  "thiserror",
+]
+
+[[package]]
+name = "lfh-eval-extracted"
+version = "0.0.0"
+dependencies = [
+ "axiom-l0-zip-lfh-extracted",
 ]
 
 [[package]]

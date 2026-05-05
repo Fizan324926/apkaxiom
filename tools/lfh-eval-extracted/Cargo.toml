@@ -1,0 +1,17 @@
+[package]
+name = "lfh-eval-extracted"
+description = "P1.9 §IV — Rust LFH evaluator using the *extracted* parser (`axiom-l0-zip-lfh-extracted::parse_lfh`, auto-generated from theorems/Apkaxiom/Zip/LocalHeader.lean by tools/lean-to-rust). Mirrors `tools/lfh-eval-rust` but exercises the auto-extracted code path so the translation-validator can compare three arms (Lean ↔ extracted-Rust ↔ hand-Rust) against the same corpus."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axiom-l0-zip-lfh-extracted = { path = "../../crates/axiom-l0-zip-lfh-extracted" }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "lfh-eval-extracted"
+path = "src/main.rs"

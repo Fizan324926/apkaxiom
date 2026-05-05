@@ -1,0 +1,16 @@
+[package]
+name = "axiom-l0-zip-lfh-extracted"
+description = "P1.9 §IV — auto-generated Rust extraction of theorems/Apkaxiom/Zip/LocalHeader.lean. Produced by tools/lean-to-rust. The source Lean and the extracted Rust agree byte-for-byte on the 1499-input TV corpus (see docs/phase-1/P1.9/tv-receipt-lfh-three-way.txt)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

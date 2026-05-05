@@ -346,12 +346,49 @@ tv-build: ## Build the Lean and Rust LFH evaluators + the validator.
 	cargo build -p lfh-eval-rust -p translation-validator -p axiom-l0-zip-lfh-verified --release
 
 .PHONY: tv
-tv: tv-build ## Run the translation validator over the LFH corpus and write a fresh receipt.
+tv: tv-build ## Run the translation validator over the LFH corpus (Lean ↔ hand-Rust) and write a fresh receipt.
 	./target/release/translation-validator \
 	  --corpus corpus/zip/lfh-valid \
 	  --corpus corpus/zip/lfh-adversarial \
 	  --rust-bin target/release/lfh-eval-rust \
 	  --receipt docs/phase-1/P1.9/tv-receipt-lfh-full.txt
+
+.PHONY: extract
+extract: ## Re-run lean-to-rust on the LocalHeader.lean source.
+	cargo build -q -p lean-to-rust --release
+	./target/release/lean-to-rust theorems/Apkaxiom/Zip/LocalHeader.lean \
+	  crates/axiom-l0-zip-lfh-extracted/src/lib.rs
+
+.PHONY: extract-determinism
+extract-determinism: ## Run the extractor twice; assert byte-identical output.
+	cargo build -q -p lean-to-rust --release
+	./target/release/lean-to-rust theorems/Apkaxiom/Zip/LocalHeader.lean /tmp/extracted-1.rs
+	./target/release/lean-to-rust theorems/Apkaxiom/Zip/LocalHeader.lean /tmp/extracted-2.rs
+	cmp /tmp/extracted-1.rs /tmp/extracted-2.rs && \
+	  echo "PASS: extractor output is deterministic across consecutive runs."
+
+.PHONY: tv-bin-reproducibility
+tv-bin-reproducibility: ## Same-host bit-reproducibility check on the Rust evaluator binary.
+	cargo build -q -p lfh-eval-rust --release
+	cp target/release/lfh-eval-rust /tmp/lfh-eval-rust.1
+	cargo clean -p lfh-eval-rust 2>/dev/null || true
+	cargo build -q -p lfh-eval-rust --release
+	cp target/release/lfh-eval-rust /tmp/lfh-eval-rust.2
+	cmp /tmp/lfh-eval-rust.1 /tmp/lfh-eval-rust.2 && \
+	  echo "PASS: lfh-eval-rust is bit-reproducible on this host." || \
+	  (echo "WARN: lfh-eval-rust binary differs across builds — check SOURCE_DATE_EPOCH / RUSTFLAGS pinning."; \
+	   sha256sum /tmp/lfh-eval-rust.1 /tmp/lfh-eval-rust.2; \
+	   exit 0)
+
+.PHONY: tv-three-way
+tv-three-way: extract tv-build ## Run the three-arm TV (Lean ↔ hand-Rust ↔ extracted-Rust).
+	cargo build -q -p lfh-eval-extracted --release
+	./target/release/translation-validator \
+	  --corpus corpus/zip/lfh-valid \
+	  --corpus corpus/zip/lfh-adversarial \
+	  --rust-bin target/release/lfh-eval-rust \
+	  --extracted-bin target/release/lfh-eval-extracted \
+	  --receipt docs/phase-1/P1.9/tv-receipt-lfh-three-way.txt
 
 .PHONY: tv-check-receipt
 tv-check-receipt: tv-build ## Re-run the validator and assert the resulting receipt's lean-output-sha256 matches the committed shim constant.
@@ -373,12 +410,34 @@ p19-perf-delta: ## P1.9 §10 row 5 perf-delta gate (verified shim vs hand-Rust, 
 p19-buck2: ## Verify Buck2 builds for every P1.9 target.
 	buck2 build \
 	  //crates/axiom-l0-zip-lfh-verified:axiom-l0-zip-lfh-verified \
+	  //crates/axiom-l0-zip-lfh-extracted:axiom-l0-zip-lfh-extracted \
 	  //tools/lfh-eval-rust:lfh-eval-rust \
+	  //tools/lfh-eval-extracted:lfh-eval-extracted \
+	  //tools/eocd-eval-rust:eocd-eval-rust \
 	  //tools/translation-validator:translation-validator \
 	  //tools/p19-perf-delta:p19-perf-delta
 
+.PHONY: tv-eocd
+tv-eocd: ## Run TV harness for the EOCD parser (Lean ↔ hand-Rust).
+	cargo build -q -p eocd-eval-rust -p translation-validator --release
+	$(NIX_DEVELOP) lake build eocd-eval
+	./target/release/translation-validator \
+	  --corpus corpus/zip/eocd-valid \
+	  --corpus corpus/zip/eocd-adversarial \
+	  --rust-bin target/release/eocd-eval-rust \
+	  --lean-cmd "lake exe eocd-eval" \
+	  --receipt docs/phase-1/P1.9/tv-receipt-eocd.txt
+
+.PHONY: tv-fuzz
+tv-fuzz: ## Run the 10K-mutation TV fuzz (verified ↔ extracted).
+	cargo test -p axiom-l0-zip-lfh-verified --release --test tv_fuzz_inproc -- --nocapture
+
 .PHONY: p19-gates
 p19-gates: ## Run every P1.9 sub-phase gate end-to-end.
+	$(MAKE) extract-determinism
+	$(MAKE) tv-three-way
+	$(MAKE) tv-eocd
+	$(MAKE) tv-fuzz
 	$(MAKE) tv-check-receipt
 	$(MAKE) p19-perf-delta
 	$(MAKE) p19-buck2

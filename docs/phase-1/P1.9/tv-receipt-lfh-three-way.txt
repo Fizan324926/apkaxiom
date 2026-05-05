@@ -3,7 +3,8 @@ corpus-sha256: fa798ee50d4e1d9df024e51aa7246631c8dccf72cd3221c04d8c18e86b7e8b84
 corpus-size: 1500 (non-empty: 1499, skipped: 1)
 lean-output-sha256: 6af3e60fa9c1e03f21aec8d8c106db1567e421a1ecf956136c5f0e7a20b6763d
 rust-output-sha256: 6af3e60fa9c1e03f21aec8d8c106db1567e421a1ecf956136c5f0e7a20b6763d
-agree: 1499/1499 (lean ↔ rust)
+extracted-output-sha256: 6af3e60fa9c1e03f21aec8d8c106db1567e421a1ecf956136c5f0e7a20b6763d
+agree: 1499/1499 (lean ↔ rust ↔ extracted)
 lean-toolchain: Lean (version 4.29.1, commit v4.29.1, Release)
 rust-toolchain: rustc 1.83.0 (90b35a623 2024-11-26)
 lake-manifest-sha256: 5fbd87d07f7154e633de6ac4f75db1901ec6d7d8564cd4e0fb46e7b4e6716a32

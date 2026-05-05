@@ -33,3 +33,11 @@ defaultFacets = ["leanArts"]
 name = "lfh-eval"
 root = "Apkaxiom.Tv.LfhEval"
 supportInterpreter = true
+
+# P1.9 §IV — EOCD evaluator binary used by the translation-validator.
+# Reads hex-encoded EOCD inputs on stdin, runs `parseEocd` on each,
+# emits one stable JSON-line per input on stdout.
+[[lean_exe]]
+name = "eocd-eval"
+root = "Apkaxiom.Tv.EocdEval"
+supportInterpreter = true

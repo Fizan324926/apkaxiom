@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/axiom-l0",
+    "crates/axiom-l0-zip-lfh-extracted",
     "crates/axiom-l0-zip-lfh-verified",
     "crates/axiom-l1-rs",
     "crates/axiom-ir",
@@ -19,6 +20,8 @@ members = [
     "tools/zip-stream-soak",
     "tools/p17-bench-1k",
     "tools/p18-perf-delta",
+    "tools/eocd-eval-rust",
+    "tools/lfh-eval-extracted",
     "tools/lfh-eval-rust",
     "tools/p19-perf-delta",
 ]
