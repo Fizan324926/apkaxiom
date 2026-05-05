@@ -1,0 +1,16 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.9 §10 row 5 perf-delta gate.
+
+rust_binary(
+    name = "p19-perf-delta",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p19_perf_delta",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//crates/axiom-l0-zip-lfh-verified:axiom-l0-zip-lfh-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

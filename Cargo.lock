@@ -24,6 +24,13 @@ name = "axiom-l0"
 version = "0.0.0"
 
 [[package]]
+name = "axiom-l0-zip-lfh-verified"
+version = "0.0.0"
+dependencies = [
+ "axiom-zip-ref",
+]
+
+[[package]]
 name = "axiom-l1-rs"
 version = "0.0.0"
 dependencies = [
@@ -64,6 +71,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lfh-eval-rust"
+version = "0.0.0"
+dependencies = [
+ "axiom-zip-ref",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -85,6 +99,14 @@ name = "p18-perf-delta"
 version = "0.0.0"
 dependencies = [
  "axiom-l1-rs",
+ "axiom-zip-ref",
+]
+
+[[package]]
+name = "p19-perf-delta"
+version = "0.0.0"
+dependencies = [
+ "axiom-l0-zip-lfh-verified",
  "axiom-zip-ref",
 ]
 
@@ -150,7 +172,6 @@ dependencies = [
 name = "translation-validator"
 version = "0.0.0"
 dependencies = [
- "axiom-extract-hello",
  "thiserror",
 ]
 

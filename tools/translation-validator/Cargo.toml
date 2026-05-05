@@ -1,6 +1,6 @@
 [package]
 name = "translation-validator"
-description = "P1.2 translation-validator skeleton — runs Lean's `#eval` and the extracted Rust function on a fixed input set, asserts equality. Real semantic equivalence proofs land in P1.9."
+description = "P1.9 translation-validator. Runs the Lean `lfh-eval` binary and the Rust `lfh-eval-rust` binary over the LFH corpus, asserts byte-identical JSON output line-for-line. Fail-closed CI gate."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,7 +15,6 @@ path = "src/main.rs"
 
 [dependencies]
 thiserror = { workspace = true }
-axiom-extract-hello = { path = "../../crates/axiom-extract-hello" }
 
 [lints]
 workspace = true

@@ -1,0 +1,87 @@
+# p19-perf-delta — P1.9 §10 row 5 perf-delta gate
+# host: Linux cobra 6.8.0-110-generic #110-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 19 15:09:20 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+# date: 2026-05-05T21:29:56+00:00
+# commit-base: 07e443675909aa628c42ecdae410da10a8cec2a4
+p19-perf-delta: 20 runs × 200000 iters, fixture 76 bytes; gate ≤ 5.0 %
+--- run 1/20 ---
+  arm A hand-rust           :    27.4 ns/iter
+  arm B verified-shim       :    27.3 ns/iter
+  Δ(B vs A): -0.60 %
+--- run 2/20 ---
+  arm A hand-rust           :    27.4 ns/iter
+  arm B verified-shim       :    27.4 ns/iter
+  Δ(B vs A): -0.22 %
+--- run 3/20 ---
+  arm A hand-rust           :    28.1 ns/iter
+  arm B verified-shim       :    28.7 ns/iter
+  Δ(B vs A): +2.25 %
+--- run 4/20 ---
+  arm A hand-rust           :    27.9 ns/iter
+  arm B verified-shim       :    28.1 ns/iter
+  Δ(B vs A): +0.72 %
+--- run 5/20 ---
+  arm A hand-rust           :    27.7 ns/iter
+  arm B verified-shim       :    27.6 ns/iter
+  Δ(B vs A): -0.25 %
+--- run 6/20 ---
+  arm A hand-rust           :    27.4 ns/iter
+  arm B verified-shim       :    28.8 ns/iter
+  Δ(B vs A): +4.94 %
+--- run 7/20 ---
+  arm A hand-rust           :    28.0 ns/iter
+  arm B verified-shim       :    28.1 ns/iter
+  Δ(B vs A): +0.37 %
+--- run 8/20 ---
+  arm A hand-rust           :    27.9 ns/iter
+  arm B verified-shim       :    27.8 ns/iter
+  Δ(B vs A): -0.62 %
+--- run 9/20 ---
+  arm A hand-rust           :    27.6 ns/iter
+  arm B verified-shim       :    29.2 ns/iter
+  Δ(B vs A): +5.61 %
+--- run 10/20 ---
+  arm A hand-rust           :    28.2 ns/iter
+  arm B verified-shim       :    28.1 ns/iter
+  Δ(B vs A): -0.50 %
+--- run 11/20 ---
+  arm A hand-rust           :    27.8 ns/iter
+  arm B verified-shim       :    28.1 ns/iter
+  Δ(B vs A): +1.03 %
+--- run 12/20 ---
+  arm A hand-rust           :    27.4 ns/iter
+  arm B verified-shim       :    29.2 ns/iter
+  Δ(B vs A): +6.35 %
+--- run 13/20 ---
+  arm A hand-rust           :    27.5 ns/iter
+  arm B verified-shim       :    27.5 ns/iter
+  Δ(B vs A): -0.07 %
+--- run 14/20 ---
+  arm A hand-rust           :    27.2 ns/iter
+  arm B verified-shim       :    28.1 ns/iter
+  Δ(B vs A): +3.25 %
+--- run 15/20 ---
+  arm A hand-rust           :    28.5 ns/iter
+  arm B verified-shim       :    28.8 ns/iter
+  Δ(B vs A): +1.10 %
+--- run 16/20 ---
+  arm A hand-rust           :    28.0 ns/iter
+  arm B verified-shim       :    28.7 ns/iter
+  Δ(B vs A): +2.49 %
+--- run 17/20 ---
+  arm A hand-rust           :    35.4 ns/iter
+  arm B verified-shim       :    27.8 ns/iter
+  Δ(B vs A): -21.53 %
+--- run 18/20 ---
+  arm A hand-rust           :    27.5 ns/iter
+  arm B verified-shim       :    29.3 ns/iter
+  Δ(B vs A): +6.37 %
+--- run 19/20 ---
+  arm A hand-rust           :    27.9 ns/iter
+  arm B verified-shim       :    27.7 ns/iter
+  Δ(B vs A): -0.44 %
+--- run 20/20 ---
+  arm A hand-rust           :    27.9 ns/iter
+  arm B verified-shim       :    27.4 ns/iter
+  Δ(B vs A): -1.95 %
+
+summary: mean Δ = +0.42 % (σ 5.60 %, n=20, gate ≤ 5.0 % or |Δ|≤2σ)  PASS

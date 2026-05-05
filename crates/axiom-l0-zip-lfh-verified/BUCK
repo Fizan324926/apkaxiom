@@ -1,0 +1,28 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.9 — translation-validated re-export of axiom_zip_ref::lfh.
+# The TV receipt at docs/phase-1/P1.9/tv-receipt-lfh-full.txt is the
+# Lean ↔ Rust correspondence proof.
+
+rust_library(
+    name = "axiom-l0-zip-lfh-verified",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_l0_zip_lfh_verified",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-l0-zip-lfh-verified-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_l0_zip_lfh_verified",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+    ],
+)

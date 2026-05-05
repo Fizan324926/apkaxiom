@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.9 LFH evaluator (Rust side). Mirrors the Lean evaluator at
+# theorems/Apkaxiom/Tv/LfhEval.lean — reads `<hex-blob>\n` lines on
+# stdin, runs `axiom_zip_ref::lfh::parse_lfh`, emits one stable-shape
+# JSON-line per input on stdout.
+
+rust_binary(
+    name = "lfh-eval-rust",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lfh_eval_rust",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+    ],
+    visibility = ["PUBLIC"],
+)

@@ -25,3 +25,11 @@ version = "git#v4.29.1"
 [[lean_lib]]
 name = "Apkaxiom"
 defaultFacets = ["leanArts"]
+
+# P1.9 — LFH evaluator binary used by the translation-validator.
+# Reads hex-encoded LFH inputs on stdin, runs `parseLfh` on each,
+# emits one JSON-line per input on stdout.
+[[lean_exe]]
+name = "lfh-eval"
+root = "Apkaxiom.Tv.LfhEval"
+supportInterpreter = true

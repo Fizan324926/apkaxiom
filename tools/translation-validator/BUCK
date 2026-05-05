@@ -1,7 +1,8 @@
 # Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 #
-# P1.2 translation-validator skeleton — operational equivalence checker.
-# Real semantic-equivalence proofs replace this in P1.9.
+# P1.9 translation-validator — runs the Lean LFH evaluator and the
+# Rust LFH evaluator on the LFH corpus, asserts byte-identical
+# JSON output line-for-line, fail-closed.
 
 rust_binary(
     name = "translation-validator",
@@ -11,7 +12,6 @@ rust_binary(
     edition = "2021",
     deps = [
         "//third-party/rust:thiserror",
-        "//crates/axiom-extract-hello:axiom-extract-hello",
     ],
     visibility = ["PUBLIC"],
 )
