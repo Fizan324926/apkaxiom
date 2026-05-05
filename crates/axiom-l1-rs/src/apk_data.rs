@@ -17,12 +17,13 @@
 //!     direct field accesses (statically infallible — the field
 //!     simply doesn't exist on a state that wouldn't have it).
 
-// SigVariant import dropped — the per-variant APK Signing Block ID
-// constants (AOSP V2_BLOCK_ID = 0x7109_871a, V3 = 0xf057_41b3) are
-// not yet load-bearing here; P1.10's real verifier will read them
-// once it parses the block. Keeping them as live `pub(crate)`
-// constants invites drift, so we defer until they are actually
-// consumed.
+// The per-variant APK Signing Block ID constants (AOSP
+// V2_BLOCK_ID = 0x7109_871a, V3 = 0xf057_41b3) are not yet
+// load-bearing — P1.10's real verifier will read them once it
+// parses the block. Keeping them as live `pub(crate)` constants
+// invites drift, so we defer until they are consumed.
+
+use crate::apk::ApkError;
 
 /// Lightweight per-entry metadata exposed by every state.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,28 +67,76 @@ pub struct Resources {
     pub arsc_bytes: Vec<u8>,
 }
 
-/// Bytes that make up the verified APK Signing Block.
+/// JAR-style v1 signature carrier — the inflated bytes of a
+/// `META-INF/<key>.RSA` (or `.DSA` / `.EC`) entry. The carrier
+/// holds a PKCS#7 SignedData blob that lists the algorithm,
+/// digest list, and certificate chain that signed the APK
+/// pre-v2.
 ///
-/// A real APK Signing Block (APPNOTE-extension §APK Signing Block
-/// v2/v3) has the on-disk shape:
-///
-/// ```text
-///   u64 size_of_block
-///   ID-value pairs (signature scheme records)
-///   u64 size_of_block (repeated for backward compatibility)
-///   "APK Sig Block 42"   (16-byte magic, ASCII)
-/// ```
-///
-/// P1.8 verifies the trailer magic + variant-marker ID-value pair;
-/// the structured certificate-chain breakdown lands in P1.10
-/// alongside the actual cryptographic verifier.
+/// **Not the APK Signing Block.** A real APK Signing Block
+/// (Android 7.0+, the v2/v3/v4 schemes) lives in a separate
+/// on-disk region between the last LFH and the central
+/// directory, with a 16-byte trailer magic `"APK Sig Block 42"`
+/// and ID-value-pair records keyed by `0x7109_871a` (v2),
+/// `0xf057_4322` (v3), or `0x4239_4b41` (v4). P1.8 does not yet
+/// parse that block — the wrapper today *probes* the JAR carrier
+/// (DER tag) and *stamps* the requested variant tag from the
+/// caller. The `Jarv1Carrier::block_bytes` is the v1 SignedData
+/// blob; `ApkSigBlock::block_bytes` is the v2/v3/v4 region (left
+/// `None` until P1.10 wires the parser).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Jarv1Carrier {
+    /// Inflated PKCS#7 SignedData bytes (start with `0x30` ASN.1
+    /// SEQUENCE tag, verified at construction).
+    pub block_bytes: Vec<u8>,
+}
+
+/// APK Signing Block (v2/v3/v4) — the on-disk region between the
+/// last LFH and the central directory. P1.8 leaves `block_bytes`
+/// as `None` because the parser for this region is owned by P1.10
+/// (alongside the cryptographic verifier). The variant tag is
+/// already stamped by `verify_v*` so consumers can read it; the
+/// raw bytes will follow when P1.10 lands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApkSigBlock {
+    /// Raw bytes of the APK Signing Block region. `None` in P1.8;
+    /// `Some(_)` in P1.10+.
+    pub block_bytes: Option<Vec<u8>>,
+}
+
+/// Verified signing material — the union of what a `verify_v*`
+/// transition produces. P1.8's placeholder verifier produces only
+/// the `jar_v1_carrier` half; P1.10's real verifier will populate
+/// `apk_sig_block.block_bytes` and validate certificate chains.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureBlock {
-    /// Variant tag (matches `SigVariant::TAG`).
+    /// Variant tag (matches `SigVariant::TAG`). Stamped by the
+    /// `verify_v*` transition that produced this struct.
     pub variant_tag: u8,
-    /// Raw signing-block bytes (everything between the LFH and
-    /// the central directory's tail-pointer to the EOCD).
-    pub block_bytes: Vec<u8>,
+    /// JAR-style v1 SignedData carrier (always present in P1.8 —
+    /// the placeholder verifier requires a META-INF/<key>.RSA
+    /// entry).
+    pub jar_v1_carrier: Jarv1Carrier,
+    /// APK Signing Block v2/v3/v4 region. P1.8: always
+    /// `block_bytes: None`. P1.10: will be `Some(_)` when the
+    /// real verifier lands.
+    pub apk_sig_block: ApkSigBlock,
+}
+
+impl SignatureBlock {
+    /// Compatibility shim — until P1.10 lands the APK Signing
+    /// Block parser, downstream consumers (Merkle hooks,
+    /// translation validation) read the v1 carrier bytes via the
+    /// same accessor that will read the v2 block. Returns the v2
+    /// block bytes if present, else falls back to the v1 carrier
+    /// bytes.
+    #[must_use]
+    pub fn block_bytes(&self) -> &[u8] {
+        self.apk_sig_block
+            .block_bytes
+            .as_deref()
+            .unwrap_or(&self.jar_v1_carrier.block_bytes)
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -95,15 +144,18 @@ pub struct SignatureBlock {
 // ---------------------------------------------------------------------
 
 /// Raw bodies captured during streaming for downstream verify /
-/// parse to consume. `Apk<Unverified>` is the only state that
-/// holds the full triple — once a transition consumes one of
-/// them, the field is moved out and dropped from the active state.
+/// parse to consume.
+///
+/// A real APK can carry several v1 signing carriers (multi-signed
+/// builds, debug + release keys, etc.); we keep all of them in
+/// `signing_carriers` rather than truncating to the first. The
+/// placeholder `verify_v*` accepts any one of them; P1.10's real
+/// verifier will iterate and validate each.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CapturedBodies {
-    /// Raw bytes of the entry that carried the APK Signing Block.
-    /// Captured for any `META-INF/<token>.RSA` / `.DSA` / `.EC`
-    /// entry. None until verify_v* runs.
-    pub signing_block: Option<Vec<u8>>,
+    /// Inflated bytes of every `META-INF/<key>.RSA|.DSA|.EC`
+    /// entry encountered. Empty until the constructor finds one.
+    pub signing_carriers: Vec<Vec<u8>>,
     /// Raw bytes of `AndroidManifest.xml`.
     pub manifest: Option<Vec<u8>>,
     /// Raw bytes of `resources.arsc`.
@@ -183,6 +235,101 @@ pub(crate) const fn looks_like_axml(bytes: &[u8]) -> bool {
 /// Quick ARSC magic probe — first chunk type is `RES_TABLE_TYPE`.
 pub(crate) const fn looks_like_arsc(bytes: &[u8]) -> bool {
     bytes.len() >= 8 && u16::from_le_bytes([bytes[0], bytes[1]]) == ARSC_CHUNK_TYPE
+}
+
+// ---------------------------------------------------------------------
+// Capture pipeline (shared by `apk.rs` sync + `apk_async.rs`)
+// ---------------------------------------------------------------------
+
+/// Per-entry inflate cap — 64 MiB. APKs in the wild are well below
+/// this for the entries the wrapper captures (manifest + arsc +
+/// META-INF/*.RSA all sit in the 100 KiB range).
+pub(crate) const MAX_INFLATE_BYTES: usize = 64 * 1024 * 1024;
+/// Total inflate budget for one constructor call — 256 MiB.
+pub(crate) const MAX_INFLATE_BUDGET: usize = 256 * 1024 * 1024;
+
+const COMPRESSION_STORED: u16 = 0;
+const COMPRESSION_DEFLATE: u16 = 8;
+
+/// Per-streaming-event capture target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CaptureSlot {
+    SigningCarrier,
+    Manifest,
+    Resources,
+}
+
+/// Classify a file-name into a capture slot, if any.
+pub(crate) fn classify_for_capture(file_name: &[u8]) -> Option<CaptureSlot> {
+    if file_name == b"AndroidManifest.xml" {
+        Some(CaptureSlot::Manifest)
+    } else if file_name == b"resources.arsc" {
+        Some(CaptureSlot::Resources)
+    } else if file_name.starts_with(b"META-INF/")
+        && (file_name.ends_with(b".RSA")
+            || file_name.ends_with(b".DSA")
+            || file_name.ends_with(b".EC"))
+    {
+        Some(CaptureSlot::SigningCarrier)
+    } else {
+        None
+    }
+}
+
+/// Decompress raw DEFLATE bytes (no zlib wrapper).
+pub(crate) fn inflate_raw(deflated: &[u8], expected_size: u32) -> Result<Vec<u8>, ApkError> {
+    let limit = std::cmp::min(MAX_INFLATE_BYTES, expected_size as usize * 4 + 4096);
+    miniz_oxide::inflate::decompress_to_vec_with_limit(deflated, limit).map_err(|e| {
+        ApkError::ManifestDecode(match e.status {
+            miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
+                "deflate inflate exceeded MAX_INFLATE_BYTES"
+            }
+            miniz_oxide::inflate::TINFLStatus::FailedCannotMakeProgress
+            | miniz_oxide::inflate::TINFLStatus::Failed
+            | miniz_oxide::inflate::TINFLStatus::Adler32Mismatch
+            | miniz_oxide::inflate::TINFLStatus::BadParam
+            | miniz_oxide::inflate::TINFLStatus::NeedsMoreInput
+            | miniz_oxide::inflate::TINFLStatus::Done => "deflate inflate failed",
+        })
+    })
+}
+
+/// End-of-entry handler. Inflates DEFLATE entries; passes STORED
+/// through; rejects other methods. Enforces the aggregate inflate
+/// budget against `inflate_used`.
+pub(crate) fn persist_capture(
+    slot: CaptureSlot,
+    raw: Vec<u8>,
+    compression_method: u16,
+    uncompressed_size: u32,
+    captured: &mut CapturedBodies,
+    inflate_used: &mut usize,
+) -> Result<(), ApkError> {
+    let bytes = match compression_method {
+        COMPRESSION_STORED => raw,
+        COMPRESSION_DEFLATE => {
+            let projected = inflate_used.saturating_add(uncompressed_size as usize);
+            if projected > MAX_INFLATE_BUDGET {
+                return Err(ApkError::ManifestDecode(
+                    "aggregate inflate would exceed MAX_INFLATE_BUDGET",
+                ));
+            }
+            let out = inflate_raw(&raw, uncompressed_size)?;
+            *inflate_used = inflate_used.saturating_add(out.len());
+            out
+        }
+        _ => {
+            return Err(ApkError::ManifestDecode(
+                "captured entry uses an unrecognised ZIP compression method",
+            ));
+        }
+    };
+    match slot {
+        CaptureSlot::SigningCarrier => captured.signing_carriers.push(bytes),
+        CaptureSlot::Manifest => captured.manifest = Some(bytes),
+        CaptureSlot::Resources => captured.resources = Some(bytes),
+    }
+    Ok(())
 }
 
 /// Quick DER probe — the buffer starts with an ASN.1 SEQUENCE tag

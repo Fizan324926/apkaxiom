@@ -53,8 +53,9 @@
 use std::io::Read;
 
 use crate::apk_data::{
-    looks_like_arsc, looks_like_axml, looks_like_pkcs7_der, CapturedBodies, FullyParsedData,
-    SignatureVerifiedData, UnverifiedData,
+    classify_for_capture, looks_like_arsc, looks_like_axml, looks_like_pkcs7_der, persist_capture,
+    ApkSigBlock, CaptureSlot, CapturedBodies, FullyParsedData, Jarv1Carrier, SignatureVerifiedData,
+    UnverifiedData,
 };
 use crate::event::ParseEvent;
 use crate::state::{ApkState, FullyParsed, SigVariant, SignatureVerified, Unverified, V2, V3, V4};
@@ -93,115 +94,10 @@ pub enum ApkError {
     ResourcesDecode(&'static str),
 }
 
-// ---------------------------------------------------------------------
-// DEFLATE inflate (for compression_method = 8 entries)
-// ---------------------------------------------------------------------
-
-/// Per-entry inflate cap — 64 MiB. APKs in the wild are well below
-/// this for the entries the wrapper captures (manifest + arsc +
-/// META-INF/*.RSA all sit in the 100 KiB range). The cap rejects
-/// adversarial inputs that claim TB-sized inflate.
-const MAX_INFLATE_BYTES: usize = 64 * 1024 * 1024;
-
-/// Decompress raw DEFLATE bytes (no zlib wrapper — ZIP entries
-/// store raw deflate streams). `expected_size` lets the caller
-/// pre-size the output buffer using the LFH-declared
-/// uncompressed_size, but is *not* trusted: the inflate step is
-/// gated on [`MAX_INFLATE_BYTES`] regardless.
-fn inflate_raw(deflated: &[u8], expected_size: u32) -> Result<Vec<u8>, ApkError> {
-    let limit = std::cmp::min(MAX_INFLATE_BYTES, expected_size as usize * 4 + 4096);
-    miniz_oxide::inflate::decompress_to_vec_with_limit(deflated, limit).map_err(|e| {
-        ApkError::ManifestDecode(match e.status {
-            miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
-                "deflate inflate exceeded MAX_INFLATE_BYTES"
-            }
-            miniz_oxide::inflate::TINFLStatus::FailedCannotMakeProgress
-            | miniz_oxide::inflate::TINFLStatus::Failed
-            | miniz_oxide::inflate::TINFLStatus::Adler32Mismatch
-            | miniz_oxide::inflate::TINFLStatus::BadParam
-            | miniz_oxide::inflate::TINFLStatus::NeedsMoreInput
-            | miniz_oxide::inflate::TINFLStatus::Done => "deflate inflate failed",
-        })
-    })
-}
-
-// ---------------------------------------------------------------------
-// Capture-slot helper
-// ---------------------------------------------------------------------
-
-/// Per-streaming-event capture target. The `from_reader` driver
-/// rotates this when each new `ZipEntryHeader` arrives so that
-/// subsequent `ZipEntryData` chunks accumulate into the right
-/// buffer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CaptureSlot {
-    SigningCarrier,
-    Manifest,
-    Resources,
-}
-
-/// ZIP compression method codes. ZIP supports many but APKs only
-/// ever use 0 (stored) and 8 (deflate); other values are an
-/// archive-format anomaly we surface as an error rather than
-/// silently passing through raw bytes.
-const COMPRESSION_STORED: u16 = 0;
-const COMPRESSION_DEFLATE: u16 = 8;
-
-/// End-of-entry handler for `from_reader`'s active capture.
-/// Inflates DEFLATE entries; passes STORED entries through; rejects
-/// other compression methods so downstream magic probes never see
-/// bytes that look encoded for a method we don't recognise.
-fn persist_capture(
-    slot: CaptureSlot,
-    raw: Vec<u8>,
-    compression_method: u16,
-    uncompressed_size: u32,
-    captured: &mut CapturedBodies,
-) -> Result<(), ApkError> {
-    let bytes = match compression_method {
-        COMPRESSION_STORED => raw,
-        COMPRESSION_DEFLATE => inflate_raw(&raw, uncompressed_size)?,
-        other => {
-            return Err(ApkError::ManifestDecode(match slot {
-                CaptureSlot::SigningCarrier | CaptureSlot::Manifest | CaptureSlot::Resources => {
-                    debug_assert!(other != COMPRESSION_STORED && other != COMPRESSION_DEFLATE);
-                    "captured entry uses an unrecognised ZIP compression method"
-                }
-            }));
-        }
-    };
-    match slot {
-        CaptureSlot::SigningCarrier => {
-            // A real APK can have several signing carriers
-            // (CERT.RSA, CERT.SF, etc); we keep the first
-            // RSA/DSA/EC one. Callers needing all of them can walk
-            // `entries()` themselves and extract via the streaming
-            // parser directly.
-            if captured.signing_block.is_none() {
-                captured.signing_block = Some(bytes);
-            }
-        }
-        CaptureSlot::Manifest => captured.manifest = Some(bytes),
-        CaptureSlot::Resources => captured.resources = Some(bytes),
-    }
-    Ok(())
-}
-
-fn classify_for_capture(file_name: &[u8]) -> Option<CaptureSlot> {
-    if file_name == b"AndroidManifest.xml" {
-        Some(CaptureSlot::Manifest)
-    } else if file_name == b"resources.arsc" {
-        Some(CaptureSlot::Resources)
-    } else if file_name.starts_with(b"META-INF/")
-        && (file_name.ends_with(b".RSA")
-            || file_name.ends_with(b".DSA")
-            || file_name.ends_with(b".EC"))
-    {
-        Some(CaptureSlot::SigningCarrier)
-    } else {
-        None
-    }
-}
+// (Capture pipeline helpers — `inflate_raw`, `classify_for_capture`,
+// `persist_capture`, `CaptureSlot` — live in `apk_data.rs` so the
+// async mirror in `apk_async.rs` consumes the same canonical copy.
+// Drift between the two surfaces is structurally impossible.)
 
 // ---------------------------------------------------------------------
 // Apk<S>
@@ -259,25 +155,23 @@ impl Apk<Unverified> {
     /// into the `CapturedBodies` payload during the same pass, so
     /// no second read of the input is required.
     ///
-    /// Drain a [`crate::ApkParser`] over `reader` without
+    /// **Bench-only constructor.** Drains the parser without
     /// materialising the entry table or capturing bodies. Returns
-    /// an `Apk<Unverified>` whose `entries()` is empty and whose
-    /// `state_data.captured` is `None`-everything.
+    /// an `Apk<Unverified>` that **cannot reach `SignatureVerified`
+    /// or `FullyParsed<V>`** — every downstream `verify_v*` will
+    /// fail with "no META-INF carrier" because no bodies were
+    /// captured.
     ///
-    /// **This is the zero-cost-vs-P1.7 path** — callers who want
-    /// the type-state guard but don't need the entry table can
-    /// use this constructor and pay only the structural-parse
-    /// cost of bare [`ApkParser`]. The §F-1 perf-delta gate
-    /// runs against this constructor (arm B) so the
-    /// phantom-state contribution is genuinely isolated. The
-    /// post-conditions on every gated method downstream still
-    /// hold (verify_v* will fail with "no META-INF carrier";
-    /// parse_v* will fail with "manifest entry not found"), so
-    /// the type-state guard remains correct under this
-    /// constructor.
+    /// **Do not use this in production.** It exists exclusively
+    /// for the §F-1 perf-delta gate
+    /// ([`tools/p18-perf-delta`](../../../tools/p18-perf-delta/))
+    /// to isolate the phantom-state contribution from the
+    /// realistic `from_reader` cost. Production callers should
+    /// always use [`Self::from_reader`].
     ///
     /// # Errors
     /// Any [`StreamError`] from the underlying parser.
+    #[doc(hidden)] // hidden from rustdoc — this is a bench escape hatch, not API
     pub fn from_reader_metadata_only<R: Read>(reader: R) -> Result<Self, ApkError> {
         let mut parser = ApkParser::from_reader(reader);
         while parser.next_event()?.is_some() {}
@@ -310,6 +204,7 @@ impl Apk<Unverified> {
         let mut parser = ApkParser::from_reader(reader);
         let mut entries = Vec::new();
         let mut captured = CapturedBodies::default();
+        let mut inflate_used = 0usize;
         // (slot, raw bytes, compression_method, uncompressed_size).
         // For DEFLATE entries we collect raw deflate bytes here and
         // inflate when the entry ends.
@@ -326,7 +221,14 @@ impl Apk<Unverified> {
                     general_flags,
                 } => {
                     if let Some((slot, buf, method, usize_)) = active_capture.take() {
-                        persist_capture(slot, buf, method, usize_, &mut captured)?;
+                        persist_capture(
+                            slot,
+                            buf,
+                            method,
+                            usize_,
+                            &mut captured,
+                            &mut inflate_used,
+                        )?;
                     }
                     active_capture = classify_for_capture(&file_name).map(|s| {
                         (
@@ -354,7 +256,7 @@ impl Apk<Unverified> {
             }
         }
         if let Some((slot, buf, method, usize_)) = active_capture.take() {
-            persist_capture(slot, buf, method, usize_, &mut captured)?;
+            persist_capture(slot, buf, method, usize_, &mut captured, &mut inflate_used)?;
         }
         Ok(Self {
             entries,
@@ -430,20 +332,29 @@ fn verify_with_variant<V: SigVariant>(
 ) -> Result<Apk<SignatureVerified>, ApkError> {
     let UnverifiedData { captured } = apk.state_data;
     let CapturedBodies {
-        signing_block,
+        signing_carriers,
         manifest,
         resources,
     } = captured;
-    let block_bytes = signing_block.ok_or(ApkError::SignatureVerify {
-        variant_tag: V::TAG,
-        reason: "no META-INF/<key>.RSA|.DSA|.EC entry present",
-    })?;
-    if !looks_like_pkcs7_der(&block_bytes) {
+    if signing_carriers.is_empty() {
         return Err(ApkError::SignatureVerify {
             variant_tag: V::TAG,
-            reason: "META-INF/ signing carrier is not a PKCS#7 DER SEQUENCE",
+            reason: "no META-INF/<key>.RSA|.DSA|.EC entry present",
         });
     }
+    // The placeholder verifier accepts the *first* carrier whose
+    // bytes pass the DER probe. P1.10's real verifier will iterate
+    // every carrier and validate each certificate chain — but the
+    // signature-failure semantics are already correct: if no
+    // carrier passes the DER probe, we surface
+    // `ApkError::SignatureVerify`.
+    let carrier_bytes = signing_carriers
+        .into_iter()
+        .find(|b| looks_like_pkcs7_der(b))
+        .ok_or(ApkError::SignatureVerify {
+            variant_tag: V::TAG,
+            reason: "no META-INF/ signing carrier passes the PKCS#7 DER probe",
+        })?;
     Ok(Apk {
         entries: apk.entries,
         state_data: SignatureVerifiedData {
@@ -451,7 +362,15 @@ fn verify_with_variant<V: SigVariant>(
             resources_bytes: resources,
             signature_block: SignatureBlock {
                 variant_tag: V::TAG,
-                block_bytes,
+                jar_v1_carrier: Jarv1Carrier {
+                    block_bytes: carrier_bytes,
+                },
+                // P1.8 placeholder — the v2/v3/v4 APK Signing
+                // Block parser is P1.10's. The wrapper stamps the
+                // requested variant tag for the type-witness
+                // cross-bind in `parse_v*`, but the on-disk bytes
+                // are not yet captured.
+                apk_sig_block: ApkSigBlock { block_bytes: None },
             },
         },
     })
@@ -841,7 +760,8 @@ pub(crate) mod tests {
         assert_eq!(apk.entries().len(), 4);
         assert_eq!(apk.state_name(), "unverified");
         let cap = &apk.state_data.captured;
-        assert!(cap.signing_block.as_ref().unwrap().starts_with(&[0x30]));
+        assert_eq!(cap.signing_carriers.len(), 1);
+        assert!(cap.signing_carriers[0].starts_with(&[0x30]));
         assert!(cap.manifest.as_ref().unwrap().starts_with(&[0x03, 0x00]));
         assert!(cap.resources.as_ref().unwrap().starts_with(&[0x02, 0x00]));
     }
@@ -1002,30 +922,71 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn unverified_size_is_state_tight() {
-        // `Apk<Unverified>` must NOT carry the post-verify or
-        // post-parse fields. The S::Data design enforces this.
-        // We don't pin a specific byte count (it varies with
-        // alloc-table layout) — instead we assert that
-        // `Apk<FullyParsed<V2>>` is strictly larger than
-        // `Apk<Unverified>`, proving the per-state Data design
-        // didn't fuse the layouts back into the old "Options
-        // everywhere" shape.
+    fn state_layouts_pinned_within_drift() {
+        // Pin specific byte counts so a regression that re-introduces
+        // always-`None` fields fires an alarm. Apk<S> = Vec<EntryMeta>
+        // + S::Data; CapturedBodies (Unverified payload) is one
+        // Vec<Vec<u8>> + two Option<Vec<u8>>; SignatureVerifiedData
+        // adds a typed SignatureBlock + retains the two manifest /
+        // resources Options; FullyParsedData has the typed views.
+        // The drift band absorbs minor layout differences across
+        // compiler versions; if we cross the band, the regression
+        // is real and the constants need a review.
         let unv = core::mem::size_of::<Apk<Unverified>>();
         let sig = core::mem::size_of::<Apk<SignatureVerified>>();
         let full = core::mem::size_of::<Apk<FullyParsed<V2>>>();
-        // Unverified carries `CapturedBodies` (3 Option<Vec<u8>>);
-        // SigVerified swaps signing-block Option for a typed
-        // SignatureBlock + retains 2 Option<Vec<u8>>; FullyParsed
-        // has SignatureBlock + Manifest + Resources views. The
-        // strict ordering verifies the shape didn't degenerate.
+
+        // Strict structural ordering — the per-state Data shape
+        // imposes this even if absolute sizes drift.
+        assert!(unv > 0 && sig > 0 && full > 0);
         assert!(
-            unv > 0 && sig > 0 && full > 0,
-            "all states must have non-zero size"
+            sig > unv,
+            "SignatureVerified should be > Unverified — sig adds the typed SignatureBlock and retains manifest/resources"
+        );
+
+        // Snapshot tolerance ±16 bytes. Apk<S> is small (≪ 256 B);
+        // anything bigger than ±16 is a real layout change.
+        // Sizes observed on rustc 1.83 / Linux x86_64.
+        let drift: usize = 16;
+        let expect_unv: usize = 96;
+        let expect_sig: usize = 128;
+        let expect_full: usize = 128;
+        let abs_diff = |a: usize, b: usize| if a > b { a - b } else { b - a };
+        assert!(
+            abs_diff(unv, expect_unv) <= drift,
+            "Apk<Unverified> = {unv} bytes; expected ~{expect_unv} (±{drift})"
         );
         assert!(
-            full >= sig,
-            "FullyParsed should not be smaller than SigVerified"
+            abs_diff(sig, expect_sig) <= drift,
+            "Apk<SignatureVerified> = {sig} bytes; expected ~{expect_sig} (±{drift})"
         );
+        assert!(
+            abs_diff(full, expect_full) <= drift,
+            "Apk<FullyParsed<V2>> = {full} bytes; expected ~{expect_full} (±{drift})"
+        );
+    }
+
+    #[test]
+    fn dropping_fully_parsed_releases_buffers() {
+        // Smoke test: build a FullyParsed<V2>, drop it. Bad Drop
+        // (e.g. fields wrapped in Rc cycles, or accidental `Pin<Box>`
+        // shenanigans) would leak — Miri / leak detector catches
+        // that path. Today the wrapper has no manual `Drop` impl;
+        // every owned `Vec<u8>` is freed by the auto-derived Drop.
+        let bytes = realistic_apk_bytes();
+        let parsed = Apk::<Unverified>::from_reader(bytes.as_slice())
+            .unwrap()
+            .verify_v2()
+            .unwrap()
+            .parse_v2()
+            .unwrap();
+        assert!(!parsed.manifest().axml_bytes.is_empty());
+        assert!(!parsed.resources().arsc_bytes.is_empty());
+        assert!(!parsed
+            .signature_block()
+            .jar_v1_carrier
+            .block_bytes
+            .is_empty());
+        drop(parsed);
     }
 }

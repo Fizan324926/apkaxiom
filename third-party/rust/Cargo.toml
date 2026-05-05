@@ -38,5 +38,13 @@ thiserror = "1.0"
 # shape.
 syn = { version = "2", features = ["parsing", "full", "visit"] }
 walkdir = "2"
+# P1.8: APKAXIOM ingests real APKs through axiom-l1-rs::Apk<S>;
+# the manifest, signing carrier, and resources entries are
+# uniformly DEFLATE-compressed. miniz_oxide is the minimal-deps
+# inflater (pulls only adler2 for Adler-32). The wrapper's magic
+# probes (looks_like_axml / looks_like_arsc / looks_like_pkcs7_der)
+# run on the inflated bytes. Pinned to 0.8 — `make third-party`
+# keeps the vendored tree in lock-step.
+miniz_oxide = "0.8"
 
 [patch.crates-io]

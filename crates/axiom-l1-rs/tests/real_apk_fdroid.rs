@@ -79,11 +79,38 @@ fn real_fdroid_apk_full_pipeline_v2() {
     assert_eq!(verified.signature_block().variant_tag, 2);
     // Inflated CIARANG.RSA is 1342 bytes (the LFH-declared
     // uncompressed size); the inflate-decoder sized it correctly.
-    assert_eq!(verified.signature_block().block_bytes.len(), 1342);
-    assert!(
-        verified.signature_block().block_bytes.starts_with(&[0x30]),
-        "DER SEQUENCE tag must lead the PKCS#7 carrier"
+    // The v1 carrier is the inflated CIARANG.RSA. P1.8 reads it via
+    // `signature_block().block_bytes()` (which falls back to the v1
+    // carrier when the v2 APK Signing Block isn't yet parsed —
+    // P1.10 will populate the v2 region). The v1 carrier is also
+    // available directly via `.jar_v1_carrier`.
+    assert_eq!(
+        verified.signature_block().jar_v1_carrier.block_bytes.len(),
+        1342
     );
+    assert!(
+        verified
+            .signature_block()
+            .jar_v1_carrier
+            .block_bytes
+            .starts_with(&[0x30]),
+        "DER SEQUENCE tag must lead the PKCS#7 v1 carrier"
+    );
+    assert!(
+        verified
+            .signature_block()
+            .apk_sig_block
+            .block_bytes
+            .is_none(),
+        "P1.8 leaves APK Signing Block parsing to P1.10"
+    );
+    // The compatibility shim: callers reading `block_bytes()` get
+    // the v1 carrier today, will get the v2 block in P1.10
+    // without API churn.
+    assert!(verified
+        .signature_block()
+        .block_bytes()
+        .starts_with(&[0x30]));
 
     // Parse v2 — AXML + ARSC magic on the inflated bodies.
     let parsed = verified.parse_v2().expect("parse_v2 on real APK");
@@ -120,6 +147,83 @@ fn real_fdroid_apk_full_pipeline_v3() {
         .parse_v3()
         .unwrap();
     assert_eq!(parsed.signing_variant_tag(), 3);
+}
+
+/// Multi-APK diversity table — each entry is a real F-Droid APK
+/// committed under tests/fixtures/. The pipeline is run end-to-end
+/// against each.
+const FIXTURES: &[(&str, &str)] = &[
+    (
+        "fdroid-privileged-2050.apk",
+        "8d0f5f8351617c99f11156199a281dca6d5fd41c4b8bfeb107dfd60f5c954f5c",
+    ),
+    (
+        "clipboard.apk",
+        "9783901de30f7ce5b0048ea014e9a4a9177f75ce954161b72c27124b62a42c30",
+    ),
+    (
+        "tickytacky-mirror.apk",
+        "abd4696ed450d1baef3c4fc53d4307e4a1faced26091d406d3ddf65a34059ec4",
+    ),
+    (
+        "wifiautoff.apk",
+        "d3d95a012eefdd1e88996b95c6eca70c5dfaa1703ed8b81f3a59f9d1011c92a4",
+    ),
+];
+
+fn fixture_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
+fn parse_hex32(s: &str) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    for (i, b) in out.iter_mut().enumerate() {
+        let lo = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).expect("valid hex");
+        *b = lo;
+    }
+    out
+}
+
+#[test]
+fn real_apk_diversity_full_pipeline() {
+    for (name, expected_sha) in FIXTURES {
+        let path = fixture_dir().join(name);
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{name}: read err {e}"));
+        assert_eq!(
+            sha256(&bytes),
+            parse_hex32(expected_sha),
+            "fixture sha256 drifted for {name}"
+        );
+        let apk = Apk::<Unverified>::from_reader(bytes.as_slice())
+            .unwrap_or_else(|e| panic!("{name}: from_reader err {e}"));
+        assert!(!apk.entries().is_empty(), "{name}: empty entry table");
+        let parsed = apk
+            .verify_v2()
+            .unwrap_or_else(|e| panic!("{name}: verify_v2 err {e}"))
+            .parse_v2()
+            .unwrap_or_else(|e| panic!("{name}: parse_v2 err {e}"));
+        assert_eq!(parsed.signing_variant_tag(), 2, "{name}: variant tag");
+        // Every real APK has a non-empty manifest + arsc.
+        assert!(
+            !parsed.manifest().axml_bytes.is_empty(),
+            "{name}: empty manifest"
+        );
+        assert!(
+            !parsed.resources().arsc_bytes.is_empty(),
+            "{name}: empty resources"
+        );
+        // Magic bytes confirmed at construction by the wrapper.
+        assert_eq!(
+            &parsed.manifest().axml_bytes[0..2],
+            &[0x03, 0x00],
+            "{name}: manifest is not AXML"
+        );
+        assert_eq!(
+            &parsed.resources().arsc_bytes[0..2],
+            &[0x02, 0x00],
+            "{name}: resources is not ARSC"
+        );
+    }
 }
 
 #[test]

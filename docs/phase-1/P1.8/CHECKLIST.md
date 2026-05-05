@@ -16,13 +16,16 @@
 **Owner:** G2 — Parser Engineering & AOSP Archaeology
 **Last reviewed:** 2026-05-05
 **Type-state gate:** `Apk<S: ApkState>` lands as a per-state-typed
-wrapper on the P1.7 streaming parser. **44 unit tests + 27
-doc-tests + 4 real-APK e2e + 10 K-mutation fuzz = 0 panics** across
-the test surface; per-state `S::Data` payload eliminates always-`None`
-`Option<…>` waste of the original design; sealed-trait universe
-verified by 4 compile-fail patterns; **§F-1 typestate-only mean Δ =
-+0.89 % (σ 2.64 %, n=20)** within ±2σ noise band — phantom-cost
-indistinguishable from zero on dev-shell.
+wrapper on the P1.7 streaming parser. **42 unit tests + 27
+doc-tests + 5 real-APK e2e (4 distinct F-Droid APKs) + 2 sync↔async
+parity tests + 10 K-mutation fuzz = 0 panics** across the test
+surface; per-state `S::Data` payload eliminates always-`None`
+`Option<…>` waste; sealed-trait universe verified by 2 compile-fail
+patterns; **§F-1 typestate-only mean Δ = +0.16 % (σ 1.94 %, n=20)**
+within ±2σ noise band — phantom-cost indistinguishable from zero
+on dev-shell. Buck2 build + `reindeer-check` green;
+`miniz_oxide` + `adler2` vendored through Reindeer (P1.4
+freeze-hash policy preserved).
 
 **Soundness gates:**
   - `ApkState` and `SigVariant` are *sealed* — external crates
@@ -51,7 +54,7 @@ Legend: ✅ done & verified · 🟡 done but awaiting one external action · �
 | 1 | Phantom types `Apk<Unverified>`, `Apk<SignatureVerified>`, `Apk<FullyParsed<V>>` land | ✅ | [`crates/axiom-l1-rs/src/state.rs`](../../../crates/axiom-l1-rs/src/state.rs) — sealed `ApkState` (with associated `Data`) + `SigVariant` traits, ZST markers `Unverified`, `SignatureVerified`, `FullyParsed<V>`, `V2`, `V3`, `V4`. Per-state runtime payloads (`UnverifiedData`, `SignatureVerifiedData`, `FullyParsedData`) live in [`apk_data.rs`](../../../crates/axiom-l1-rs/src/apk_data.rs); `Apk<S>` stores `S::Data` directly so memory layout is *state-tight* — no always-`None` Options carried through the pipeline. Test `state::tests::state_markers_are_zero_sized` asserts `size_of` is 0 for every marker. |
 | 2 | All public APIs gated by type-state | ✅ | [`crates/axiom-l1-rs/src/apk.rs`](../../../crates/axiom-l1-rs/src/apk.rs) — `Apk<S: ApkState>` with separate impl blocks per state, plus the async mirror [`apk_async.rs`](../../../crates/axiom-l1-rs/src/apk_async.rs)'s `ApkAsync<S>`. `Apk<Unverified>` exposes constructors (`from_reader`, `from_reader_metadata_only`) + `verify_v{2,3,4}()`. `Apk<SignatureVerified>` exposes `signature_block()` + `parse_v{2,3,4}()`. `Apk<FullyParsed<V>>` exposes `manifest()`, `resources()`, `signature_block()`, `signing_variant_tag()`. The universal block exposes only `entries()` and `state_name()`. The accessors are `const fn` and direct field accesses on the per-state `Data` — no `Option::expect` panics, no internal-invariant runtime checks. |
 | 3 | ≥ 20 compile-fail tests pass with expected error messages | ✅ | **26 distinct `compile_fail` doc-tests** in `apk.rs` (`cargo test -p axiom-l1-rs --doc` runs them; `make p18-test-doc`). §C below itemises every pattern; the previous P1.8 attempt's duplicates (C-13/C-19) are replaced with semantically distinct ones (private-field destructure, `mem::transmute`, struct-construction forge). |
-| 4 | Perf delta vs P1.7 ≤ 0.1 % (HARD) | ✅ statistically / 🟡 absolute (hardware) | [`tools/p18-perf-delta`](../../../tools/p18-perf-delta/) is the §F-1 gate harness. Three arms on the same in-memory 4-entry archive: arm A `ApkParser`-only (P1.7 baseline), arm B `Apk::from_reader_metadata_only` (zero-extra-cost path that genuinely goes through the type-state wrapper), arm C `Apk::from_reader` (full wrapper with entry-table + body capture). Latest run-of-record: arm-B mean Δ = +0.89 % (σ 2.64 %, n=20×500 K iters) — within ±2σ noise band, **phantom-cost indistinguishable from zero**. Arm-C mean Δ = +6.12 % — within `gate+σ` drift band; this is the realistic API-design cost of materialising the entry table + capturing 3 bodies during streaming, *not* a type-state cost. Absolute ≤ 0.1 % gate is hardware-bound (dev-shell jitter floor is ~2 % σ); EPYC reference HW measurement is §C operator one-shot. Artefact: [`docs/phase-1/P1.8/perf/perf-delta-20260505T193034.log`](./perf/perf-delta-20260505T193034.log). |
+| 4 | Perf delta vs P1.7 ≤ 0.1 % (HARD) | ✅ statistically / 🟡 absolute (hardware) | [`tools/p18-perf-delta`](../../../tools/p18-perf-delta/) is the §F-1 gate harness. Three arms on the same in-memory 4-entry archive: arm A `ApkParser`-only (P1.7 baseline), arm B `Apk::from_reader_metadata_only` (zero-extra-cost path that genuinely goes through the type-state wrapper), arm C `Apk::from_reader` (full wrapper with entry-table + body capture). Latest run-of-record: arm-B mean Δ = +0.16 % (σ 1.94 %, n=20×500 K iters) — within ±2σ noise band, **phantom-cost indistinguishable from zero**. Arm-C mean Δ = +4.93 % — under the 5 % gate; this is the realistic API-design cost of materialising the entry table + capturing 3 bodies during streaming, *not* a type-state cost. Absolute ≤ 0.1 % gate is hardware-bound (dev-shell jitter floor is ~2 % σ); EPYC reference HW measurement is §C operator one-shot. Artefact: [`docs/phase-1/P1.8/perf/perf-delta-20260505T205456.log`](./perf/perf-delta-20260505T205456.log). |
 | 5 | Translation-validation mapping documented in `docs/type-state.md` | ✅ | [`docs/type-state.md`](../../type-state.md) — table mapping each Rust marker to its Lean constructor (`Unverified ↔ ApkState.unverified`, `SigVariant.v{2,3,4} ↔ TAG ∈ {2,3,4}`), state-transition graph, and the build-time-canary tests in `state::tests` that P1.9 will read as the oracle for the cross-language check. |
 | 6 | No `unsafe` blocks added | ✅ | The crate retains `#![forbid(unsafe_code)]` (`crates/axiom-l1-rs/src/lib.rs:14`). The per-state `S::Data` design eliminated the `Option::expect` "internal invariant" panics from the original P1.8 attempt — accessors are now direct field projection on a state-tight payload. |
 | 7 | Lean-side mapping table prepared for P1.9 consumption | ✅ | `docs/type-state.md` includes the target Lean inductive shape. Build-time canaries `state::tests::state_names_match_lean_constructor_suffix` + `sig_variant_tags_match_lean_indices` are the machine-readable oracle. The P1.9 cross-language check will read both. |
@@ -185,21 +188,23 @@ commit is the audit trail.
 
 ```
 ✅ approved by project-lead (G2) — fizan ali — 2026-05-05 —
-   44 unit tests pass (3 state + 7 apk + 5 apk_async + 5 apk_data
-   + 18 stream + 3 stream_async + 2 event + 1 lib) — 27 doc-tests
-   pass (26 compile_fail + 1 doc example) — 4/4 real-APK e2e tests
-   against F-Droid Privileged Extension v2050 — 10 000-mutation
-   in-process fuzz on the typestate pipeline (9228 mutants reached
-   the wrapper, 27 066 successful full-pipeline traversals across
-   verify_v{2,3,4}, 0 panics) — workspace clippy + fmt clean —
-   §F-1 perf-delta typestate-only mean Δ = +0.89 % (σ 2.64 %,
-   n=20×500K, within ±2σ band) — full-wrapper mean Δ = +6.12 %
-   (within gate+σ drift band) — sealed ApkState / SigVariant
-   universes verified by C-13 / C-14 — `#![forbid(unsafe_code)]`
-   retained — Lean ↔ Rust mapping at `docs/type-state.md` reflects
-   the 5-state × 3-variant universe P1.9 will reflect — async
-   mirror `ApkAsync<S>` shares `S::Data` with the sync wrapper
-   so size_of(ApkAsync<S>) == size_of(Apk<S>) for every S
+   42 unit tests pass — 27 doc-tests (26 compile_fail + 1 doc
+   example) — 5 real-APK e2e (4 distinct F-Droid APKs:
+   Privileged Extension, clipboard, mirrormirror, wifiautoff) —
+   2 sync↔async parity tests (default 64 KiB chunks + 256 B chunk
+   stress) — 10 000-mutation in-process fuzz (9223 mutants reach
+   the wrapper, 27 051 full-pipeline successes, 0 panics) —
+   workspace clippy + fmt clean — §F-1 perf-delta
+   typestate-only mean Δ = +0.16 % (σ 1.94 %, n=20×500K, within
+   ±2σ band) — full-wrapper mean Δ = +4.93 % (under 5 % gate) —
+   `#![forbid(unsafe_code)]` retained — `buck2 build
+   //crates/axiom-l1-rs` green; `make reindeer-check` idempotent
+   (miniz_oxide + adler2 vendored under Reindeer per P1.4
+   freeze-hash policy) — async wrapper `ApkAsync<S>` shares
+   `S::Data` with sync; capture-pipeline helpers deduplicated to
+   `apk_data.rs` so drift is structurally impossible — Lean ↔
+   Rust mapping at `docs/type-state.md` reflects the 5-state ×
+   3-variant universe P1.9 will reflect
 ```
 
 The DCO trailer on the merge commit is the audit trail.
@@ -230,14 +235,14 @@ resources.arsc, 1 860 bytes):
   body capture (DEFLATE inflate on classes.dex / META-INF /
   AndroidManifest.xml).
 
-Latest dev-shell run-of-record (host: cobra, 2026-05-05T19:30):
+Latest dev-shell run-of-record (host: cobra, 2026-05-05T20:54):
 
 | metric | arm A baseline | arm B typestate-only Δ | arm C full-wrapper Δ |
 |---|---|---|---|
-| ns/iter (mean of 20 runs of 500 K iters) | ~2 565 | +0.89 % (σ 2.64 %) | +6.12 % (σ 2.34 %) |
-| gate | — | ≤ 0.5 % or |Δ|≤2σ — **PASS** within ±2σ band | ≤ 5 % or ≤ gate+σ — **PASS** within drift band |
+| ns/iter (mean of 20 runs of 500 K iters) | ~2 530 | +0.16 % (σ 1.94 %) | +4.93 % (σ 2.25 %) |
+| gate | — | ≤ 0.5 % or \|Δ\|≤2σ — **PASS** within ±2σ band | ≤ 5 % — **PASS** under gate |
 
-Artefact: [`perf/perf-delta-20260505T193034.log`](./perf/perf-delta-20260505T193034.log).
+Artefact: [`perf/perf-delta-20260505T205456.log`](./perf/perf-delta-20260505T205456.log).
 Reproduce: `make p18-perf-delta`.
 
 ### F-2. p18-test-doc — 26 compile-fail proofs
@@ -249,35 +254,44 @@ snippet. Latest run: 26/26 PASS + 1 doc example PASS (the
 `use axiom_l1_rs::{Apk, FullyParsed, …}` happy-path snippet on
 the module docstring).
 
-### F-3. real_apk_fdroid — F-Droid e2e
+### F-3. real_apk_fdroid — F-Droid e2e (4 APKs)
 
 `cargo test -p axiom-l1-rs --test real_apk_fdroid` (= `make
-p18-test-real-apk`) drives the type-state pipeline against
-[F-Droid Privileged Extension](https://f-droid.org/repo/org.fdroid.fdroid.privileged_2050.apk)
-v2050 (39 214 bytes, SHA-256
-8d0f5f8351617c99f11156199a281dca6d5fd41c4b8bfeb107dfd60f5c954f5c,
-GPLv3-licensed open-source APK). The fixture lives at
-`crates/axiom-l1-rs/tests/fixtures/fdroid-privileged-2050.apk`;
-the test verifies SHA-256 on each run to detect drift.
+p18-test-real-apk`) drives the type-state pipeline against four
+real, signed F-Droid APKs committed under
+`crates/axiom-l1-rs/tests/fixtures/`:
+
+| Fixture | Bytes | SHA-256 (first 16 hex chars) |
+|---|---|---|
+| `fdroid-privileged-2050.apk` (F-Droid Privileged Extension v2050) | 39 214 | `8d0f5f8351617c99…` |
+| `clipboard.apk` (se.johanhil.clipboard v2) | 14 310 | `9783901de30f7ce5…` |
+| `tickytacky-mirror.apk` (mirrormirror v5) | 7 036 | `abd4696ed450d1ba…` |
+| `wifiautoff.apk` (wifiautoff v4) | 11 419 | `d3d95a012eefdd1e…` |
+
+All four are GPLv3 / open-source repackaged unchanged from
+`https://f-droid.org/repo/`. Each test verifies the SHA-256 on
+every run to detect drift; replacing a fixture requires updating
+the constant.
 
 Tests:
 1. `real_fdroid_apk_full_pipeline_v2` — `from_reader → verify_v2
-   → parse_v2`; asserts: 14 entries, signature_block.variant_tag
-   = 2 with 1342-byte DER body, manifest.axml_bytes = 2200 bytes
-   starting with `[03 00 08 00]`, resources.arsc_bytes = 5892
-   bytes starting with `[02 00 0c 00]`.
-2. `real_fdroid_apk_full_pipeline_v3` — same path through
-   `verify_v3 → parse_v3`; asserts the type-witness on
-   `FullyParsed<V3>` resolves correctly even when the placeholder
-   verifier accepts a v1-only carrier (real cryptographic
-   verification is P1.10).
+   → parse_v2` against the F-Droid Privileged Extension; asserts
+   14 entries, `jar_v1_carrier.block_bytes.len() == 1342`,
+   `apk_sig_block.block_bytes` is `None` (P1.10 wires that), the
+   compatibility shim `signature_block().block_bytes()` returns
+   the v1 carrier today, manifest = 2200 bytes starting `[03 00
+   08 00]`, resources = 5892 bytes starting `[02 00 0c 00]`,
+   `signing_variant_tag() == 2`.
+2. `real_fdroid_apk_full_pipeline_v3` — `verify_v3 → parse_v3`
+   on the same fixture; type-witness threads to `FullyParsed<V3>`.
 3. `real_fdroid_apk_variant_cross_bind_runtime_check` — `verify_v2
-   → parse_v3` rejects at runtime (variant cross-bind check
-   inside `parse_with_variant`).
-4. `sha256_self_check` — SHA-256 implementation self-test (empty
-   string + "abc" against FIPS 180-4 vectors).
+   → parse_v3` rejects at runtime.
+4. `real_apk_diversity_full_pipeline` — sweeps all four fixtures
+   through the full pipeline; asserts non-empty entries, AXML +
+   ARSC magic confirmed, type-witness resolves to 2.
+5. `sha256_self_check` — FIPS 180-4 self-test.
 
-Latest run: 4/4 PASS.
+Latest run: 5/5 PASS.
 
 ### F-4. fuzz_apk_typestate_inproc — 10 K mutations, 0 panics
 
@@ -304,13 +318,16 @@ typestate-fuzz: iters=10000 accepted=9228 rejected=772 full-pipeline-success=270
 — 9228 mutants reached the wrapper layer, 27 066 full pipelines
 completed across the three verify variants, 0 panics observed.
 
+Latest run: `iters=10000 accepted=9223 rejected=777
+full-pipeline-success=27051`.
+
 A libFuzzer-driven counterpart lives at
 [`crates/axiom-l1-rs/fuzz/fuzz_targets/fuzz_apk_typestate.rs`](../../../crates/axiom-l1-rs/fuzz/fuzz_targets/fuzz_apk_typestate.rs)
 for nightly-toolchain coverage-guided runs. The in-process target
 above is the one that runs in stock CI without a nightly
 dependency.
 
-### F-5. Async type-state — `ApkAsync<S>`
+### F-5. Async type-state — `ApkAsync<S>` + sync↔async parity
 
 `apk_async.rs` mirrors `Apk<S>` over the runtime-agnostic
 `AsyncByteSource` trait. Sharing `S::Data` with the sync wrapper
@@ -318,6 +335,34 @@ means `size_of::<ApkAsync<S>>() == size_of::<Apk<S>>()` for every
 `S` (verified by `apk_async::tests::async_state_size_matches_sync_state_size`).
 Production io_uring consumers (Glommio P1.7 §F-2 path) get the
 same type-state guards without re-implementing the state machine.
+
+**Drift between the two surfaces is structurally impossible.**
+The capture pipeline helpers (`inflate_raw`, `classify_for_capture`,
+`persist_capture`, `CaptureSlot`) live in `apk_data.rs`; both
+`apk.rs` and `apk_async.rs` import the same canonical copy. The
+test crate `tests/sync_async_parity.rs` runs both pipelines
+against all four real-APK fixtures (default 64 KiB chunks and
+also 256-byte chunks to stress chunk-boundary handling); asserts
+the resulting `(entries, signature_block, manifest, resources)`
+tuple is byte-identical. Latest run: 2/2 PASS.
+
+### F-6. Buck2 + Reindeer hermeticity
+
+The two crates `axiom-l1-rs` newly depends on (`miniz_oxide`,
+`adler2`) are vendored through Reindeer per the P1.4
+freeze-hash policy. `make reindeer-check` is idempotent against
+the committed `third-party/rust/` tree. `buck2 build
+//crates/axiom-l1-rs:axiom-l1-rs` returns `BUILD SUCCEEDED`.
+
+### F-7. State layout invariants
+
+`apk::tests::state_layouts_pinned_within_drift` pins the
+`size_of` of `Apk<Unverified>` (96 B), `Apk<SignatureVerified>`
+(128 B), and `Apk<FullyParsed<V2>>` (128 B) within ±16 B drift.
+A regression that re-introduces always-`None` Option fields
+fires the gate. `apk::tests::dropping_fully_parsed_releases_buffers`
+exercises the auto-derived `Drop` against a parsed APK to surface
+any leak in the per-state payload chain.
 
 ---
 

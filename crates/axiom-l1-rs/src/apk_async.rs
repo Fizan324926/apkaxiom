@@ -20,88 +20,19 @@
 
 use crate::apk::{ApkError, EntryMeta, Manifest, Resources, SignatureBlock};
 use crate::apk_data::{
-    looks_like_arsc, looks_like_axml, looks_like_pkcs7_der, CapturedBodies, FullyParsedData,
-    SignatureVerifiedData, UnverifiedData,
+    classify_for_capture, looks_like_arsc, looks_like_axml, looks_like_pkcs7_der, persist_capture,
+    ApkSigBlock, CaptureSlot, CapturedBodies, FullyParsedData, Jarv1Carrier, SignatureVerifiedData,
+    UnverifiedData,
 };
 use crate::event::ParseEvent;
 use crate::state::{ApkState, FullyParsed, SigVariant, SignatureVerified, Unverified, V2, V3, V4};
 use crate::stream_async::{ApkAsyncParser, AsyncByteSource};
 
-// ---------------------------------------------------------------------
-// Compression / capture helpers (mirror of apk.rs internals)
-// ---------------------------------------------------------------------
-
-const COMPRESSION_STORED: u16 = 0;
-const COMPRESSION_DEFLATE: u16 = 8;
-const MAX_INFLATE_BYTES: usize = 64 * 1024 * 1024;
-
-fn inflate_raw(deflated: &[u8], expected_size: u32) -> Result<Vec<u8>, ApkError> {
-    let limit = std::cmp::min(MAX_INFLATE_BYTES, expected_size as usize * 4 + 4096);
-    miniz_oxide::inflate::decompress_to_vec_with_limit(deflated, limit).map_err(|e| {
-        ApkError::ManifestDecode(match e.status {
-            miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
-                "deflate inflate exceeded MAX_INFLATE_BYTES"
-            }
-            miniz_oxide::inflate::TINFLStatus::FailedCannotMakeProgress
-            | miniz_oxide::inflate::TINFLStatus::Failed
-            | miniz_oxide::inflate::TINFLStatus::Adler32Mismatch
-            | miniz_oxide::inflate::TINFLStatus::BadParam
-            | miniz_oxide::inflate::TINFLStatus::NeedsMoreInput
-            | miniz_oxide::inflate::TINFLStatus::Done => "deflate inflate failed",
-        })
-    })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CaptureSlot {
-    SigningCarrier,
-    Manifest,
-    Resources,
-}
-
-fn classify_for_capture(file_name: &[u8]) -> Option<CaptureSlot> {
-    if file_name == b"AndroidManifest.xml" {
-        Some(CaptureSlot::Manifest)
-    } else if file_name == b"resources.arsc" {
-        Some(CaptureSlot::Resources)
-    } else if file_name.starts_with(b"META-INF/")
-        && (file_name.ends_with(b".RSA")
-            || file_name.ends_with(b".DSA")
-            || file_name.ends_with(b".EC"))
-    {
-        Some(CaptureSlot::SigningCarrier)
-    } else {
-        None
-    }
-}
-
-fn persist_capture(
-    slot: CaptureSlot,
-    raw: Vec<u8>,
-    compression_method: u16,
-    uncompressed_size: u32,
-    captured: &mut CapturedBodies,
-) -> Result<(), ApkError> {
-    let bytes = match compression_method {
-        COMPRESSION_STORED => raw,
-        COMPRESSION_DEFLATE => inflate_raw(&raw, uncompressed_size)?,
-        _ => {
-            return Err(ApkError::ManifestDecode(
-                "unrecognised ZIP compression method",
-            ))
-        }
-    };
-    match slot {
-        CaptureSlot::SigningCarrier => {
-            if captured.signing_block.is_none() {
-                captured.signing_block = Some(bytes);
-            }
-        }
-        CaptureSlot::Manifest => captured.manifest = Some(bytes),
-        CaptureSlot::Resources => captured.resources = Some(bytes),
-    }
-    Ok(())
-}
+// (Compression / capture helpers — `inflate_raw`,
+// `classify_for_capture`, `persist_capture`, `CaptureSlot` — live
+// in `apk_data.rs` so this async path consumes the same canonical
+// copy as `apk.rs`. Drift between the two surfaces is
+// structurally impossible.)
 
 // ---------------------------------------------------------------------
 // ApkAsync<S>
@@ -152,6 +83,7 @@ impl ApkAsync<Unverified> {
         let mut parser = ApkAsyncParser::new(source);
         let mut entries = Vec::new();
         let mut captured = CapturedBodies::default();
+        let mut inflate_used = 0usize;
         let mut active: Option<(CaptureSlot, Vec<u8>, u16, u32)> = None;
 
         while let Some(event) = parser.next_event().await? {
@@ -165,7 +97,14 @@ impl ApkAsync<Unverified> {
                     general_flags,
                 } => {
                     if let Some((slot, buf, method, usize_)) = active.take() {
-                        persist_capture(slot, buf, method, usize_, &mut captured)?;
+                        persist_capture(
+                            slot,
+                            buf,
+                            method,
+                            usize_,
+                            &mut captured,
+                            &mut inflate_used,
+                        )?;
                     }
                     active = classify_for_capture(&file_name).map(|s| {
                         (
@@ -193,7 +132,7 @@ impl ApkAsync<Unverified> {
             }
         }
         if let Some((slot, buf, method, usize_)) = active.take() {
-            persist_capture(slot, buf, method, usize_, &mut captured)?;
+            persist_capture(slot, buf, method, usize_, &mut captured, &mut inflate_used)?;
         }
         Ok(Self {
             entries,
@@ -230,20 +169,23 @@ fn verify_with_variant<V: SigVariant>(
 ) -> Result<ApkAsync<SignatureVerified>, ApkError> {
     let UnverifiedData { captured } = apk.state_data;
     let CapturedBodies {
-        signing_block,
+        signing_carriers,
         manifest,
         resources,
     } = captured;
-    let block_bytes = signing_block.ok_or(ApkError::SignatureVerify {
-        variant_tag: V::TAG,
-        reason: "no META-INF/<key>.RSA|.DSA|.EC entry present",
-    })?;
-    if !looks_like_pkcs7_der(&block_bytes) {
+    if signing_carriers.is_empty() {
         return Err(ApkError::SignatureVerify {
             variant_tag: V::TAG,
-            reason: "META-INF/ signing carrier is not a PKCS#7 DER SEQUENCE",
+            reason: "no META-INF/<key>.RSA|.DSA|.EC entry present",
         });
     }
+    let carrier_bytes = signing_carriers
+        .into_iter()
+        .find(|b| looks_like_pkcs7_der(b))
+        .ok_or(ApkError::SignatureVerify {
+            variant_tag: V::TAG,
+            reason: "no META-INF/ signing carrier passes the PKCS#7 DER probe",
+        })?;
     Ok(ApkAsync {
         entries: apk.entries,
         state_data: SignatureVerifiedData {
@@ -251,7 +193,10 @@ fn verify_with_variant<V: SigVariant>(
             resources_bytes: resources,
             signature_block: SignatureBlock {
                 variant_tag: V::TAG,
-                block_bytes,
+                jar_v1_carrier: Jarv1Carrier {
+                    block_bytes: carrier_bytes,
+                },
+                apk_sig_block: ApkSigBlock { block_bytes: None },
             },
         },
     })
