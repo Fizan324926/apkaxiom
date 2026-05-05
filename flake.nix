@@ -154,6 +154,15 @@
           # (cadical by default) for UInt16/UInt32 bit-level
           # equalities the round-trip lemmas need.
           cadical
+          # P1.7 §C closure: continuous profiling. `flamegraph` +
+          # `cargo-flamegraph` provide pprof-compatible profile
+          # capture (perf record → SVG + folded-stacks). The
+          # folded-stacks file is the format Pyroscope's self-host
+          # API ingests, so the same artifacts feed dashboards
+          # directly when the SaaS / self-host stack lights up
+          # (operator one-shot in CHECKLIST §C).
+          flamegraph
+          cargo-flamegraph
         ] ++ [
           # Pulled from nixpkgs-unstable; nixos-24.11 lags on these.
           # - cargo-audit / cargo-deny: 24.11 can't parse CVSS:4.0

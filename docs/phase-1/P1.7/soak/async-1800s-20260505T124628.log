@@ -1,0 +1,33 @@
+# zip-stream-soak-async 30-min io_uring run
+# host: Linux cobra 6.8.0-110-generic #110-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 19 15:09:20 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+# date-start: 2026-05-05T12:46:28+00:00
+# branch: p1.7/operator-closure
+# commit: 17476986d92862f45ea0710ce55aab6d293acdcb
+zip-stream-soak-async: 65656 byte archive at "/tmp/apkaxiom-soak-async.zip" for 1800 s; gate ≥ 200 Mbps
+soak-async: 73616325 archives, 368081625 events, 4833353434200 bytes in 1800.00 s — 21481.6 Mbps
+soak-async: max buffer capacity observed: 196636 bytes (parser fixed-size, no growth)
+soak-async: PASS (≥ 200 Mbps via io_uring)
+	Command being timed: "/root/apkaxiom/tools/zip-stream-soak-async/target/release/zip-stream-soak-async --duration-secs 1800 --min-mbps 200"
+	User time (seconds): 1049.58
+	System time (seconds): 749.21
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 30:00.01
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 13824
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2818
+	Voluntary context switches: 366
+	Involuntary context switches: 3388
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 144
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+# date-end: 2026-05-05T13:16:28+00:00

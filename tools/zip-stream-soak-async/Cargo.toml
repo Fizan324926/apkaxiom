@@ -1,0 +1,36 @@
+# Standalone cargo crate — *not* a member of the apkaxiom workspace
+# (excluded in /root/apkaxiom/Cargo.toml). Glommio pulls a transitive
+# dep set (rlimit, sketches-ddsketch, …) that lives outside our
+# Reindeer-vendored third-party tree, so we drive this build with
+# `cargo --manifest-path tools/zip-stream-soak-async/Cargo.toml ...`
+# from inside the dev shell.
+#
+# This is the same pattern `crates/axiom-l1-rs/fuzz` and
+# `crates/axiom-zip-ref/fuzz` use for libfuzzer-sys.
+
+[package]
+name = "zip-stream-soak-async"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[[bin]]
+name = "zip-stream-soak-async"
+path = "src/main.rs"
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
+# Glommio: thread-per-core io_uring runtime. Linux-only; requires
+# kernel ≥ 5.8 with CAP_SYS_RESOURCE or rlimit_memlock raised.
+# 0.9 is the latest stable line as of 2026-05; pinned to a minor
+# series so the io_uring API surface is stable.
+glommio = "0.9"
+# `enclose` is pulled transitively by glommio; the 1.2.1 release
+# (Apr 2025) bumped to edition2024, which Rust 1.83 doesn't have.
+# Pin to the previous published 1.2.0 so the build works on our
+# pinned toolchain. This is a transitive-dep version pin via
+# direct-dep coercion — the resolver picks the lower-bound when
+# it satisfies both constraints.
+enclose = "=1.2.0"
