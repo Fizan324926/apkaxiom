@@ -93,3 +93,9 @@ docs/phase-1/P1.7/profiles/
 # P1.7 §F soak transcripts are sign-off artefacts — keep them
 # despite the global *.log rule above.
 !docs/phase-1/P1.7/soak/*.log
+
+# P1.8 §F-1 perf-delta artefacts.
+!docs/phase-1/P1.8/perf/*.log
+
+# P1.9 §F-1 perf-delta artefacts.
+!docs/phase-1/P1.9/*.log

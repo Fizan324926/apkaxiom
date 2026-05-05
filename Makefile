@@ -338,6 +338,51 @@ p18-gates: ## Run every P1.8 sub-phase gate end-to-end.
 	$(MAKE) p18-buck2
 	$(MAKE) p18-perf-delta
 
+##@ P1.9 — Translation-validation harness
+
+.PHONY: tv-build
+tv-build: ## Build the Lean and Rust LFH evaluators + the validator.
+	lake build lfh-eval
+	cargo build -p lfh-eval-rust -p translation-validator -p axiom-l0-zip-lfh-verified --release
+
+.PHONY: tv
+tv: tv-build ## Run the translation validator over the LFH corpus and write a fresh receipt.
+	./target/release/translation-validator \
+	  --corpus corpus/zip/lfh-valid \
+	  --corpus corpus/zip/lfh-adversarial \
+	  --rust-bin target/release/lfh-eval-rust \
+	  --receipt docs/phase-1/P1.9/tv-receipt-lfh-full.txt
+
+.PHONY: tv-check-receipt
+tv-check-receipt: tv-build ## Re-run the validator and assert the resulting receipt's lean-output-sha256 matches the committed shim constant.
+	bash -c '\
+	  ./target/release/translation-validator \
+	    --corpus corpus/zip/lfh-valid \
+	    --corpus corpus/zip/lfh-adversarial \
+	    --rust-bin target/release/lfh-eval-rust \
+	    --receipt /tmp/tv-receipt-fresh.txt && \
+	  cmp /tmp/tv-receipt-fresh.txt docs/phase-1/P1.9/tv-receipt-lfh-full.txt && \
+	  echo "PASS: fresh receipt is byte-identical to the committed receipt." \
+	'
+
+.PHONY: p19-perf-delta
+p19-perf-delta: ## P1.9 §10 row 5 perf-delta gate (verified shim vs hand-Rust, gate ≤ 5%).
+	cargo run -q -p p19-perf-delta --release
+
+.PHONY: p19-buck2
+p19-buck2: ## Verify Buck2 builds for every P1.9 target.
+	buck2 build \
+	  //crates/axiom-l0-zip-lfh-verified:axiom-l0-zip-lfh-verified \
+	  //tools/lfh-eval-rust:lfh-eval-rust \
+	  //tools/translation-validator:translation-validator \
+	  //tools/p19-perf-delta:p19-perf-delta
+
+.PHONY: p19-gates
+p19-gates: ## Run every P1.9 sub-phase gate end-to-end.
+	$(MAKE) tv-check-receipt
+	$(MAKE) p19-perf-delta
+	$(MAKE) p19-buck2
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

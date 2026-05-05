@@ -1,0 +1,19 @@
+[package]
+name = "axiom-l0-zip-lfh-verified"
+description = "P1.9 — translation-validated re-export of `axiom_zip_ref::lfh`. The `tv-receipt-lfh-full.txt` artefact under `docs/phase-1/P1.9/` proves Lean ↔ Rust byte-identical agreement on the 1499 non-empty LFH corpus inputs at the time of last `make tv` run."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+axiom-zip-ref = { path = "../axiom-zip-ref" }
+
+[lints]
+workspace = true

@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/axiom-l0",
+    "crates/axiom-l0-zip-lfh-verified",
     "crates/axiom-l1-rs",
     "crates/axiom-ir",
     "crates/axiom-extract-hello",
@@ -18,6 +19,8 @@ members = [
     "tools/zip-stream-soak",
     "tools/p17-bench-1k",
     "tools/p18-perf-delta",
+    "tools/lfh-eval-rust",
+    "tools/p19-perf-delta",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

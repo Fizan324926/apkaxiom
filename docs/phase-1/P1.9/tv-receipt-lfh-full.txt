@@ -1,0 +1,6 @@
+tv-receipt v1
+corpus-sha256: fa798ee50d4e1d9df024e51aa7246631c8dccf72cd3221c04d8c18e86b7e8b84
+corpus-size: 1500 (non-empty: 1499, skipped: 1)
+lean-output-sha256: 6af3e60fa9c1e03f21aec8d8c106db1567e421a1ecf956136c5f0e7a20b6763d
+rust-output-sha256: 6af3e60fa9c1e03f21aec8d8c106db1567e421a1ecf956136c5f0e7a20b6763d
+agree: 1499/1499
