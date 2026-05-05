@@ -4,6 +4,53 @@ load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 
 cargo.rust_library(
+    name = "adler2-2",
+    srcs = [
+        "vendor/adler2-2.0.1/src/algo.rs",
+        "vendor/adler2-2.0.1/src/lib.rs",
+    ],
+    crate = "adler2",
+    crate_root = "vendor/adler2-2.0.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+)
+
+alias(
+    name = "miniz_oxide",
+    actual = ":miniz_oxide-0.8",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "miniz_oxide-0.8",
+    srcs = [
+        "vendor/miniz_oxide-0.8.9/src/deflate/buffer.rs",
+        "vendor/miniz_oxide-0.8.9/src/deflate/core.rs",
+        "vendor/miniz_oxide-0.8.9/src/deflate/mod.rs",
+        "vendor/miniz_oxide-0.8.9/src/deflate/stored.rs",
+        "vendor/miniz_oxide-0.8.9/src/deflate/stream.rs",
+        "vendor/miniz_oxide-0.8.9/src/deflate/zlib.rs",
+        "vendor/miniz_oxide-0.8.9/src/inflate/core.rs",
+        "vendor/miniz_oxide-0.8.9/src/inflate/mod.rs",
+        "vendor/miniz_oxide-0.8.9/src/inflate/output_buffer.rs",
+        "vendor/miniz_oxide-0.8.9/src/inflate/stream.rs",
+        "vendor/miniz_oxide-0.8.9/src/lib.rs",
+        "vendor/miniz_oxide-0.8.9/src/serde/big_array.rs",
+        "vendor/miniz_oxide-0.8.9/src/serde/mod.rs",
+        "vendor/miniz_oxide-0.8.9/src/shared.rs",
+    ],
+    crate = "miniz_oxide",
+    crate_root = "vendor/miniz_oxide-0.8.9/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "with-alloc",
+    ],
+    visibility = [],
+    deps = [":adler2-2"],
+)
+
+cargo.rust_library(
     name = "proc-macro2-1",
     srcs = [
         "vendor/proc-macro2-1.0.106/src/detection.rs",

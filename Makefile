@@ -313,18 +313,29 @@ p18-test-doc: ## Run the 26 compile_fail doc-tests that prove the type-state gua
 	cargo test -p axiom-l1-rs --doc
 
 .PHONY: p18-test-real-apk
-p18-test-real-apk: ## Run the F-Droid real-APK e2e integration tests.
+p18-test-real-apk: ## Run the F-Droid real-APK e2e integration tests (4 distinct APKs).
 	cargo test -p axiom-l1-rs --test real_apk_fdroid
+
+.PHONY: p18-test-parity
+p18-test-parity: ## Run the sync↔async wrapper parity test against the 4 real APKs.
+	cargo test -p axiom-l1-rs --test sync_async_parity
 
 .PHONY: p18-fuzz-inproc
 p18-fuzz-inproc: ## Run the 10K-mutation in-process fuzz of the typestate pipeline.
 	cargo test -p axiom-l1-rs --release --test fuzz_apk_typestate_inproc -- --nocapture
 
+.PHONY: p18-buck2
+p18-buck2: ## Verify Buck2 + Reindeer hermeticity gate.
+	$(MAKE) reindeer-check
+	buck2 build //crates/axiom-l1-rs:axiom-l1-rs
+
 .PHONY: p18-gates
-p18-gates: ## Run every P1.8 sub-phase gate end-to-end (doc-tests + real APK + fuzz + perf-delta).
+p18-gates: ## Run every P1.8 sub-phase gate end-to-end.
 	$(MAKE) p18-test-doc
 	$(MAKE) p18-test-real-apk
+	$(MAKE) p18-test-parity
 	$(MAKE) p18-fuzz-inproc
+	$(MAKE) p18-buck2
 	$(MAKE) p18-perf-delta
 
 ##@ Bazel sub-workspace

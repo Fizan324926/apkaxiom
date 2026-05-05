@@ -9,6 +9,7 @@ rust_library(
     deps = [
         "//crates/axiom-l0:axiom-l0",
         "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:miniz_oxide",
         "//third-party/rust:thiserror",
     ],
     visibility = ["PUBLIC"],
@@ -23,6 +24,7 @@ rust_test(
     deps = [
         "//crates/axiom-l0:axiom-l0",
         "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//third-party/rust:miniz_oxide",
         "//third-party/rust:thiserror",
     ],
 )
