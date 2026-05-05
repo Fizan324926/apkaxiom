@@ -26,9 +26,11 @@
 
 pub mod event;
 pub mod stream;
+pub mod stream_async;
 
 pub use event::{ParseEvent, ResourceValue};
 pub use stream::{ApkParser, StreamError, DEFAULT_CHUNK_SIZE, MAX_HEADER_PAYLOAD};
+pub use stream_async::{ApkAsyncParser, AsyncByteSource};
 
 /// Build-graph liveness probe.
 ///

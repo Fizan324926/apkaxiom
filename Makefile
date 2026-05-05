@@ -283,8 +283,22 @@ p17-bench: ## Run the streaming-vs-file parser microbench (10K iters per arm).
 .PHONY: p17-soak
 p17-soak: ## Sustained-throughput soak (default 60s, gate ≥ 500 Mbps; tune via P17_DURATION/P17_MIN_MBPS).
 	cargo run -q -p zip-stream-soak --release -- \
-	  --duration-secs $(P17_DURATION:60) \
-	  --min-mbps $(P17_MIN_MBPS:500)
+	  --duration-secs $(or $(P17_DURATION),60) \
+	  --min-mbps $(or $(P17_MIN_MBPS),500)
+
+.PHONY: p17-bench-1k
+p17-bench-1k: ## Latency bench against the 1000-archive synthetic corpus.
+	cargo run -q -p p17-bench-1k --release -- --archives 1000
+
+.PHONY: p17-profile
+p17-profile: ## Capture perf flamegraph + folded stacks for the streaming bench.
+	bash $(ROOT)/scripts/p17-profile.sh
+
+.PHONY: p17-soak-async
+p17-soak-async: ## io_uring (Glommio) soak via the async ApkParser variant. Requires CAP_SYS_RESOURCE / `ulimit -l unlimited`.
+	cd $(ROOT)/tools/zip-stream-soak-async && cargo run --release -- \
+	  --duration-secs $(or $(P17_DURATION),30) \
+	  --min-mbps $(or $(P17_MIN_MBPS),100)
 
 ##@ Bazel sub-workspace
 

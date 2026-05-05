@@ -86,3 +86,10 @@ result-*
 #                                       reindeer; the mutable caches
 #                                       above are excluded)
 # - flake.lock                (committed)
+
+# P1.7 profile artefacts (regenerable via `make p17-profile`).
+docs/phase-1/P1.7/profiles/
+
+# P1.7 §F soak transcripts are sign-off artefacts — keep them
+# despite the global *.log rule above.
+!docs/phase-1/P1.7/soak/*.log

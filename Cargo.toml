@@ -16,6 +16,7 @@ members = [
     "tools/zip-fuzz",
     "tools/zip-stream-bench",
     "tools/zip-stream-soak",
+    "tools/p17-bench-1k",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.
@@ -31,6 +32,11 @@ exclude = [
     # from inside the dev shell; not part of the buck2 / cargo build.
     "crates/axiom-zip-ref/fuzz",
     "crates/axiom-l1-rs/fuzz",
+    # Glommio io_uring soak — pulls glommio + transitive deps that
+    # live outside the Reindeer set. Driven via
+    # `cargo --manifest-path tools/zip-stream-soak-async/Cargo.toml`
+    # from inside `nix develop`.
+    "tools/zip-stream-soak-async",
 ]
 
 [workspace.package]
