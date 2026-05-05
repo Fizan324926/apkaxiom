@@ -2,14 +2,22 @@
 
 //! Phantom-type-state markers for [`crate::apk::Apk`].
 //!
-//! P1.8's deliverable is **encoding parser-pipeline correctness in
-//! the type system** — calling `manifest()` on an unverified APK is
-//! a compile-time error, not a runtime panic. The state types here
-//! are zero-sized (`std::mem::size_of::<Unverified>() == 0` etc.)
-//! and live exclusively as type parameters on [`crate::apk::Apk`];
-//! they carry no data and impose no runtime overhead. The compiler
-//! drops `PhantomData<S>` entirely under release codegen — verified
-//! by the §F-1 perf-delta gate (`tools/p18-perf-delta`).
+//! P1.8's deliverable, in two parts:
+//!
+//! 1. **Sealed-trait phantom universe** — `ApkState ∈ {Unverified,
+//!    SignatureVerified, FullyParsed<V>}` and `SigVariant ∈ {V2, V3,
+//!    V4}`. Each marker is a ZST under release codegen and lives
+//!    exclusively as a type parameter on [`crate::apk::Apk`].
+//!    Sealing prevents external crates from minting new states the
+//!    Lean parser (P1.5/P1.6/P1.9) doesn't model.
+//! 2. **Per-state associated `Data`** — each state declares the
+//!    runtime fields it actually needs. `Apk<S>` stores `S::Data`
+//!    directly, eliminating the always-`None` `Option<…>` waste
+//!    every earlier state used to carry. Memory layout is now
+//!    state-tight: `Apk<Unverified>` carries the bytes it needs
+//!    for verify, `Apk<SignatureVerified>` swaps signing-block
+//!    bytes for a typed view, `Apk<FullyParsed<V>>` adds decoded
+//!    manifest + resources views.
 //!
 //! ## Pipeline
 //!
@@ -28,15 +36,6 @@
 //!                                  └─────────────────────────────────┘
 //! ```
 //!
-//! ## Sealed-trait design
-//!
-//! [`ApkState`] and [`SigVariant`] are *sealed* — only this crate
-//! can implement them. This prevents downstream crates from
-//! introducing new state markers that the verified Lean parser
-//! (P1.5/P1.6/P1.9) doesn't model. The 1-to-1 phantom-state ↔
-//! Lean-constructor mapping in `docs/type-state.md` is the
-//! soundness contract for P1.9's translation-validation pass.
-//!
 //! ## Translation-validation contract
 //!
 //! Each phantom marker corresponds to exactly one Lean inductive
@@ -49,12 +48,14 @@
 //! |---|---|---|
 //! | [`Unverified`] | `ApkState.unverified` | Bytes consumed, structural ZIP parse done, no signature work. |
 //! | [`SignatureVerified`] | `ApkState.sigVerified` | An APK Signing Block (v2/v3/v4) verified end-to-end. |
-//! | [`FullyParsed`]`<V>` | `ApkState.fullyParsed V` | Manifest + resources decoded (lazily); `V` records which signature variant was verified. |
-//! | [`V2`] | `SigVariant.v2` | APK Signing Block v2 (APKv1 schemes pre-Q). |
-//! | [`V3`] | `SigVariant.v3` | APK Signing Block v3 (key-rotation support). |
+//! | [`FullyParsed`]`<V>` | `ApkState.fullyParsed V` | Manifest + resources decoded; `V` records which signature variant was verified. |
+//! | [`V2`] | `SigVariant.v2` | APK Signing Block v2 (Android 7.0+). |
+//! | [`V3`] | `SigVariant.v3` | APK Signing Block v3 (key-rotation, Android 9.0+). |
 //! | [`V4`] | `SigVariant.v4` | APK Signing Block v4 (incremental delivery, Android 11+). |
 
 use core::marker::PhantomData;
+
+use crate::apk_data::{FullyParsedData, SignatureVerifiedData, UnverifiedData};
 
 mod private {
     /// Sealing trait — prevents external crates from implementing
@@ -65,11 +66,20 @@ mod private {
 
 /// Marker trait for [`crate::apk::Apk`] state types. Sealed.
 ///
-/// The closed universe (`Unverified` / `SignatureVerified` /
-/// `FullyParsed<V>`) maps 1-to-1 to a Lean inductive whose
-/// constructor enumeration P1.9 will reflect — see the table on
-/// the module docstring.
+/// `Data` is the per-state runtime payload — only the fields that
+/// state actually needs. `Apk<S>` stores `S::Data` directly, which
+/// is how the memory waste of the earlier `Option<…>`-everywhere
+/// design is eliminated.
 pub trait ApkState: private::Sealed {
+    /// Per-state runtime payload. `Unverified` carries
+    /// `UnverifiedData` (raw captured bodies for downstream
+    /// verify/parse), `SignatureVerified` carries
+    /// `SignatureVerifiedData` (raw bodies + a verified
+    /// signing-block view), `FullyParsed<V>` carries
+    /// `FullyParsedData` (signing block + decoded manifest +
+    /// decoded resources, ready for use).
+    type Data: 'static;
+
     /// A short, stable name used in diagnostics and in the
     /// translation-validation table. Equals the Lean constructor
     /// suffix.
@@ -100,6 +110,7 @@ pub trait SigVariant: private::Sealed {
 pub struct Unverified;
 impl private::Sealed for Unverified {}
 impl ApkState for Unverified {
+    type Data = UnverifiedData;
     const NAME: &'static str = "unverified";
 }
 
@@ -116,6 +127,7 @@ impl ApkState for Unverified {
 pub struct SignatureVerified;
 impl private::Sealed for SignatureVerified {}
 impl ApkState for SignatureVerified {
+    type Data = SignatureVerifiedData;
     const NAME: &'static str = "sig-verified";
 }
 
@@ -128,6 +140,7 @@ impl ApkState for SignatureVerified {
 pub struct FullyParsed<V: SigVariant>(PhantomData<V>);
 impl<V: SigVariant> private::Sealed for FullyParsed<V> {}
 impl<V: SigVariant> ApkState for FullyParsed<V> {
+    type Data = FullyParsedData;
     const NAME: &'static str = "fully-parsed";
 }
 
@@ -167,8 +180,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn states_are_zero_sized() {
-        // The whole point of phantom states: they cost nothing.
+    fn state_markers_are_zero_sized() {
+        // The whole point of phantom states: the *markers* cost
+        // nothing. The `S::Data` payload on `Apk<S>` carries the
+        // actual per-state fields and varies in size.
         assert_eq!(core::mem::size_of::<Unverified>(), 0);
         assert_eq!(core::mem::size_of::<SignatureVerified>(), 0);
         assert_eq!(core::mem::size_of::<FullyParsed<V2>>(), 0);

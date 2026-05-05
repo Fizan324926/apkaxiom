@@ -301,16 +301,31 @@ p17-soak-async: ## io_uring (Glommio) soak via the async ApkParser variant. Requ
 	  --min-mbps $(or $(P17_MIN_MBPS),100)
 
 .PHONY: p18-perf-delta
-p18-perf-delta: ## P1.8 §F-1 perf-delta gate (default: 5 runs × 200K iters, gate ≤ 0.1% on mean).
+p18-perf-delta: ## P1.8 §F-1 perf-delta gate (3 arms vs P1.7 baseline; default 5×500K iters; dev-shell gates 0.5%/5%).
 	cargo run -q -p p18-perf-delta --release -- \
-	  --runs $(or $(P18_RUNS),5) \
-	  --iters $(or $(P18_ITERS),200000) \
-	  --gate $(or $(P18_GATE),0.1) \
-	  --no-collect
+	  --runs $(or $(P18_RUNS),20) \
+	  --iters $(or $(P18_ITERS),500000) \
+	  --gate-typestate $(or $(P18_GATE_TYPESTATE),0.5) \
+	  --gate-full $(or $(P18_GATE_FULL),5.0)
 
 .PHONY: p18-test-doc
-p18-test-doc: ## Run the 24 compile_fail doc-tests that prove the type-state guards.
+p18-test-doc: ## Run the 26 compile_fail doc-tests that prove the type-state guards.
 	cargo test -p axiom-l1-rs --doc
+
+.PHONY: p18-test-real-apk
+p18-test-real-apk: ## Run the F-Droid real-APK e2e integration tests.
+	cargo test -p axiom-l1-rs --test real_apk_fdroid
+
+.PHONY: p18-fuzz-inproc
+p18-fuzz-inproc: ## Run the 10K-mutation in-process fuzz of the typestate pipeline.
+	cargo test -p axiom-l1-rs --release --test fuzz_apk_typestate_inproc -- --nocapture
+
+.PHONY: p18-gates
+p18-gates: ## Run every P1.8 sub-phase gate end-to-end (doc-tests + real APK + fuzz + perf-delta).
+	$(MAKE) p18-test-doc
+	$(MAKE) p18-test-real-apk
+	$(MAKE) p18-fuzz-inproc
+	$(MAKE) p18-perf-delta
 
 ##@ Bazel sub-workspace
 

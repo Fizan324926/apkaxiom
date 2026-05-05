@@ -16,6 +16,13 @@ path = "src/lib.rs"
 axiom-l0 = { path = "../axiom-l0" }
 axiom-zip-ref = { path = "../axiom-zip-ref" }
 thiserror = "1"
+# Pure-Rust DEFLATE decoder. APKs uniformly DEFLATE-compress at
+# least their AndroidManifest.xml and META-INF/*.RSA carrier
+# entries; the wrapper has to inflate them before its magic probes
+# (looks_like_axml / looks_like_pkcs7_der) can fire. miniz_oxide
+# is the minimal-deps choice — it pulls only `adler` for the
+# Adler-32 the zlib-stream wrapping needs.
+miniz_oxide = "0.8"
 
 [lints]
 workspace = true
