@@ -1,6 +1,6 @@
 [package]
 name = "lean-to-rust"
-description = "APKAXIOM P1.2 prototype — extracts a tiny Lean 4 subset to Rust. Replaced in P1.9 by the production translation pipeline."
+description = "APKAXIOM P1.9 — domain-specific Lean → Rust extractor for the verified-parser sublanguage of theorems/Apkaxiom/Zip/LocalHeader.lean (def, structure, inductive over UInt8/16/32, Nat, ByteArray, Option, Except, products, Id.run do). The P1.2 toy Nat→Nat path is preserved as p12_compat for backwards-compat."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
