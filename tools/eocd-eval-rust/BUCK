@@ -1,0 +1,13 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+
+rust_binary(
+    name = "eocd-eval-rust",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "eocd_eval_rust",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+    ],
+    visibility = ["PUBLIC"],
+)

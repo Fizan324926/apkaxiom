@@ -15,5 +15,8 @@ path = "src/lib.rs"
 [dependencies]
 axiom-zip-ref = { path = "../axiom-zip-ref" }
 
+[dev-dependencies]
+axiom-l0-zip-lfh-extracted = { path = "../axiom-l0-zip-lfh-extracted" }
+
 [lints]
 workspace = true

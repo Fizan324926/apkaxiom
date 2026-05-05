@@ -14,7 +14,7 @@
 
 #![allow(missing_docs, clippy::too_long_first_doc_paragraph)]
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::ast::*;
@@ -31,12 +31,12 @@ pub enum TranslateError {
 #[derive(Debug, Default)]
 pub struct Env {
     /// Set of inductive names (for `.ctor` resolution).
-    pub inductives: HashMap<String, Vec<String>>,
+    pub inductives: BTreeMap<String, Vec<String>>,
     /// Set of structure names (for `{ … }` resolution).
-    pub structs: HashMap<String, Vec<String>>,
+    pub structs: BTreeMap<String, Vec<String>>,
     /// Map ident-aliases — Lean's `a` may need to become Rust's `a_`
     /// if it shadows a keyword.
-    pub aliases: HashMap<String, String>,
+    pub aliases: BTreeMap<String, String>,
 }
 
 impl Env {
@@ -72,7 +72,11 @@ pub fn emit_module(m: &Module, env: &Env) -> Result<String, TranslateError> {
     writeln!(out, "// Subset coverage: see tools/lean-to-rust/README.md").unwrap();
     writeln!(out, "// (or the §D-1 ADR-0025 update).").unwrap();
     writeln!(out, "#![forbid(unsafe_code)]").unwrap();
-    writeln!(out, "#![allow(clippy::too_many_arguments, clippy::doc_markdown, clippy::missing_errors_doc, missing_docs)]").unwrap();
+    writeln!(
+        out,
+        "#![allow(clippy::too_many_arguments, clippy::doc_markdown, clippy::missing_errors_doc, missing_docs, unused_parens, clippy::unnecessary_wraps, clippy::missing_const_for_fn, clippy::redundant_field_names, clippy::unreadable_literal, clippy::double_parens, clippy::needless_return, clippy::manual_let_else, clippy::use_self)]"
+    )
+    .unwrap();
     writeln!(out).unwrap();
 
     for item in &m.items {
@@ -162,6 +166,19 @@ fn emit_def(out: &mut String, d: &DefItem, env: &Env) -> Result<(), TranslateErr
         if s.contains("->") {
             return emit_enum_method(out, d);
         }
+    }
+
+    // Nullary def over a primitive numeric / bool with a literal
+    // body → emit as a Rust `const`. References to it then resolve
+    // as constants too (uppercase via `render_ident`).
+    if d.params.is_empty() && is_primitive_numeric(&d.return_ty) && is_const_literal_body(&d.body) {
+        let const_name = render_ident(&d.name);
+        let ty = render_type(&d.return_ty, TypePosition::Return);
+        let body = render_expr(&d.body, env, 0)?;
+        writeln!(out, "/// Auto-extracted from Lean `def {}`.", d.name).unwrap();
+        writeln!(out, "pub const {const_name}: {ty} = {body};").unwrap();
+        writeln!(out).unwrap();
+        return Ok(());
     }
 
     // Plain `def` — translate to `pub fn`.
@@ -327,27 +344,50 @@ fn lean_to_rust_field(name: &str) -> String {
         return format!("{name}_");
     }
     // CamelCase → snake_case for field-like positions. Type names
-    // (CamelCase) stay as-is. Heuristic: if first char is uppercase
-    // and followed by another uppercase or end-of-name, treat as
-    // type — otherwise camelCase variable.
-    let mut chars = name.chars();
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return String::new(),
-    };
-    if first.is_ascii_uppercase() {
-        // type name — preserve.
+    // (CamelCase) stay as-is.
+    let chars: Vec<char> = name.chars().collect();
+    if chars.is_empty() {
+        return String::new();
+    }
+    if chars[0].is_ascii_uppercase() {
         return name.to_string();
     }
-    // camelCase to snake_case.
+    // Lower-camelCase → snake_case with acronym preservation:
+    //   readU16          → read_u16
+    //   uncompressedSize → uncompressed_size
+    //   toUInt16         → to_uint16   (NOT to_u_int16)
+    //   parseLfh         → parse_lfh
+    //   crc32            → crc32
+    //
+    // Algorithm: walk left-to-right; on each uppercase boundary
+    // emit '_'. Within a run of uppercase letters/digits, treat
+    // them as one logical "word" — but if the run is followed by a
+    // lowercase letter, the last uppercase letter starts the next
+    // word (e.g., `XMLParser` → `xml_parser`).
     let mut out = String::with_capacity(name.len() + 4);
-    out.push(first);
-    for c in chars {
+    let mut i = 0usize;
+    while i < chars.len() {
+        let c = chars[i];
         if c.is_ascii_uppercase() {
-            out.push('_');
-            out.push(c.to_ascii_lowercase());
+            if i > 0 {
+                out.push('_');
+            }
+            let mut j = i;
+            while j < chars.len() && (chars[j].is_ascii_uppercase() || chars[j].is_ascii_digit()) {
+                j += 1;
+            }
+            let run_end = if j - i > 1 && j < chars.len() && chars[j].is_ascii_lowercase() {
+                j - 1
+            } else {
+                j
+            };
+            for &uc in &chars[i..run_end] {
+                out.push(uc.to_ascii_lowercase());
+            }
+            i = run_end;
         } else {
             out.push(c);
+            i += 1;
         }
     }
     out
@@ -385,6 +425,26 @@ fn is_const_eligible(_: &Expr) -> bool {
     false
 }
 
+/// `true` if the type is a primitive numeric (UIntN, Nat) — these
+/// are the cases where Lean's `def name : T := lit` is meant as a
+/// named constant rather than a thunk.
+fn is_primitive_numeric(t: &Type) -> bool {
+    matches!(t, Type::UInt(_) | Type::Nat | Type::Bool)
+}
+
+/// `true` if the expression is a literal we can put on the RHS of
+/// `pub const NAME: T = …;`. The Lean source uses `0x04034b50`
+/// (IntLit), `30` (IntLit), `true`/`false` (BoolLit). We allow
+/// parenthesised literals for safety.
+fn is_const_literal_body(e: &Expr) -> bool {
+    match e {
+        Expr::IntLit(_) | Expr::BoolLit(_) | Expr::StrLit(_) => true,
+        Expr::Paren(inner) => is_const_literal_body(inner),
+        Expr::Neg(inner) => matches!(inner.as_ref(), Expr::IntLit(_) | Expr::Paren(_)),
+        _ => false,
+    }
+}
+
 fn render_expr(e: &Expr, env: &Env, depth: usize) -> Result<String, TranslateError> {
     Ok(match e {
         Expr::IntLit(s) => s.clone(),
@@ -392,7 +452,7 @@ fn render_expr(e: &Expr, env: &Env, depth: usize) -> Result<String, TranslateErr
         Expr::BoolLit(false) => "false".into(),
         Expr::StrLit(s) => format!("\"{s}\""),
         Expr::Ident(s) => render_ident(s),
-        Expr::DotCtor { ctor } => render_dot_ctor(ctor),
+        Expr::DotCtor { ctor } => render_dot_ctor_envful(ctor, env),
         Expr::App { head, arg } => render_app(head, arg, env, depth)?,
         Expr::BinOp { op, lhs, rhs } => {
             let op_str = render_binop(*op);
@@ -467,37 +527,90 @@ fn render_expr(e: &Expr, env: &Env, depth: usize) -> Result<String, TranslateErr
 fn render_ident(s: &str) -> String {
     // Special idents that map to Rust counterparts.
     match s {
-        "lfhSignature" => "LFH_SIGNATURE".into(),
-        "fixedSize" => "FIXED_SIZE".into(),
-        "totalSize" => "total_size".into(),
-        "readU16" => "read_u16".into(),
-        "readU32" => "read_u32".into(),
-        "slice" => "slice".into(),
-        "parseLfh" => "parse_lfh".into(),
-        "minimalLfhBytes" => "minimal_lfh_bytes".into(),
-        "parseError" => "parse_error".into(),
-        _ => lean_to_rust_field(s),
+        "lfhSignature" => return "LFH_SIGNATURE".into(),
+        "fixedSize" => return "FIXED_SIZE".into(),
+        "totalSize" => return "total_size".into(),
+        "readU16" => return "read_u16".into(),
+        "readU32" => return "read_u32".into(),
+        "slice" => return "slice".into(),
+        "parseLfh" => return "parse_lfh".into(),
+        "minimalLfhBytes" => return "minimal_lfh_bytes".into(),
+        "parseError" => return "parse_error".into(),
+        // Plain Lean ctor identifiers that map to Rust prelude.
+        "some" => return "Some".into(),
+        "none" => return "None".into(),
+        "ok" => return "Ok".into(),
+        "error" => return "Err".into(),
+        _ => {}
+    }
+    // Dotted identifier: `bs.size`, `b0.toUInt16`, `nameLen.toNat`.
+    // These are method-style accesses Lean's name-resolver expands;
+    // we lower them to Rust method calls / field accesses.
+    if let Some((recv, method)) = s.rsplit_once('.') {
+        // Capitalised receiver = type-namespace path
+        // (`ByteArray.mk`, `ParseError.tag` already handled
+        // upstream). Lower dotted-ident as a zero-arg method call
+        // when the receiver is a value (lowercase initial).
+        let first = recv.chars().next().unwrap_or(' ');
+        if first.is_ascii_lowercase() || first == '_' {
+            // Use the same dispatch table as method calls, but
+            // with no arguments. Reuse `render_method_call` via a
+            // synthesised empty-arg call.
+            return render_method_call_zero_arg(recv, method);
+        }
+        // Capitalised receiver — qualified path / namespaced
+        // function name. Snake-case the method.
+        return format!("{}::{}", recv, lean_to_rust_field(method));
+    }
+    lean_to_rust_field(s)
+}
+
+/// Zero-arg form of [`render_method_call`] for the dotted-ident
+/// case. Mirrors the dispatch table; kept separate because the
+/// signature is simpler (no env / depth).
+fn render_method_call_zero_arg(recv: &str, method: &str) -> String {
+    let recv_rust = lean_to_rust_field(recv);
+    match method {
+        "size" => format!("{recv_rust}.len()"),
+        "toUInt8" => format!("u8::from({recv_rust})"),
+        "toUInt16" => format!("u16::from({recv_rust})"),
+        "toUInt32" => format!("u32::from({recv_rust})"),
+        "toUInt64" => format!("u64::from({recv_rust})"),
+        "toNat" => format!("({recv_rust} as usize)"),
+        // Generic field access.
+        _ => format!("{recv_rust}.{}", lean_to_rust_field(method)),
     }
 }
 
-fn render_dot_ctor(ctor: &str) -> String {
-    // Lean dot-ctors that map to Rust `Result`/`Option` constructors.
+fn render_dot_ctor_envful(ctor: &str, env: &Env) -> String {
+    // Standard Option/Result projectors.
     match ctor {
-        "some" => "Some".into(),
-        "none" => "None".into(),
-        // For Except, Lean's `.error e` / `.ok v` map to Rust's
-        // `Err(e)` / `Ok(v)`. Bare `.error` / `.ok` (without args)
-        // means "construct the variant as a function" — which the
-        // App rule handles.
-        "error" => "Err".into(),
-        "ok" => "Ok".into(),
-        // Inductive ctors — depends on the type. We capitalise so
-        // `ParseError::shortHeader` becomes `ParseError::ShortHeader`.
-        // The enum prefix is supplied by the surrounding context
-        // (App or pattern); here we just emit the capitalised name
-        // and let the App lowering wrap it.
-        other => capitalize(other),
+        "some" => return "Some".into(),
+        "none" => return "None".into(),
+        "error" => return "Err".into(),
+        "ok" => return "Ok".into(),
+        _ => {}
     }
+    // Try to resolve against a known inductive: if exactly one
+    // declared inductive has this constructor name, prefix with
+    // the enum name. Multiple matches → ambiguous (shouldn't
+    // happen in our subset); fall back to bare capitalised name.
+    let mut matches: Vec<&String> = env
+        .inductives
+        .iter()
+        .filter_map(|(enum_name, ctors)| {
+            if ctors.iter().any(|c| c == ctor) {
+                Some(enum_name)
+            } else {
+                None
+            }
+        })
+        .collect();
+    matches.sort();
+    if matches.len() == 1 {
+        return format!("{}::{}", matches[0], capitalize(ctor));
+    }
+    capitalize(ctor)
 }
 
 fn render_binop(op: BinOp) -> &'static str {
@@ -524,46 +637,68 @@ fn render_binop(op: BinOp) -> &'static str {
 }
 
 fn render_app(head: &Expr, arg: &Expr, env: &Env, depth: usize) -> Result<String, TranslateError> {
-    // Common Lean patterns we recognise specially:
-    //   - `bs.get! o`         → bs[o] (or bs.get(o).copied().unwrap())
-    //   - `bs.size`           → bs.len()
-    //   - `bs.extract a b`    → bs[a..b].to_vec()
-    //   - `b0.toUInt16` etc   → as casts
-    //   - `nameLen.toNat`     → nameLen as usize
-    //   - `Some / None / Ok / Err` ctors via App
-    // The translator is hand-tuned for the LocalHeader.lean surface.
+    // Lean idioms we handle specially:
+    //   - `bs.get! o`            → bs[o]              (after copy)
+    //   - `bs.size`              → bs.len()           (zero-arg method)
+    //   - `bs.extract a b`       → bs[a..b].to_vec()  (slice-to-Vec)
+    //   - `b0.toUInt16`          → u16::from(b0)
+    //   - `b0.toUInt32`          → u32::from(b0)
+    //   - `nameLen.toNat`        → name_len as usize
+    //   - `ByteArray.mk arr`     → arr                (mk is identity)
+    //   - `.error e`             → Err(e)
+    //   - `.ok v`                → Ok(v)
+    //   - `.some x`              → Some(x)
+    //   - `.error .shortHeader`  → Err(ParseError::ShortHeader)
+    //   - generic `f x y z`      → f(x, y, z)
 
-    // Detect `X.field` chains where X is identifier and field starts
-    // with lowercase — e.g. `bs.size`, `lfh.fileName`. Lean expresses
-    // these as App(Ident "bs"), Ident "size") through the parser
-    // because we treat `.size` as a continuation of the dotted ident.
-    // But our parser handled dotted idents at lex time, so `bs.size`
-    // arrives as a single `Ident("bs.size")`. Method-style calls
-    // come through as `App` only when there are arguments.
+    // Collect the full chain before deciding how to render. The
+    // bottom of the App chain is the callee; everything else is an
+    // argument list in source order.
+    let (callee, args) = collect_app(head, arg);
 
-    // Examine whether `head` is a dotted method we recognise.
-    if let Expr::Ident(method_path) = head {
-        if let Some((recv, method)) = method_path.rsplit_once('.') {
-            return render_method_app(recv, method, arg, env, depth);
+    // Method-style call: callee is `Ident("recv.method")`.
+    // Only treat as a method if the receiver is a value (lowercase
+    // start) — otherwise it's a qualified path like `ByteArray.mk`.
+    if let Expr::Ident(s) = callee {
+        if let Some((recv, method)) = s.rsplit_once('.') {
+            // `ByteArray.mk` — capitalised receiver; route through
+            // the method dispatcher so `mk` becomes identity.
+            // `bs.extract` / `b0.toUInt16` — lowercase receiver;
+            // method dispatch.
+            return render_method_call(recv, method, &args, env, depth);
         }
     }
 
-    // Generic application: `f x` -> `f(x)`. Multiple-arg calls show
-    // up as nested Apps.
-    let (callee, args) = collect_app(head, arg);
-    let callee_str = render_expr(callee, env, depth)?;
     let mut arg_strs: Vec<String> = Vec::with_capacity(args.len());
     for a in args {
         arg_strs.push(render_expr(a, env, depth)?);
     }
-    // Special: capitalised ctor + single arg -> wrap in (..)
+
+    // `.error e` / `.ok v` / `.some x` — anonymous projector with
+    // an argument. Emit Result/Option ctor.
+    //
+    // Note: arg_strs already routes through `render_dot_ctor_envful`,
+    // so bare `.shortHeader` arguments are pre-qualified to
+    // `ParseError::ShortHeader`. That makes `.error .shortHeader`
+    // round-trip into `Err(ParseError::ShortHeader)` correctly.
     if let Expr::DotCtor { ctor } = callee {
-        let mapped = render_dot_ctor(ctor);
-        // For Lean's `.error .shortHeader`, we want
-        // `Err(ParseError::ShortHeader)`.
-        return Ok(format!("{}({})", mapped, arg_strs.join(", ")));
+        let mapped = match ctor.as_str() {
+            "some" => "Some",
+            "none" => "None", // shouldn't take args but handled defensively
+            "error" => "Err",
+            "ok" => "Ok",
+            other => {
+                // Inductive ctor with args. Qualify via env if
+                // possible.
+                let qualified = render_dot_ctor_envful(other, env);
+                return Ok(format!("{qualified}({})", arg_strs.join(", ")));
+            }
+        };
+        return Ok(format!("{mapped}({})", arg_strs.join(", ")));
     }
-    Ok(format!("{}({})", callee_str, arg_strs.join(", ")))
+
+    let callee_str = render_expr(callee, env, depth)?;
+    Ok(format!("{callee_str}({})", arg_strs.join(", ")))
 }
 
 fn collect_app<'a>(head: &'a Expr, arg: &'a Expr) -> (&'a Expr, Vec<&'a Expr>) {
@@ -581,36 +716,57 @@ fn collect_app<'a>(head: &'a Expr, arg: &'a Expr) -> (&'a Expr, Vec<&'a Expr>) {
     (h, args)
 }
 
-fn render_method_app(
+/// Render a Lean method-style call `recv.method args*`.
+///
+/// The receiver `recv` is the Lean source name; we lower it to its
+/// Rust counterpart via `render_ident` so namespaced types (like
+/// `ByteArray`, `UInt32`) get recognised. The `method` name drives
+/// the dispatch — most idioms are translated structurally.
+fn render_method_call(
     recv: &str,
     method: &str,
-    arg: &Expr,
+    args: &[&Expr],
     env: &Env,
     depth: usize,
 ) -> Result<String, TranslateError> {
-    let recv_rust = lean_to_rust_field(recv);
-    let arg_str = render_expr(arg, env, depth)?;
-    match method {
-        "get!" => Ok(format!("({recv_rust}[{arg_str}])")),
-        "extract" => {
-            // bs.extract o (o + len) — arg is *one* expression but
-            // may be a paren-tuple-ish. In our parser the second arg
-            // arrives as a separate App level. Here, `arg` is the
-            // first index; we surface the call as a slice once we
-            // know both indices.
-            // The common shape is App(App(Ident "bs.extract", o), o+len)
-            // which means we get TWO calls into render_method_app.
-            // The first call would carry the first arg only; we
-            // can't render correctly without seeing the second.
-            // Instead, fall back to a generic method call:
-            Ok(format!("{recv_rust}.extract({arg_str})"))
-        }
+    let recv_rust = render_ident(recv);
+    let mut arg_strs = Vec::with_capacity(args.len());
+    for a in args {
+        arg_strs.push(render_expr(a, env, depth)?);
+    }
+
+    match (recv, method) {
+        // `ByteArray.mk arr` → `arr` (the constructor is the
+        // identity for our `&[u8]` lowering).
+        ("ByteArray", "mk") if arg_strs.len() == 1 => Ok(arg_strs.into_iter().next().unwrap()),
+        // Numeric type-cast methods. Lean spells these as
+        // `b0.toUInt16`; in Rust we want `u16::from(b0)`.
+        (_, "toUInt8") if arg_strs.is_empty() => Ok(format!("u8::from({recv_rust})")),
+        (_, "toUInt16") if arg_strs.is_empty() => Ok(format!("u16::from({recv_rust})")),
+        (_, "toUInt32") if arg_strs.is_empty() => Ok(format!("u32::from({recv_rust})")),
+        (_, "toUInt64") if arg_strs.is_empty() => Ok(format!("u64::from({recv_rust})")),
+        // `.toNat` lowers to `as usize`. UInt8/16 don't directly
+        // implement `From<usize>`, so we use `as`.
+        (_, "toNat") if arg_strs.is_empty() => Ok(format!("({recv_rust} as usize)")),
+        // ByteArray accessors.
+        (_, "size") if arg_strs.is_empty() => Ok(format!("{recv_rust}.len()")),
+        (_, "get!") if arg_strs.len() == 1 => Ok(format!("{recv_rust}[{}]", arg_strs[0])),
+        (_, "extract") if arg_strs.len() == 2 => Ok(format!(
+            "{recv_rust}[{}..{}].to_vec()",
+            arg_strs[0], arg_strs[1]
+        )),
+        // Generic method call — e.g. `Function.Injective` would land
+        // here, but we don't actually use it at runtime. Lower as a
+        // best-effort method call so the emitter doesn't choke; the
+        // output won't necessarily compile but it's a clear signal
+        // the translator needs an extension.
         _ => {
-            // Generic method-call form.
-            Ok(format!(
-                "{recv_rust}.{}({arg_str})",
-                lean_to_rust_field(method)
-            ))
+            let m = lean_to_rust_field(method);
+            if arg_strs.is_empty() {
+                Ok(format!("{recv_rust}.{m}"))
+            } else {
+                Ok(format!("{recv_rust}.{m}({})", arg_strs.join(", ")))
+            }
         }
     }
 }

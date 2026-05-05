@@ -1,0 +1,13 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+
+rust_binary(
+    name = "lfh-eval-extracted",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lfh_eval_extracted",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0-zip-lfh-extracted:axiom-l0-zip-lfh-extracted",
+    ],
+    visibility = ["PUBLIC"],
+)
