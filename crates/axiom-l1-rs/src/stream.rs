@@ -537,7 +537,7 @@ impl<R: Read> ApkParser<R> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Minimal well-formed archive: 1 LFH (no body), 1 CDR, 1 EOCD = 98 bytes.
@@ -625,7 +625,8 @@ mod tests {
     /// of `(filename, body)` pairs. Each entry uses
     /// `compression_method = 0` (stored) so streaming sees raw
     /// bodies, exactly the wire-format soundness path.
-    fn realistic_archive(entries: &[(&[u8], &[u8])]) -> Vec<u8> {
+    #[allow(clippy::redundant_pub_crate)] // Used from sibling apk::tests; `pub(crate)` is the most precise semantics even though the enclosing `mod tests` is itself private.
+    pub(crate) fn realistic_archive(entries: &[(&[u8], &[u8])]) -> Vec<u8> {
         let mut bytes = Vec::new();
         let mut lfh_offsets = Vec::with_capacity(entries.len());
 

@@ -300,6 +300,18 @@ p17-soak-async: ## io_uring (Glommio) soak via the async ApkParser variant. Requ
 	  --duration-secs $(or $(P17_DURATION),30) \
 	  --min-mbps $(or $(P17_MIN_MBPS),100)
 
+.PHONY: p18-perf-delta
+p18-perf-delta: ## P1.8 §F-1 perf-delta gate (default: 5 runs × 200K iters, gate ≤ 0.1% on mean).
+	cargo run -q -p p18-perf-delta --release -- \
+	  --runs $(or $(P18_RUNS),5) \
+	  --iters $(or $(P18_ITERS),200000) \
+	  --gate $(or $(P18_GATE),0.1) \
+	  --no-collect
+
+.PHONY: p18-test-doc
+p18-test-doc: ## Run the 24 compile_fail doc-tests that prove the type-state guards.
+	cargo test -p axiom-l1-rs --doc
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info
