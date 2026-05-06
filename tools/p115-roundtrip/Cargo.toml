@@ -1,0 +1,18 @@
+[package]
+name = "p115-roundtrip"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "p115-roundtrip"
+path = "src/main.rs"
+
+[[bin]]
+name = "p115-ir-overhead-bench"
+path = "src/bin/ir_overhead_bench.rs"
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }

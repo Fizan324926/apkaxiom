@@ -305,6 +305,27 @@ impl Apk<Unverified> {
     ///     let _ = apk.signature_block();
     /// }
     /// ```
+    /// Raw AXML bytes captured from `AndroidManifest.xml`, if present.
+    /// Used by the IR round-trip gate without going through signature
+    /// verification.
+    #[must_use]
+    pub fn manifest_bytes(&self) -> Option<&[u8]> {
+        self.state_data.captured.manifest.as_deref()
+    }
+
+    /// Raw ARSC bytes captured from `resources.arsc`, if present.
+    /// Used by the IR round-trip gate without going through signature
+    /// verification.
+    #[must_use]
+    pub fn resources_bytes(&self) -> Option<&[u8]> {
+        self.state_data.captured.resources.as_deref()
+    }
+
+    /// Verify the APK Signing Block v2.
+    ///
+    /// # Errors
+    /// [`ApkError::SignatureVerify`] when the v1 signature probe
+    /// rejects the input.
     pub fn verify_v2(self) -> Result<Apk<SignatureVerified>, ApkError> {
         verify_with_variant::<V2>(self)
     }

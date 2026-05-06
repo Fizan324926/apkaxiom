@@ -44,6 +44,7 @@ members = [
     "tools/p112-commit-chain",
     "tools/p112-tamper-fuzz",
     "tools/p112-aosp-parity",
+    "tools/p115-roundtrip",
     "fuzz/harness",
     "fuzz/classifier",
     "fuzz/orchestrator",
