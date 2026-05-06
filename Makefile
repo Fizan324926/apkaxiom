@@ -1370,6 +1370,24 @@ p119-gates: ## P1.19 — all local gates: bench coverage ≥99%.
 .PHONY: p119
 p119: p119-gates ## Alias — run every P1.19 gate.
 
+##@ P1.20 — Phase 1 hard-gate review + Phase 2 ADR
+
+.PHONY: p120-review
+p120-review: ## P1.20 — print Phase 1 gate review summary from CHECKLIST.
+	@echo "=== Phase 1 Hard-Gate Review ==="
+	@grep -E "PASS|CARRY-FORWARD" docs/phase-1/P1.20/CHECKLIST.md \
+	  | grep -v "^#" | sed 's/| \*\*\(.*\)\*\* |/[\1]/' | head -40
+
+.PHONY: p120-gates
+p120-gates: ## P1.20 — verify retrospective + ADR-0031 exist and are non-empty.
+	@test -s docs/phase1-retrospective.md     || (echo "FAIL: retrospective missing" && exit 1)
+	@test -s docs/phase-1/P1.20/ADR-0031-phase2-scope.md || (echo "FAIL: ADR-0031 missing" && exit 1)
+	@test -s docs/phase-1/P1.20/CHECKLIST.md || (echo "FAIL: CHECKLIST missing" && exit 1)
+	@echo "PASS p120-gates: retrospective + ADR-0031 + CHECKLIST present"
+
+.PHONY: p120
+p120: p120-gates ## Alias — run every P1.20 gate.
+
 ##@ Nix
 
 .PHONY: nix-check
