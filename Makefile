@@ -432,12 +432,41 @@ tv-eocd: ## Run TV harness for the EOCD parser (Lean ↔ hand-Rust).
 tv-fuzz: ## Run the 10K-mutation TV fuzz (verified ↔ extracted).
 	cargo test -p axiom-l0-zip-lfh-verified --release --test tv_fuzz_inproc -- --nocapture
 
+.PHONY: tv-coverage-gate
+tv-coverage-gate: ## P1.9 §V item 8 — line coverage of axiom_zip_ref::lfh ≥ 85%.
+	bash scripts/coverage-gate.sh 85.0
+
+.PHONY: tv-mutation-gate
+tv-mutation-gate: ## P1.9 §V item 2/10 — mutation kill rate on lfh.rs ≥ 95%.
+	bash scripts/mutation-gate.sh 95.0
+
+.PHONY: tv-schema-check
+tv-schema-check: ## P1.9 §V item 6 — validate evaluator JSON output against the canonical schema.
+	cargo build -q -p tv-schema-check -p lfh-eval-rust -p lfh-eval-extracted --release
+	@echo "Lean evaluator output:"
+	@cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$$f"; done) \
+	  | lake exe lfh-eval | ./target/release/tv-schema-check
+	@echo "Hand-Rust evaluator output:"
+	@cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$$f"; done) \
+	  | ./target/release/lfh-eval-rust | ./target/release/tv-schema-check
+	@echo "Extracted-Rust evaluator output:"
+	@cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$$f"; done) \
+	  | ./target/release/lfh-eval-extracted | ./target/release/tv-schema-check
+
+.PHONY: tv-termination
+tv-termination: ## P1.9 §V items 11+13 — termination + side-channel timing on the LFH corpus.
+	cargo test -p axiom-zip-ref --release --test termination_and_timing -- --nocapture
+
 .PHONY: p19-gates
 p19-gates: ## Run every P1.9 sub-phase gate end-to-end.
 	$(MAKE) extract-determinism
 	$(MAKE) tv-three-way
 	$(MAKE) tv-eocd
 	$(MAKE) tv-fuzz
+	$(MAKE) tv-coverage-gate
+	$(MAKE) tv-mutation-gate
+	$(MAKE) tv-schema-check
+	$(MAKE) tv-termination
 	$(MAKE) tv-check-receipt
 	$(MAKE) p19-perf-delta
 	$(MAKE) p19-buck2

@@ -1,0 +1,1918 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Success",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 3.310923916,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.802581565,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:61:9: replace ParseError::tag -> u8 with 0",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "ParseError::tag",
+            "return_type": "-> u8",
+            "span": {
+              "start": {
+                "line": 58,
+                "column": 5
+              },
+              "end": {
+                "line": 67,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 61,
+              "column": 9
+            },
+            "end": {
+              "line": 66,
+              "column": 10
+            }
+          },
+          "replacement": "0",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_61_col_9.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_61_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.553084043,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.753087404,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:61:9: replace ParseError::tag -> u8 with 1",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "ParseError::tag",
+            "return_type": "-> u8",
+            "span": {
+              "start": {
+                "line": 58,
+                "column": 5
+              },
+              "end": {
+                "line": 67,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 61,
+              "column": 9
+            },
+            "end": {
+              "line": 66,
+              "column": 10
+            }
+          },
+          "replacement": "1",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_61_col_9_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_61_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.55295433,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.807234081,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:77:29: replace + with - in read_u16",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u16",
+            "return_type": "-> Option<u16>",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 1
+              },
+              "end": {
+                "line": 80,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 77,
+              "column": 29
+            },
+            "end": {
+              "line": 77,
+              "column": 30
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_77_col_29.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_77_col_29.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.607153746,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702755153,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:77:29: replace + with * in read_u16",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u16",
+            "return_type": "-> Option<u16>",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 1
+              },
+              "end": {
+                "line": 80,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 77,
+              "column": 29
+            },
+            "end": {
+              "line": 77,
+              "column": 30
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_77_col_29_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_77_col_29_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.622732003,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.760180673,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:84:5: replace read_u32 -> Option<u32> with None",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u32",
+            "return_type": "-> Option<u32>",
+            "span": {
+              "start": {
+                "line": 82,
+                "column": 1
+              },
+              "end": {
+                "line": 87,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 84,
+              "column": 5
+            },
+            "end": {
+              "line": 86,
+              "column": 34
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.807052991,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.70532686,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:77:5: replace read_u16 -> Option<u16> with None",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u16",
+            "return_type": "-> Option<u16>",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 1
+              },
+              "end": {
+                "line": 80,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 77,
+              "column": 5
+            },
+            "end": {
+              "line": 79,
+              "column": 34
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.045506386,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.756472816,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:77:5: replace read_u16 -> Option<u16> with Some(1)",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u16",
+            "return_type": "-> Option<u16>",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 1
+              },
+              "end": {
+                "line": 80,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 77,
+              "column": 5
+            },
+            "end": {
+              "line": 79,
+              "column": 34
+            }
+          },
+          "replacement": "Some(1)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5_002.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.201985081,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.705074167,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:77:5: replace read_u16 -> Option<u16> with Some(0)",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u16",
+            "return_type": "-> Option<u16>",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 1
+              },
+              "end": {
+                "line": 80,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 77,
+              "column": 5
+            },
+            "end": {
+              "line": 79,
+              "column": 34
+            }
+          },
+          "replacement": "Some(0)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_77_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 4.239837731,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.70598891,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:84:5: replace read_u32 -> Option<u32> with Some(0)",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u32",
+            "return_type": "-> Option<u32>",
+            "span": {
+              "start": {
+                "line": 82,
+                "column": 1
+              },
+              "end": {
+                "line": 87,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 84,
+              "column": 5
+            },
+            "end": {
+              "line": 86,
+              "column": 34
+            }
+          },
+          "replacement": "Some(0)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.606922995,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.80816272,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:84:5: replace read_u32 -> Option<u32> with Some(1)",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u32",
+            "return_type": "-> Option<u32>",
+            "span": {
+              "start": {
+                "line": 82,
+                "column": 1
+              },
+              "end": {
+                "line": 87,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 84,
+              "column": 5
+            },
+            "end": {
+              "line": 86,
+              "column": 34
+            }
+          },
+          "replacement": "Some(1)",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5_002.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_84_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.71438432,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.706955421,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:84:29: replace + with - in read_u32",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u32",
+            "return_type": "-> Option<u32>",
+            "span": {
+              "start": {
+                "line": 82,
+                "column": 1
+              },
+              "end": {
+                "line": 87,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 84,
+              "column": 29
+            },
+            "end": {
+              "line": 84,
+              "column": 30
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_84_col_29.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_84_col_29.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.708873886,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.657472983,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:84:29: replace + with * in read_u32",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "read_u32",
+            "return_type": "-> Option<u32>",
+            "span": {
+              "start": {
+                "line": 82,
+                "column": 1
+              },
+              "end": {
+                "line": 87,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 84,
+              "column": 29
+            },
+            "end": {
+              "line": 84,
+              "column": 30
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_84_col_29_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_84_col_29_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.710590192,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.707657537,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:5: replace slice_at -> Option<Vec<u8>> with None",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 5
+            },
+            "end": {
+              "line": 91,
+              "column": 39
+            }
+          },
+          "replacement": "None",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.658436007,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.806887191,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:5: replace slice_at -> Option<Vec<u8>> with Some(vec![])",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 5
+            },
+            "end": {
+              "line": 91,
+              "column": 39
+            }
+          },
+          "replacement": "Some(vec![])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.757253198,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.705777395,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:5: replace slice_at -> Option<Vec<u8>> with Some(vec![0])",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 5
+            },
+            "end": {
+              "line": 91,
+              "column": 39
+            }
+          },
+          "replacement": "Some(vec![0])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_002.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.75923436,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.708975586,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:5: replace slice_at -> Option<Vec<u8>> with Some(vec![1])",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 5
+            },
+            "end": {
+              "line": 91,
+              "column": 39
+            }
+          },
+          "replacement": "Some(vec![1])",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_003.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_5_003.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.714473848,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.707786429,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:102:5: replace parse_lfh -> Result<ParseOk, ParseError> with Ok(Default::default())",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 102,
+              "column": 5
+            },
+            "end": {
+              "line": 135,
+              "column": 24
+            }
+          },
+          "replacement": "Ok(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_102_col_5.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_102_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.407202524,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:22: replace + with - in slice_at",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 22
+            },
+            "end": {
+              "line": 91,
+              "column": 23
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_22.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_22.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.657910393,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.757461239,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:91:22: replace + with * in slice_at",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "slice_at",
+            "return_type": "-> Option<Vec<u8>>",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 92,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 91,
+              "column": 22
+            },
+            "end": {
+              "line": 91,
+              "column": 23
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_91_col_22_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_91_col_22_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.703663945,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702623395,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:102:17: replace < with == in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 102,
+              "column": 17
+            },
+            "end": {
+              "line": 102,
+              "column": 18
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.708145691,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.707396788,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:102:17: replace < with > in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 102,
+              "column": 17
+            },
+            "end": {
+              "line": 102,
+              "column": 18
+            }
+          },
+          "replacement": ">",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.606140116,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.809137156,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:102:17: replace < with <= in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 102,
+              "column": 17
+            },
+            "end": {
+              "line": 102,
+              "column": 18
+            }
+          },
+          "replacement": "<=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17_002.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_102_col_17_002.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.557402284,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.752825041,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:106:12: replace != with == in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 106,
+              "column": 12
+            },
+            "end": {
+              "line": 106,
+              "column": 14
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_106_col_12.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_106_col_12.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.65990573,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.703110207,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:121:25: replace + with - in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 121,
+              "column": 25
+            },
+            "end": {
+              "line": 121,
+              "column": 26
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_121_col_25.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_121_col_25.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.660805256,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.711031638,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:121:25: replace + with * in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 121,
+              "column": 25
+            },
+            "end": {
+              "line": 121,
+              "column": 26
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_121_col_25_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_121_col_25_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.557976489,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.760540988,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:134:51: replace + with - in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 134,
+              "column": 51
+            },
+            "end": {
+              "line": 134,
+              "column": 52
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_134_col_51.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_134_col_51.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.603030521,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.757760468,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:134:51: replace + with * in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 134,
+              "column": 51
+            },
+            "end": {
+              "line": 134,
+              "column": 52
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_134_col_51_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_134_col_51_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.615892749,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.703920686,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:134:31: replace + with - in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 134,
+              "column": 31
+            },
+            "end": {
+              "line": 134,
+              "column": 32
+            }
+          },
+          "replacement": "-",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_134_col_31.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_134_col_31.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.605694633,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.769979362,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/axiom-zip-ref/src/lfh.rs:134:31: replace + with * in parse_lfh",
+          "package": "axiom-zip-ref",
+          "file": "crates/axiom-zip-ref/src/lfh.rs",
+          "function": {
+            "function_name": "parse_lfh",
+            "return_type": "-> Result<ParseOk, ParseError>",
+            "span": {
+              "start": {
+                "line": 94,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 134,
+              "column": 31
+            },
+            "end": {
+              "line": 134,
+              "column": 32
+            }
+          },
+          "replacement": "*",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__axiom-zip-ref__src__lfh.rs_line_134_col_31_001.log",
+      "diff_path": "diff/crates__axiom-zip-ref__src__lfh.rs_line_134_col_31_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.603480775,
+          "process_status": "Success",
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702372714,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/root/.rustup/toolchains/1.83.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=axiom-zip-ref@0.0.0"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_mutants": 29,
+  "missed": 0,
+  "caught": 28,
+  "timeout": 0,
+  "unviable": 1,
+  "success": 0,
+  "start_time": "2026-05-05T23:56:23.82480227Z",
+  "end_time": "2026-05-05T23:56:44.106599452Z",
+  "cargo_mutants_version": "27.0.0"
+}

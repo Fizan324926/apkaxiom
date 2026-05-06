@@ -46,5 +46,8 @@ walkdir = "2"
 # run on the inflated bytes. Pinned to 0.8 — `make third-party`
 # keeps the vendored tree in lock-step.
 miniz_oxide = "0.8"
+# P1.9 §V item 16 — cross-check the inline FIPS-180-4 SHA-256
+# implementation against RustCrypto's audited `sha2` crate.
+sha2 = { version = "0.10", default-features = false }
 
 [patch.crates-io]
