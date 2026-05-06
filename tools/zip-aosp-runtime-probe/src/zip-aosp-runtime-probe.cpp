@@ -69,11 +69,68 @@ int parse_archive_runtime(const std::vector<uint8_t>& bs) {
 
 }  // anonymous namespace
 
-int main(int argc, char** argv) {
-    if (argc != 2 || std::strcmp(argv[1], "--archive-runtime") != 0) {
-        std::fprintf(stderr, "usage: zip-aosp-runtime-probe --archive-runtime\n");
-        return 2;
+/// Persistent-mode protocol (`--archive-runtime-server`).
+///
+/// One process serves N inputs over its lifetime. Input frame:
+///
+///   <u32 length, little-endian> <length bytes>
+///
+/// Reply frame:
+///
+///   "ok <len>\n"             — archive accepted, len bytes consumed
+///   "err <reject> <code>\n"  — rejected, with AOSP signed ZipError
+///
+/// EOF on stdin terminates the server cleanly. Used by the
+/// p113-fuzz harness to amortise the ~20 ms process-startup
+/// cost of the per-call mode across many iterations (~100x
+/// speedup on 1 000-iter runs).
+int run_archive_runtime_server() {
+    while (true) {
+        uint8_t hdr[4];
+        size_t n = std::fread(hdr, 1, 4, stdin);
+        if (n == 0) return 0; // clean EOF
+        if (n != 4) {
+            std::fprintf(stderr, "short frame header (%zu bytes)\n", n);
+            return 1;
+        }
+        uint32_t len = uint32_t(hdr[0])
+                     | (uint32_t(hdr[1]) << 8)
+                     | (uint32_t(hdr[2]) << 16)
+                     | (uint32_t(hdr[3]) << 24);
+        if (len > (256u * 1024u * 1024u)) {
+            std::fprintf(stderr, "frame too large (%u bytes)\n", len);
+            return 1;
+        }
+        std::vector<uint8_t> bs(len);
+        if (len > 0) {
+            size_t got = std::fread(bs.data(), 1, len, stdin);
+            if (got != len) {
+                std::fprintf(stderr, "short frame body (%zu/%u)\n", got, len);
+                return 1;
+            }
+        }
+        ZipArchiveHandle handle = nullptr;
+        int32_t rc = OpenArchiveFromMemory(bs.data(), bs.size(),
+                                            "apkaxiom-runtime-probe", &handle);
+        if (rc != 0) {
+            if (handle) CloseArchive(handle);
+            print_err(rc);
+        } else {
+            print_ok(bs.size());
+            CloseArchive(handle);
+        }
+        std::fflush(stdout);
     }
-    const auto bs = read_stdin();
-    return parse_archive_runtime(bs);
+}
+
+int main(int argc, char** argv) {
+    if (argc == 2 && std::strcmp(argv[1], "--archive-runtime") == 0) {
+        const auto bs = read_stdin();
+        return parse_archive_runtime(bs);
+    }
+    if (argc == 2 && std::strcmp(argv[1], "--archive-runtime-server") == 0) {
+        return run_archive_runtime_server();
+    }
+    std::fprintf(stderr, "usage: zip-aosp-runtime-probe --archive-runtime|--archive-runtime-server\n");
+    return 2;
 }

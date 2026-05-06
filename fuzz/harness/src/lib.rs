@@ -41,12 +41,19 @@
     clippy::option_if_let_else,
     clippy::manual_let_else,
     clippy::redundant_closure_for_method_calls,
-    clippy::missing_const_for_fn
+    clippy::missing_const_for_fn,
+    clippy::missing_fields_in_debug,
+    clippy::should_implement_trait
 )]
 
 pub mod archive;
 pub mod classifier;
+pub mod coverage;
 pub mod cuttlefish;
+pub mod dedup;
 pub mod differ;
 pub mod grammar;
+pub mod metrics;
 pub mod mutator;
+pub mod probe;
+pub mod third_arms;

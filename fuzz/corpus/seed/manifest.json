@@ -26,11 +26,47 @@
       "limit": 1000
     }
     ,
+    "cdr-adversarial": {
+      "source_dir": "corpus/zip/cdr-adversarial",
+      "count": 200,
+      "limit": 200
+    }
+    ,
+    "cdr-valid": {
+      "source_dir": "corpus/zip/cdr-valid",
+      "count": 200,
+      "limit": 200
+    }
+    ,
+    "eocd-adversarial": {
+      "source_dir": "corpus/zip/eocd-adversarial",
+      "count": 200,
+      "limit": 200
+    }
+    ,
+    "eocd-valid": {
+      "source_dir": "corpus/zip/eocd-valid",
+      "count": 100,
+      "limit": 100
+    }
+    ,
+    "lfh-adversarial": {
+      "source_dir": "corpus/zip/lfh-adversarial",
+      "count": 250,
+      "limit": 250
+    }
+    ,
+    "lfh-valid": {
+      "source_dir": "corpus/zip/lfh-valid",
+      "count": 250,
+      "limit": 250
+    }
+    ,
     "wifiautoff-apks": {
       "source_dir": "corpus/signing",
       "count": 14,
       "limit": 999
     }
   },
-  "total_seeds": 1674
+  "total_seeds": 2874
 }

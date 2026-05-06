@@ -239,6 +239,25 @@ p16-aosp-runtime-probe: ## Compile the C++ runtime probe linking AOSP zip_archiv
 	  $(ROOT)/external/libziparchive/zip_error.cpp \
 	  -lz
 
+.PHONY: p113-aosp-probe-asan
+p113-aosp-probe-asan: ## P1.13 Gap-7 — sanitiser-instrumented probe (ASan + UBSan). Catches libziparchive C++ UB the unsanitised probe silently tolerates.
+	@mkdir -p $(ROOT)/target
+	g++ -std=c++20 -O1 -g -fsanitize=address,undefined \
+	  -fno-omit-frame-pointer -fno-sanitize-recover=all \
+	  -Wno-class-memaccess -Wno-unused-parameter \
+	  -DZLIB_CONST -D_LARGEFILE64_SOURCE -include sys/stat.h \
+	  -I$(ROOT)/external/libziparchive/include \
+	  -I$(ROOT)/external/libziparchive \
+	  -I$(ROOT)/tools/zip-aosp-runtime-probe/include \
+	  -I$(ROOT) \
+	  -o $(ROOT)/target/zip-aosp-runtime-probe-asan \
+	  $(ROOT)/tools/zip-aosp-runtime-probe/src/zip-aosp-runtime-probe.cpp \
+	  $(ROOT)/external/libziparchive/zip_archive.cc \
+	  $(ROOT)/external/libziparchive/zip_archive_stream_entry.cc \
+	  $(ROOT)/external/libziparchive/zip_cd_entry_map.cc \
+	  $(ROOT)/external/libziparchive/zip_error.cpp \
+	  -lz
+
 .PHONY: p16-aosp-runtime-report
 p16-aosp-runtime-report: p16-aosp-runtime-probe ## Run the AOSP runtime probe across the corpus and report leniency.
 	bash $(ROOT)/scripts/p16-aosp-runtime-report.sh
@@ -799,11 +818,14 @@ p113-dashboard-validate: ## P1.13 G8 — validate the Grafana dashboard JSON par
 	@python3 -c "import json; json.load(open('$(ROOT)/fuzz/dashboards/grafana-fuzzing.json')); print('grafana JSON valid')"
 
 .PHONY: p113-buck2
-p113-buck2: ## P1.13 G10 — verify Buck2 builds the harness + replay binaries.
+p113-buck2: ## P1.13 G10 — verify Buck2 builds the harness + every bin.
 	buck2 build \
 	  //fuzz/harness:p113-fuzz-harness \
 	  //fuzz/harness:p113-fuzz-driver \
-	  //fuzz/harness:p113-fuzz-replay
+	  //fuzz/harness:p113-fuzz-replay \
+	  //fuzz/harness:p113-fuzz-dedupe \
+	  //fuzz/harness:p113-fuzz-grammar-gen \
+	  //fuzz/harness:p113-afl-harness
 
 .PHONY: p113-gates
 p113-gates: ## Run every P1.13 gate end-to-end (dev mode).
@@ -815,6 +837,110 @@ p113-gates: ## Run every P1.13 gate end-to-end (dev mode).
 
 .PHONY: p113
 p113: p113-gates ## Alias — run every P1.13 gate.
+
+.PHONY: p113-fuzz-50k
+p113-fuzz-50k: ## P1.13 Gap-1 — 50 000-iter dev-mode soak with all arms (rate-limited 1/50).
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	$(MAKE) p113-aosp-probe-asan
+	cargo build -q -p p113-fuzz-harness --release
+	rm -rf $(ROOT)/fuzz/findings
+	$(ROOT)/target/release/p113-fuzz-driver \
+	  --mode dev \
+	  --seeds $(ROOT)/fuzz/corpus/seed \
+	  --archive $(ROOT)/fuzz/findings \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --asan-probe $(ROOT)/target/zip-aosp-runtime-probe-asan \
+	  --grammar $(ROOT)/fuzz/grammars/apk-v1.lark \
+	  --arms unzip,jdk-jar,py-zipfile --arms-sample-rate 50 \
+	  --metrics 127.0.0.1:9913 \
+	  --iters 50000 --log-every 5000 \
+	  --min-findings-gate 5
+
+.PHONY: p113-grammar-gen
+p113-grammar-gen: ## P1.13 Gap-13 — generate 500 grammar-shaped seeds.
+	cargo build -q -p p113-fuzz-harness --release
+	$(ROOT)/target/release/p113-fuzz-grammar-gen \
+	  --count 500 \
+	  --out $(ROOT)/fuzz/corpus/seed/grammar-gen
+
+.PHONY: p113-dedupe
+p113-dedupe: ## P1.13 Gap-12 — cluster archive findings by root-cause; emit minimal reproducers.
+	cargo build -q -p p113-fuzz-harness --release
+	$(ROOT)/target/release/p113-fuzz-dedupe \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --out $(ROOT)/fuzz/findings/clusters.ndjson
+
+.PHONY: p113-afl-harness
+p113-afl-harness: ## P1.13 Gap-4 — build the AFL++ fork-mode harness.
+	cargo build -q -p p113-fuzz-harness --release --bin p113-afl-harness
+
+.PHONY: p113-afl-fuzz
+p113-afl-fuzz: ## P1.13 Gap-4 — run AFL++ in non-instrumented (-n) mode for $$P113_AFL_SECONDS (default 300s).
+	$(MAKE) p113-afl-harness
+	$(MAKE) p16-aosp-runtime-probe
+	@if [ ! -e /root/.afl-core-set ]; then \
+	  echo core > /proc/sys/kernel/core_pattern 2>/dev/null && touch /root/.afl-core-set || true; \
+	fi
+	mkdir -p $(ROOT)/fuzz/afl-output
+	rm -rf $(ROOT)/fuzz/afl-output/*
+	AFL_SKIP_CPUFREQ=1 AFL_NO_AFFINITY=1 \
+	  AFL_SKIP_BIN_CHECK=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
+	  APKAXIOM_AOSP_PROBE=$(ROOT)/target/zip-aosp-runtime-probe \
+	  timeout $${P113_AFL_SECONDS:-300} afl-fuzz \
+	    -n \
+	    -i $(ROOT)/fuzz/corpus/seed/badpack-cves \
+	    -o $(ROOT)/fuzz/afl-output \
+	    -t 5000 -m none \
+	    -V $${P113_AFL_SECONDS:-300} \
+	    -- $(ROOT)/target/release/p113-afl-harness @@ || true
+	@echo "afl summary:"
+	@cat $(ROOT)/fuzz/afl-output/default/fuzzer_stats 2>/dev/null | head -25 || echo "  (no fuzzer_stats — afl exited early)"
+
+.PHONY: p113-parallel
+p113-parallel: ## P1.13 Gap-6 — Centipede-equivalent: N parallel dev-mode workers (default 4).
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	cargo build -q -p p113-fuzz-harness --release
+	rm -rf $(ROOT)/fuzz/findings-parallel
+	@for w in 1 2 3 4; do \
+	  mkdir -p $(ROOT)/fuzz/findings-parallel/worker-$$w; \
+	  $(ROOT)/target/release/p113-fuzz-driver \
+	    --mode dev \
+	    --seeds $(ROOT)/fuzz/corpus/seed \
+	    --archive $(ROOT)/fuzz/findings-parallel/worker-$$w \
+	    --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	    --grammar $(ROOT)/fuzz/grammars/apk-v1.lark \
+	    --iters 5000 --log-every 5000 \
+	    --seed $$((0xb113000000000000 + w)) > $(ROOT)/fuzz/findings-parallel/worker-$$w.log 2>&1 & \
+	done; \
+	wait
+	@echo "parallel workers complete:"
+	@for w in 1 2 3 4; do \
+	  echo "  worker $$w:"; tail -2 $(ROOT)/fuzz/findings-parallel/worker-$$w.log; \
+	done
+
+.PHONY: p113-prom-grafana
+p113-prom-grafana: ## P1.13 Gap-3 — start Prometheus + Grafana locally (driver must be running with --metrics).
+	@mkdir -p $(ROOT)/fuzz/observability
+	@cat > $(ROOT)/fuzz/observability/prometheus.yml <<-'PROM'\
+		global:\
+		  scrape_interval: 5s\
+		scrape_configs:\
+		  - job_name: p113-fuzz\
+		    static_configs:\
+		      - targets: ['127.0.0.1:9913']\
+		PROM
+	@echo "Prometheus config: $(ROOT)/fuzz/observability/prometheus.yml"
+	@echo "Run: prometheus --config.file=$(ROOT)/fuzz/observability/prometheus.yml"
+	@echo "     grafana-server --homepath /usr/share/grafana --config /etc/grafana/grafana.ini"
+
+.PHONY: p113-coverage-axiom-l0
+p113-coverage-axiom-l0: ## P1.13 Gap-8 — coverage of axiom-l0-zip-verified hit by the seed corpus.
+	cargo llvm-cov --no-cfg-coverage \
+	  -p axiom-l0-zip-verified \
+	  -p axiom-zip-ref \
+	  --summary-only
 
 ##@ Bazel sub-workspace
 

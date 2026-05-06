@@ -21,16 +21,33 @@ declare -A SOURCES=(
   ["adversarial-mutated"]="$ROOT/corpus/zip/adversarial-mutated"
   ["archive-valid"]="$ROOT/corpus/zip/archive-valid"
   ["wifiautoff-apks"]="$ROOT/corpus/signing"
+  ["lfh-valid"]="$ROOT/corpus/zip/lfh-valid"
+  ["lfh-adversarial"]="$ROOT/corpus/zip/lfh-adversarial"
+  ["eocd-valid"]="$ROOT/corpus/zip/eocd-valid"
+  ["eocd-adversarial"]="$ROOT/corpus/zip/eocd-adversarial"
+  ["cdr-valid"]="$ROOT/corpus/zip/cdr-valid"
+  ["cdr-adversarial"]="$ROOT/corpus/zip/cdr-adversarial"
 )
 
 # How many we take from each source. Bench-1K is just the first
 # 1 000; the others ship in their entirety.
+# 250 each from the LFH/EOCD/CDR pieces brings signing-block-
+# adjacent + record-fragment coverage (Gap-20 closure: signing
+# block is between LFH and CDR, so adversarial inputs at those
+# layer boundaries exercise the parser's signing-block-region
+# handling).
 declare -A LIMITS=(
   ["bench-1k"]=1000
   ["badpack-cves"]=999
   ["adversarial-mutated"]=999
   ["archive-valid"]=999
   ["wifiautoff-apks"]=999
+  ["lfh-valid"]=250
+  ["lfh-adversarial"]=250
+  ["eocd-valid"]=100
+  ["eocd-adversarial"]=200
+  ["cdr-valid"]=200
+  ["cdr-adversarial"]=200
 )
 
 # Header.

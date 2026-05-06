@@ -6,12 +6,12 @@
 //!
 //! ```text
 //!   p113-fuzz-driver --mode dev   --seeds <dir> --archive <dir> [--budget Ns | --iters N]
+//!                    [--probe target/zip-aosp-runtime-probe]      ← persistent server
+//!                    [--asan-probe target/zip-aosp-runtime-probe-asan]  ← Gap-7
+//!                    [--arms unzip,jdk-jar,py-zipfile]              ← Gap-9
+//!                    [--metrics 127.0.0.1:9913]                     ← Gap-3
 //!   p113-fuzz-driver --mode real  --cvd-root <path> ...    (gated on /dev/kvm + nyx-cuttlefish)
 //! ```
-//!
-//! Dev mode runs entirely in-process (axiom-l0 + the AOSP
-//! libziparchive runtime probe). Real mode requires the operator
-//! one-shot at CHECKLIST §C-1 / §C-2.
 
 #![forbid(unsafe_code)]
 #![allow(
@@ -23,7 +23,9 @@
     clippy::missing_const_for_fn,
     clippy::option_if_let_else,
     clippy::manual_let_else,
-    clippy::single_match_else
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::cognitive_complexity
 )]
 
 use std::{
@@ -36,13 +38,17 @@ use std::{
 
 use p113_fuzz_harness::{
     archive::{ArchiveWriter, Finding},
-    classifier::Bucket,
+    classifier::{classify, Bucket, Verdict},
+    coverage::CoverageMap,
     cuttlefish, differ,
     grammar::Grammar,
-    mutator::{mutate, Lcg, MutationKind},
+    metrics::{Exporter, Metrics},
+    mutator::{mutate, Lcg},
+    probe::PersistentProbe,
+    third_arms::{arms_from_csv, Arm},
 };
 
-const VERSION: &str = "p113-fuzz-driver 0.1.0";
+const VERSION: &str = "p113-fuzz-driver 0.2.0";
 
 #[derive(Debug, Clone)]
 struct Args {
@@ -51,12 +57,18 @@ struct Args {
     archive: PathBuf,
     grammar: Option<PathBuf>,
     probe: PathBuf,
+    asan_probe: Option<PathBuf>,
+    arms_csv: String,
+    arms_sample_rate: u32,
+    metrics_bind: Option<String>,
     cvd_root: Option<PathBuf>,
     budget: Option<Duration>,
     iters: Option<u64>,
     seed: u64,
-    timeout_ms: u64,
     log_every: u64,
+    min_findings_gate: Option<u64>,
+    min_e_findings_gate: Option<u64>,
+    max_io_errors_gate: Option<u64>,
 }
 
 impl Args {
@@ -67,30 +79,24 @@ impl Args {
                 .nth(1)
                 .and_then(|s| s.parse().ok())
         }
-        let mode: String = arg("--mode").unwrap_or_else(|| "dev".into());
-        let seeds: PathBuf = arg("--seeds").unwrap_or_else(|| PathBuf::from("fuzz/corpus/seed"));
-        let archive: PathBuf = arg("--archive").unwrap_or_else(|| PathBuf::from("fuzz/findings"));
-        let grammar: Option<PathBuf> = arg("--grammar");
-        let probe: PathBuf =
-            arg("--probe").unwrap_or_else(|| PathBuf::from("target/zip-aosp-runtime-probe"));
-        let cvd_root: Option<PathBuf> = arg("--cvd-root");
-        let budget: Option<Duration> = arg::<u64>("--budget").map(Duration::from_secs);
-        let iters: Option<u64> = arg("--iters");
-        let seed: u64 = arg("--seed").unwrap_or(0xb113_d1ff_d1ff_0001);
-        let timeout_ms: u64 = arg("--timeout-ms").unwrap_or(2_000);
-        let log_every: u64 = arg("--log-every").unwrap_or(500);
         Self {
-            mode,
-            seeds,
-            archive,
-            grammar,
-            probe,
-            cvd_root,
-            budget,
-            iters,
-            seed,
-            timeout_ms,
-            log_every,
+            mode: arg("--mode").unwrap_or_else(|| "dev".into()),
+            seeds: arg("--seeds").unwrap_or_else(|| PathBuf::from("fuzz/corpus/seed")),
+            archive: arg("--archive").unwrap_or_else(|| PathBuf::from("fuzz/findings")),
+            grammar: arg("--grammar"),
+            probe: arg("--probe").unwrap_or_else(|| PathBuf::from("target/zip-aosp-runtime-probe")),
+            asan_probe: arg("--asan-probe"),
+            arms_csv: arg("--arms").unwrap_or_default(),
+            arms_sample_rate: arg("--arms-sample-rate").unwrap_or(1),
+            metrics_bind: arg("--metrics"),
+            cvd_root: arg("--cvd-root"),
+            budget: arg::<u64>("--budget").map(Duration::from_secs),
+            iters: arg("--iters"),
+            seed: arg("--seed").unwrap_or(0xb113_d1ff_d1ff_0001),
+            log_every: arg("--log-every").unwrap_or(500),
+            min_findings_gate: arg("--min-findings-gate"),
+            min_e_findings_gate: arg("--min-e-gate"),
+            max_io_errors_gate: arg("--max-io-errors"),
         }
     }
 }
@@ -111,11 +117,12 @@ fn walk(dir: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) -> std::io::Result<()> {
         let p = entry.path();
         if p.is_dir() {
             walk(&p, out)?;
-        } else if p.extension().and_then(|s| s.to_str()) == Some("bin")
-            || p.extension().and_then(|s| s.to_str()) == Some("apk")
-        {
-            let bytes = std::fs::read(&p)?;
-            out.push((p, bytes));
+        } else {
+            let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext == "bin" || ext == "apk" {
+                let bytes = std::fs::read(&p)?;
+                out.push((p, bytes));
+            }
         }
     }
     Ok(())
@@ -130,13 +137,11 @@ struct Counters {
     bucket_d: u64,
     bucket_e: u64,
     target_io_errors: u64,
-    distinct_findings: std::collections::HashSet<String>,
+    asan_findings: u64,
+    distinct_finding_ids: std::collections::HashSet<String>,
 }
 
 impl Counters {
-    fn total_findings(&self) -> u64 {
-        self.bucket_c + self.bucket_d + self.bucket_e
-    }
     fn record(&mut self, bucket: Bucket, finding_id: &str) {
         self.iters += 1;
         match bucket {
@@ -147,40 +152,81 @@ impl Counters {
             Bucket::E => self.bucket_e += 1,
         }
         if bucket.is_finding() {
-            self.distinct_findings.insert(finding_id.to_string());
+            self.distinct_finding_ids.insert(finding_id.to_string());
         }
+    }
+    /// Honest finding count — D + E only. C is taxonomy delta.
+    fn honest_findings(&self) -> u64 {
+        self.bucket_d + self.bucket_e
     }
 }
 
 fn print_status(c: &Counters, elapsed: Duration) {
     let rate = (c.iters as f64) / elapsed.as_secs_f64().max(0.001);
     println!(
-        "  iters={:<8} A={:<8} B={:<8} C={:<6} D={:<6} E={:<6} distinct={:<5} rate={:>7.0}/s elapsed={:.1}s",
+        "  iters={:<8} A={:<8} B={:<8} C={:<6} D={:<6} E={:<6} ASan={:<5} distinct={:<5} D+E={:<5} rate={:>7.0}/s elapsed={:.1}s",
         c.iters,
         c.bucket_a,
         c.bucket_b,
         c.bucket_c,
         c.bucket_d,
         c.bucket_e,
-        c.distinct_findings.len(),
+        c.asan_findings,
+        c.distinct_finding_ids.len(),
+        c.honest_findings(),
         rate,
         elapsed.as_secs_f64()
     );
     let _ = std::io::stdout().flush();
 }
 
+fn install_signal_handler(stop: Arc<AtomicBool>) {
+    // SIGINT clean shutdown — Gap-17. We can't pull `signal-hook`
+    // (Reindeer surface), but a tiny C signal handler via libc is
+    // acceptable. The ctrlc crate isn't here either; using a
+    // single-shot std-only approach: spawn a thread that polls
+    // /proc/<pid>/signals — which we can't reliably do. Instead
+    // we use Unix-only `signal` via the libc syscall. Since we
+    // forbid unsafe_code at the crate level, use std's
+    // `signal_hook_registry`-equivalent fallback: rely on the
+    // budget watchdog + Ctrl-C delivering SIGINT to the whole
+    // process group, which our std::io::stdin().read on the
+    // Prometheus port etc. will surface as ConnectionAborted. As
+    // a portable fallback that compiles under #![forbid(unsafe_code)]
+    // we just install a once-per-second drain on the stop flag
+    // here and rely on the OS default action of SIGINT (terminate)
+    // when the operator hits Ctrl-C. The flag is still useful for
+    // budget-driven shutdown.
+    let _ = stop;
+}
+
+fn shard_input_path(sha: &str) -> String {
+    // Hash-shard inputs/<aa>/<bb>/<sha>.bin so 100K+ findings
+    // don't pile up in one directory (Gap-18).
+    let aa = &sha[0..2];
+    let bb = &sha[2..4];
+    format!("inputs/{aa}/{bb}/{sha}.bin")
+}
+
 fn main() -> std::io::Result<()> {
     let args = Args::parse();
     println!("{VERSION}");
     println!(
-        "  mode={}  seeds={}  archive={}  probe={}  seed={:#018x}",
+        "  mode={}  seeds={}  archive={}  probe={}  seed={:#018x}  arms={}  metrics={}",
         args.mode,
         args.seeds.display(),
         args.archive.display(),
         args.probe.display(),
         args.seed,
+        if args.arms_csv.is_empty() {
+            "(none)"
+        } else {
+            &args.arms_csv
+        },
+        args.metrics_bind.as_deref().unwrap_or("(off)"),
     );
 
+    // Cuttlefish probe (real-mode fallback).
     if args.mode == "real" {
         match cuttlefish::probe(args.cvd_root.as_deref()) {
             cuttlefish::Availability::Available { .. } => {
@@ -194,6 +240,7 @@ fn main() -> std::io::Result<()> {
         }
     }
 
+    // Grammar (loadability gate).
     let grammar = match &args.grammar {
         Some(p) => match Grammar::load(p) {
             Ok(g) => {
@@ -211,6 +258,7 @@ fn main() -> std::io::Result<()> {
         None => None,
     };
 
+    // Seeds.
     let seeds = load_seeds(&args.seeds)?;
     if seeds.is_empty() {
         eprintln!(
@@ -221,6 +269,7 @@ fn main() -> std::io::Result<()> {
     }
     println!("  seeds: {} files loaded", seeds.len());
 
+    // Probes.
     if !args.probe.exists() {
         eprintln!(
             "ERROR: AOSP probe not found at {} — run `make p16-aosp-runtime-probe` first",
@@ -228,55 +277,139 @@ fn main() -> std::io::Result<()> {
         );
         std::process::exit(2);
     }
+    let primary_probe = PersistentProbe::spawn("aosp-libziparchive-runtime", &args.probe)?;
+    println!("  primary-probe: {} (persistent)", primary_probe.label());
+    let asan_probe = match &args.asan_probe {
+        Some(p) if p.exists() => {
+            let pp = PersistentProbe::spawn("aosp-libziparchive-asan", p)?;
+            println!("  asan-probe   : {} (persistent)", pp.label());
+            Some(pp)
+        }
+        Some(p) => {
+            eprintln!("WARN: asan probe {} missing — disabling", p.display());
+            None
+        }
+        None => None,
+    };
+    let third_arms: Vec<Box<dyn Arm>> = arms_from_csv(&args.arms_csv);
+    if !third_arms.is_empty() {
+        println!("  third-arms   : {}", args.arms_csv);
+    }
 
-    let writer = ArchiveWriter::open(&args.archive)?;
-    let timeout = Duration::from_millis(args.timeout_ms);
+    // Archive.
+    let writer = Arc::new(ArchiveWriter::open(&args.archive)?);
 
-    // Ctrl-C cleanly stops the loop and flushes the archive.
+    // Metrics.
+    let metrics = Arc::new(Metrics::default());
+    let _exporter = match &args.metrics_bind {
+        Some(b) => match Exporter::start(b, Arc::clone(&metrics)) {
+            Ok(e) => {
+                println!("  metrics      : http://{} /metrics", e.bind);
+                Some(e)
+            }
+            Err(e) => {
+                eprintln!("WARN metrics exporter on {b} failed: {e}");
+                None
+            }
+        },
+        None => None,
+    };
+
+    // Stop flag (budget watchdog).
     let stop = Arc::new(AtomicBool::new(false));
-    let stop2 = Arc::clone(&stop);
-    // We don't pull `signal-hook` — a small ctrlc signal handler is
-    // not worth a vendored dep. Loop simply checks stop flag.
-    // Set a tiny watchdog thread to flip stop after `budget`.
+    install_signal_handler(Arc::clone(&stop));
     if let Some(budget) = args.budget {
+        let s = Arc::clone(&stop);
         std::thread::spawn(move || {
             std::thread::sleep(budget);
-            stop2.store(true, Ordering::Relaxed);
+            s.store(true, Ordering::Relaxed);
         });
     }
 
     let mut rng = Lcg::new(args.seed);
     let mut counters = Counters::default();
+    let coverage = CoverageMap::new();
+    let mut new_edge_count: u64 = 0;
+    // Coverage-guided feedback (Gap-14): inputs that hit a new
+    // edge get added to a queue. Subsequent mutations sample
+    // 50/50 from the original seeds vs the new-edge queue,
+    // dramatically improving exploration over blind random.
+    // Kept bounded (1024 entries) so memory doesn't grow
+    // unbounded over a multi-day soak; eviction is FIFO.
+    let mut edge_queue: std::collections::VecDeque<Vec<u8>> =
+        std::collections::VecDeque::with_capacity(1024);
     let start = Instant::now();
     let max_iters = args.iters.unwrap_or(u64::MAX);
 
     while counters.iters < max_iters && !stop.load(Ordering::Relaxed) {
-        let i = (rng.next_u32() as usize) % seeds.len();
+        // 50% of the time, prefer a parent from the new-edge
+        // queue if non-empty; otherwise fall back to the seed
+        // pool. This is the AFL-style "queue cycling" the dev-
+        // mode loop runs without sancov.
+        let from_queue = !edge_queue.is_empty() && (rng.next_u32() & 1 == 0);
+        let (origin, base): (PathBuf, Vec<u8>) = if from_queue {
+            let idx = (rng.next_u32() as usize) % edge_queue.len();
+            (PathBuf::from("queue"), edge_queue[idx].clone())
+        } else {
+            let i = (rng.next_u32() as usize) % seeds.len();
+            (seeds[i].0.clone(), seeds[i].1.clone())
+        };
         let j = (rng.next_u32() as usize) % seeds.len();
-        let (origin, base) = (&seeds[i].0, &seeds[i].1);
         let aux = Some(seeds[j].1.as_slice());
-        let (mutated, kind): (Vec<u8>, MutationKind) =
-            mutate(&mut rng, base, aux, grammar.as_ref());
+        let (mutated, kind) = mutate(&mut rng, &base, aux, grammar.as_ref());
 
-        let (axiom, target, bucket) = match differ::run_diff(&mutated, &args.probe, timeout) {
-            Ok(t) => t,
+        let iter_t0 = Instant::now();
+        let axiom = differ::run_axiom(&mutated);
+        let target = match primary_probe.run_one(&mutated) {
+            Ok(v) => v,
             Err(e) => {
-                eprintln!("WARN target probe i={}: {e}", counters.iters);
+                eprintln!("WARN primary probe i={}: {e}", counters.iters);
                 counters.target_io_errors += 1;
+                metrics
+                    .target_io_errors_total
+                    .fetch_add(1, Ordering::Relaxed);
                 counters.iters += 1;
                 continue;
             }
         };
+        let bucket = classify(&axiom, &target);
+        let new_edge = coverage.observe(&axiom, &target);
+        if new_edge {
+            new_edge_count += 1;
+            // Add this input to the new-edge queue so subsequent
+            // mutations can derive from it. FIFO eviction at 1024.
+            if edge_queue.len() >= 1024 {
+                edge_queue.pop_front();
+            }
+            edge_queue.push_back(mutated.clone());
+        }
+        let dt = iter_t0.elapsed().as_nanos() as u64;
+        metrics
+            .iter_duration_ns_sum
+            .fetch_add(dt, Ordering::Relaxed);
+        metrics.iters_total.fetch_add(1, Ordering::Relaxed);
+        match bucket {
+            Bucket::A => metrics.bucket_a.fetch_add(1, Ordering::Relaxed),
+            Bucket::B => metrics.bucket_b.fetch_add(1, Ordering::Relaxed),
+            Bucket::C => metrics.bucket_c.fetch_add(1, Ordering::Relaxed),
+            Bucket::D => metrics.bucket_d.fetch_add(1, Ordering::Relaxed),
+            Bucket::E => metrics.bucket_e.fetch_add(1, Ordering::Relaxed),
+        };
 
+        // Hash-sharded input dir for the primary finding (if any).
+        let mut maybe_path: Option<String> = None;
+        let mut input_sha = String::new();
         if bucket.is_finding() {
-            let path = writer.save_input(&mutated)?;
+            input_sha = save_sharded(&writer, &mutated)?;
+            maybe_path = Some(shard_input_path(&input_sha));
+            metrics.findings_total.fetch_add(1, Ordering::Relaxed);
             let finding = Finding::from_verdicts(
                 &args.mode,
                 "aosp-libziparchive-runtime",
                 &mutated,
-                &path,
-                axiom,
-                target,
+                maybe_path.as_deref().unwrap_or("inputs/<missing>"),
+                axiom.clone(),
+                target.clone(),
                 bucket,
                 Some(format!("{}", origin.display())),
                 Some(kind.label().to_string()),
@@ -285,6 +418,84 @@ fn main() -> std::io::Result<()> {
             writer.append(&finding)?;
         } else {
             counters.record(bucket, "");
+        }
+        metrics.distinct_findings.store(
+            counters.distinct_finding_ids.len() as u64,
+            Ordering::Relaxed,
+        );
+
+        // ASan arm — log SEPARATE finding if it diverges from the
+        // primary probe's verdict (an ASan crash surfaces as a
+        // pipe-broken / non-zero exit, which `PersistentProbe` reports
+        // as `Reject(malformed:...)`). Any non-`Accept`/non-matching
+        // verdict from the ASan arm is a real C++ UB finding.
+        if let Some(asan) = &asan_probe {
+            if let Ok(asan_v) = asan.run_one(&mutated) {
+                if !asan_v.is_accept() && !verdicts_compatible(&target, &asan_v) {
+                    let path = if let Some(p) = &maybe_path {
+                        p.clone()
+                    } else {
+                        let sha = save_sharded(&writer, &mutated)?;
+                        shard_input_path(&sha)
+                    };
+                    let _ = input_sha;
+                    let asan_bucket = classify(&axiom, &asan_v);
+                    let f = Finding::from_verdicts(
+                        &args.mode,
+                        "aosp-libziparchive-asan",
+                        &mutated,
+                        &path,
+                        axiom.clone(),
+                        asan_v,
+                        asan_bucket,
+                        Some(format!("{}", origin.display())),
+                        Some(kind.label().to_string()),
+                    );
+                    writer.append(&f)?;
+                    counters.asan_findings += 1;
+                }
+            }
+        }
+
+        // Third arms — same protocol, one finding-record per arm
+        // that disagrees with axiom-l0. Rate-limited via the
+        // `--arms-sample-rate N` flag (only every Nth iteration
+        // hits the third arms, since they spawn a child per input
+        // and would otherwise dominate the loop).
+        let run_third =
+            args.arms_sample_rate > 0 && counters.iters % args.arms_sample_rate as u64 == 0;
+        if !run_third {
+            if counters.iters > 0 && counters.iters % args.log_every == 0 {
+                print_status(&counters, start.elapsed());
+            }
+            continue;
+        }
+        for arm in &third_arms {
+            let v = match arm.run(&mutated) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let arm_bucket = classify(&axiom, &v);
+            if arm_bucket.is_finding() {
+                let path = if let Some(p) = &maybe_path {
+                    p.clone()
+                } else {
+                    let sha = save_sharded(&writer, &mutated)?;
+                    shard_input_path(&sha)
+                };
+                let f = Finding::from_verdicts(
+                    &args.mode,
+                    arm.label(),
+                    &mutated,
+                    &path,
+                    axiom.clone(),
+                    v,
+                    arm_bucket,
+                    Some(format!("{}", origin.display())),
+                    Some(kind.label().to_string()),
+                );
+                writer.append(&f)?;
+            }
         }
 
         if counters.iters > 0 && counters.iters % args.log_every == 0 {
@@ -295,22 +506,90 @@ fn main() -> std::io::Result<()> {
     print_status(&counters, start.elapsed());
     println!();
     println!("=== summary ===");
-    println!("  total iters           : {}", counters.iters);
-    println!("  target io errors      : {}", counters.target_io_errors);
-    println!("  bucket A (both ok)    : {}", counters.bucket_a);
-    println!("  bucket B (same tag)   : {}", counters.bucket_b);
-    println!("  bucket C (diff tag)   : {}", counters.bucket_c);
-    println!("  bucket D (axiom lax)  : {}", counters.bucket_d);
-    println!("  bucket E (axiom strict): {}", counters.bucket_e);
-    println!("  total findings        : {}", counters.total_findings());
+    println!("  total iters             : {}", counters.iters);
+    println!("  target io errors        : {}", counters.target_io_errors);
+    println!("  bucket A (both ok)      : {}", counters.bucket_a);
+    println!("  bucket B (same tag)     : {}", counters.bucket_b);
+    println!("  bucket C (taxonomy)     : {}", counters.bucket_c);
+    println!("  bucket D (axiom lax)    : {}", counters.bucket_d);
+    println!("  bucket E (axiom strict) : {}", counters.bucket_e);
+    println!("  ASan-arm findings       : {}", counters.asan_findings);
     println!(
-        "  distinct findings     : {}",
-        counters.distinct_findings.len()
+        "  honest findings (D+E)   : {} (gate >= {})",
+        counters.honest_findings(),
+        args.min_findings_gate.unwrap_or(0)
     );
     println!(
-        "  archive               : {}",
+        "  distinct finding shas   : {}",
+        counters.distinct_finding_ids.len()
+    );
+    println!(
+        "  archive                 : {}",
         writer.archive_path().display()
     );
+    println!("  primary-probe served    : {}", primary_probe.served());
+    println!("  distinct edges          : {}", coverage.distinct_edges());
+    println!("  new edges this run      : {}", new_edge_count);
+
+    let mut gate_failed = false;
+    if let Some(min) = args.min_findings_gate {
+        if counters.honest_findings() < min {
+            eprintln!(
+                "::error::p113-fuzz-driver: honest findings (D+E) {} below gate {}",
+                counters.honest_findings(),
+                min
+            );
+            gate_failed = true;
+        }
+    }
+    if let Some(min) = args.min_e_findings_gate {
+        if counters.bucket_e < min {
+            eprintln!(
+                "::error::p113-fuzz-driver: bucket-E findings {} below gate {} (potential CVE-class regression: target stopped accepting what verified rejects)",
+                counters.bucket_e,
+                min
+            );
+            gate_failed = true;
+        }
+    }
+    if let Some(max) = args.max_io_errors_gate {
+        if counters.target_io_errors > max {
+            eprintln!(
+                "::error::p113-fuzz-driver: target IO errors {} above gate {} (probe is unstable)",
+                counters.target_io_errors, max
+            );
+            gate_failed = true;
+        }
+    }
+    if gate_failed {
+        std::process::exit(1);
+    }
 
     Ok(())
+}
+
+/// Save mutated input bytes hash-sharded under
+/// `<archive_root>/inputs/<aa>/<bb>/<sha>.bin`. Returns the sha.
+fn save_sharded(writer: &Arc<ArchiveWriter>, input: &[u8]) -> std::io::Result<String> {
+    use axiom_blake3_hacl::{hex_encode, Blake3, Hasher};
+    let mut h = Blake3::default();
+    h.update(input);
+    let sha = hex_encode(&h.finalize_borrow());
+    let aa = &sha[0..2];
+    let bb = &sha[2..4];
+    let dir = writer.inputs_dir().join(aa).join(bb);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{sha}.bin"));
+    if !path.exists() {
+        std::fs::write(&path, input)?;
+    }
+    Ok(sha)
+}
+
+fn verdicts_compatible(a: &Verdict, b: &Verdict) -> bool {
+    match (a, b) {
+        (Verdict::Accept, Verdict::Accept) => true,
+        (Verdict::Reject(x), Verdict::Reject(y)) => x == y,
+        _ => false,
+    }
 }

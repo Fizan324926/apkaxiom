@@ -16,6 +16,18 @@ path = "src/main.rs"
 name = "p113-fuzz-replay"
 path = "src/bin/replay.rs"
 
+[[bin]]
+name = "p113-fuzz-dedupe"
+path = "src/bin/dedupe.rs"
+
+[[bin]]
+name = "p113-fuzz-grammar-gen"
+path = "src/bin/grammar_gen.rs"
+
+[[bin]]
+name = "p113-afl-harness"
+path = "src/bin/afl_harness.rs"
+
 [features]
 # Real-mode KVM/Nyx harness path. Disabled by default — building it
 # requires libnyx + a /dev/kvm host. Dev mode (default) runs the

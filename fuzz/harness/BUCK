@@ -9,7 +9,20 @@
 
 rust_library(
     name = "p113-fuzz-harness",
-    srcs = ["src/lib.rs", "src/archive.rs", "src/classifier.rs", "src/cuttlefish.rs", "src/differ.rs", "src/grammar.rs", "src/mutator.rs"],
+    srcs = [
+        "src/lib.rs",
+        "src/archive.rs",
+        "src/classifier.rs",
+        "src/coverage.rs",
+        "src/cuttlefish.rs",
+        "src/dedup.rs",
+        "src/differ.rs",
+        "src/grammar.rs",
+        "src/metrics.rs",
+        "src/mutator.rs",
+        "src/probe.rs",
+        "src/third_arms.rs",
+    ],
     crate = "p113_fuzz_harness",
     crate_root = "src/lib.rs",
     edition = "2021",
@@ -21,6 +34,36 @@ rust_library(
 )
 
 rust_binary(
+    name = "p113-fuzz-dedupe",
+    srcs = ["src/bin/dedupe.rs"],
+    crate = "p113_fuzz_dedupe",
+    crate_root = "src/bin/dedupe.rs",
+    edition = "2021",
+    deps = [":p113-fuzz-harness"],
+    visibility = ["PUBLIC"],
+)
+
+rust_binary(
+    name = "p113-fuzz-grammar-gen",
+    srcs = ["src/bin/grammar_gen.rs"],
+    crate = "p113_fuzz_grammar_gen",
+    crate_root = "src/bin/grammar_gen.rs",
+    edition = "2021",
+    deps = [":p113-fuzz-harness"],
+    visibility = ["PUBLIC"],
+)
+
+rust_binary(
+    name = "p113-afl-harness",
+    srcs = ["src/bin/afl_harness.rs"],
+    crate = "p113_afl_harness",
+    crate_root = "src/bin/afl_harness.rs",
+    edition = "2021",
+    deps = [":p113-fuzz-harness"],
+    visibility = ["PUBLIC"],
+)
+
+rust_binary(
     name = "p113-fuzz-driver",
     srcs = ["src/main.rs"],
     crate = "p113_fuzz_driver",
@@ -28,6 +71,7 @@ rust_binary(
     edition = "2021",
     deps = [
         ":p113-fuzz-harness",
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
     ],
     visibility = ["PUBLIC"],
 )

@@ -132,6 +132,12 @@ fn main() -> std::io::Result<()> {
         );
         std::process::exit(1);
     }
+    if missing_input > 0 {
+        eprintln!(
+            "::error::p113-fuzz-replay: {missing_input} finding(s) reference inputs that no longer exist on disk"
+        );
+        std::process::exit(1);
+    }
     println!("  verdict                 : PASS");
     Ok(())
 }
