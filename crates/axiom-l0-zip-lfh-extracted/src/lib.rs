@@ -5,7 +5,21 @@
 // Subset coverage: see tools/lean-to-rust/README.md
 // (or the §D-1 ADR-0025 update).
 #![forbid(unsafe_code)]
-#![allow(clippy::too_many_arguments, clippy::doc_markdown, clippy::missing_errors_doc, missing_docs, unused_parens, clippy::unnecessary_wraps, clippy::missing_const_for_fn, clippy::redundant_field_names, clippy::unreadable_literal, clippy::double_parens, clippy::needless_return, clippy::manual_let_else, clippy::use_self)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    missing_docs,
+    unused_parens,
+    clippy::unnecessary_wraps,
+    clippy::missing_const_for_fn,
+    clippy::redundant_field_names,
+    clippy::unreadable_literal,
+    clippy::double_parens,
+    clippy::needless_return,
+    clippy::manual_let_else,
+    clippy::use_self
+)]
 
 // (skipped: import Std)
 
@@ -64,55 +78,120 @@ impl ParseError {
 
 /// Auto-extracted from Lean `def readU16`.
 pub fn read_u16(bs: &[u8], o: usize) -> Option<u16> {
-    if ((o + 1) < bs.len()) { { let b0 = bs[o];
-    { let b1 = bs[((o + 1))];
-    Some(((u16::from(b0) | ((u16::from(b1) << 8))))) } } } else { None }
+    if ((o + 1) < bs.len()) {
+        {
+            let b0 = bs[o];
+            {
+                let b1 = bs[(o + 1)];
+                Some((u16::from(b0) | (u16::from(b1) << 8)))
+            }
+        }
+    } else {
+        None
+    }
 }
 
 /// Auto-extracted from Lean `def readU32`.
 pub fn read_u32(bs: &[u8], o: usize) -> Option<u32> {
-    if ((o + 3) < bs.len()) { { let b0 = bs[o];
-    { let b1 = bs[((o + 1))];
-    { let b2 = bs[((o + 2))];
-    { let b3 = bs[((o + 3))];
-    Some(((((u32::from(b0) | ((u32::from(b1) << 8))) | ((u32::from(b2) << 16))) | ((u32::from(b3) << 24))))) } } } } } else { None }
+    if ((o + 3) < bs.len()) {
+        {
+            let b0 = bs[o];
+            {
+                let b1 = bs[(o + 1)];
+                {
+                    let b2 = bs[(o + 2)];
+                    {
+                        let b3 = bs[(o + 3)];
+                        Some(
+                            (((u32::from(b0) | (u32::from(b1) << 8)) | (u32::from(b2) << 16))
+                                | (u32::from(b3) << 24)),
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        None
+    }
 }
 
 /// Auto-extracted from Lean `def slice`.
 pub fn slice(bs: &[u8], o: usize, len: usize) -> Option<Vec<u8>> {
-    if ((o + len) <= bs.len()) { Some((bs[o..((o + len))].to_vec())) } else { None }
+    if ((o + len) <= bs.len()) {
+        Some((bs[o..(o + len)].to_vec()))
+    } else {
+        None
+    }
 }
 
 /// Auto-extracted from Lean `def parseLfh`.
 pub fn parse_lfh(bs: &[u8]) -> Result<(Lfh, usize), ParseError> {
     if (bs.len() < FIXED_SIZE) {
-    return Err(ParseError::ShortHeader);
-    
+        return Err(ParseError::ShortHeader);
     }
-    let Some(sig) = read_u32(bs, 0) else { return Err(ParseError::ShortHeader); };
+    let Some(sig) = read_u32(bs, 0) else {
+        return Err(ParseError::ShortHeader);
+    };
     if (sig != LFH_SIGNATURE) {
-    return Err(ParseError::BadSignature);
-    
+        return Err(ParseError::BadSignature);
     }
-    let Some(version_needed) = read_u16(bs, 4) else { return Err(ParseError::ShortHeader); };
-    let Some(general_flags) = read_u16(bs, 6) else { return Err(ParseError::ShortHeader); };
-    let Some(compression_method) = read_u16(bs, 8) else { return Err(ParseError::ShortHeader); };
-    let Some(last_mod_time) = read_u16(bs, 10) else { return Err(ParseError::ShortHeader); };
-    let Some(last_mod_date) = read_u16(bs, 12) else { return Err(ParseError::ShortHeader); };
-    let Some(crc32) = read_u32(bs, 14) else { return Err(ParseError::ShortHeader); };
-    let Some(compressed_size) = read_u32(bs, 18) else { return Err(ParseError::ShortHeader); };
-    let Some(uncompressed_size) = read_u32(bs, 22) else { return Err(ParseError::ShortHeader); };
-    let Some(name_len) = read_u16(bs, 26) else { return Err(ParseError::ShortHeader); };
-    let Some(extra_len) = read_u16(bs, 28) else { return Err(ParseError::ShortHeader); };
-    let Some(file_name) = slice(bs, 30, (name_len as usize)) else { return Err(ParseError::ShortName); };
-    let Some(extra_field) = slice(bs, ((30 + (name_len as usize))), (extra_len as usize)) else { return Err(ParseError::ShortExtra); };
-    let header = Lfh { version_needed: version_needed, general_flags: general_flags, compression_method: compression_method, last_mod_time: last_mod_time, last_mod_date: last_mod_date, crc32: crc32, compressed_size: compressed_size, uncompressed_size: uncompressed_size, file_name: file_name, extra_field: extra_field };
+    let Some(version_needed) = read_u16(bs, 4) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(general_flags) = read_u16(bs, 6) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(compression_method) = read_u16(bs, 8) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(last_mod_time) = read_u16(bs, 10) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(last_mod_date) = read_u16(bs, 12) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(crc32) = read_u32(bs, 14) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(compressed_size) = read_u32(bs, 18) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(uncompressed_size) = read_u32(bs, 22) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(name_len) = read_u16(bs, 26) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(extra_len) = read_u16(bs, 28) else {
+        return Err(ParseError::ShortHeader);
+    };
+    let Some(file_name) = slice(bs, 30, (name_len as usize)) else {
+        return Err(ParseError::ShortName);
+    };
+    let Some(extra_field) = slice(bs, (30 + (name_len as usize)), (extra_len as usize)) else {
+        return Err(ParseError::ShortExtra);
+    };
+    let header = Lfh {
+        version_needed: version_needed,
+        general_flags: general_flags,
+        compression_method: compression_method,
+        last_mod_time: last_mod_time,
+        last_mod_date: last_mod_date,
+        crc32: crc32,
+        compressed_size: compressed_size,
+        uncompressed_size: uncompressed_size,
+        file_name: file_name,
+        extra_field: extra_field,
+    };
     return Ok((header, total_size(name_len, extra_len)));
 }
 
 /// Auto-extracted from Lean `def minimalLfhBytes`.
 pub fn minimal_lfh_bytes() -> Vec<u8> {
-    vec![0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    vec![
+        0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]
 }
 
 /// Auto-extracted from Lean `def parseError`.
@@ -130,4 +209,3 @@ pub fn parse_error(bs: &[u8]) -> Option<ParseError> {
 // (skipped: theorem/example @ line 202)
 
 // (skipped: end Apkaxiom.Zip.LocalHeader)
-

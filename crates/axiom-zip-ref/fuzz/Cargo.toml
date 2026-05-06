@@ -13,6 +13,9 @@ libfuzzer-sys = "0.4"
 [dependencies.axiom-zip-ref]
 path = ".."
 
+[dependencies.axiom-l0-zip-lfh-extracted]
+path = "../../axiom-l0-zip-lfh-extracted"
+
 # Each fuzz target is its own binary. libFuzzer drives them via
 # `cargo +nightly fuzz run <target>`. The targets exist to give the
 # coverage-guided fuzzer entry points; the in-tree crate already
@@ -43,6 +46,17 @@ bench = false
 [[bin]]
 name = "fuzz_parse_archive"
 path = "fuzz_targets/fuzz_parse_archive.rs"
+test = false
+doc = false
+bench = false
+
+# P1.9 §V item 9 — differential fuzz between hand-Rust and
+# auto-extracted Rust. Both call `parse_lfh` on the same input
+# and assert byte-equivalent results. Any divergence is a real
+# bug in either the extractor or the hand-Rust implementation.
+[[bin]]
+name = "fuzz_parse_lfh_differential"
+path = "fuzz_targets/fuzz_parse_lfh_differential.rs"
 test = false
 doc = false
 bench = false

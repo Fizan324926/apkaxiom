@@ -1,0 +1,129 @@
+# p18-perf-delta — P1.8 §F-1 perf-delta gate
+# host: Linux cobra 6.8.0-110-generic #110-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 19 15:09:20 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+# date: 2026-05-05T20:54:56+00:00
+# branch: p1.8/typestate
+# commit-base: f0cb8d10db08993c8645ec6ff5e230c4fd5ccaca
+p18-perf-delta: 20 runs × 500000 iters, fixture 1860 bytes; gate-typestate-only ≤ 0.5 %, gate-full-wrapper ≤ 5 %
+--- run 1/20 ---
+arm A parser-only           :   2449.7 ns/iter   6074.2 MB/s
+arm B typestate-only        :   2423.9 ns/iter   6138.8 MB/s
+arm C full-wrapper          :   2499.2 ns/iter   5953.9 MB/s
+Δ(typestate-only vs A): -1.05 %
+Δ(full-wrapper vs A)  : +2.02 %
+--- run 2/20 ---
+arm A parser-only           :   2405.6 ns/iter   6185.6 MB/s
+arm B typestate-only        :   2432.7 ns/iter   6116.7 MB/s
+arm C full-wrapper          :   2515.9 ns/iter   5914.5 MB/s
+Δ(typestate-only vs A): +1.13 %
+Δ(full-wrapper vs A)  : +4.58 %
+--- run 3/20 ---
+arm A parser-only           :   2432.9 ns/iter   6116.1 MB/s
+arm B typestate-only        :   2414.9 ns/iter   6161.6 MB/s
+arm C full-wrapper          :   2559.5 ns/iter   5813.6 MB/s
+Δ(typestate-only vs A): -0.74 %
+Δ(full-wrapper vs A)  : +5.20 %
+--- run 4/20 ---
+arm A parser-only           :   2412.5 ns/iter   6167.9 MB/s
+arm B typestate-only        :   2555.3 ns/iter   5823.1 MB/s
+arm C full-wrapper          :   2552.2 ns/iter   5830.2 MB/s
+Δ(typestate-only vs A): +5.92 %
+Δ(full-wrapper vs A)  : +5.79 %
+--- run 5/20 ---
+arm A parser-only           :   2402.2 ns/iter   6194.2 MB/s
+arm B typestate-only        :   2455.5 ns/iter   6060.0 MB/s
+arm C full-wrapper          :   2630.9 ns/iter   5655.8 MB/s
+Δ(typestate-only vs A): +2.22 %
+Δ(full-wrapper vs A)  : +9.52 %
+--- run 6/20 ---
+arm A parser-only           :   2515.6 ns/iter   5915.1 MB/s
+arm B typestate-only        :   2489.3 ns/iter   5977.5 MB/s
+arm C full-wrapper          :   2612.1 ns/iter   5696.5 MB/s
+Δ(typestate-only vs A): -1.04 %
+Δ(full-wrapper vs A)  : +3.84 %
+--- run 7/20 ---
+arm A parser-only           :   2410.6 ns/iter   6172.6 MB/s
+arm B typestate-only        :   2419.2 ns/iter   6150.7 MB/s
+arm C full-wrapper          :   2517.0 ns/iter   5911.8 MB/s
+Δ(typestate-only vs A): +0.36 %
+Δ(full-wrapper vs A)  : +4.41 %
+--- run 8/20 ---
+arm A parser-only           :   2457.2 ns/iter   6055.8 MB/s
+arm B typestate-only        :   2432.4 ns/iter   6117.5 MB/s
+arm C full-wrapper          :   2503.1 ns/iter   5944.6 MB/s
+Δ(typestate-only vs A): -1.01 %
+Δ(full-wrapper vs A)  : +1.87 %
+--- run 9/20 ---
+arm A parser-only           :   2460.2 ns/iter   6048.2 MB/s
+arm B typestate-only        :   2406.3 ns/iter   6183.9 MB/s
+arm C full-wrapper          :   2522.0 ns/iter   5900.1 MB/s
+Δ(typestate-only vs A): -2.19 %
+Δ(full-wrapper vs A)  : +2.51 %
+--- run 10/20 ---
+arm A parser-only           :   2386.3 ns/iter   6235.6 MB/s
+arm B typestate-only        :   2413.2 ns/iter   6166.2 MB/s
+arm C full-wrapper          :   2604.5 ns/iter   5713.3 MB/s
+Δ(typestate-only vs A): +1.13 %
+Δ(full-wrapper vs A)  : +9.14 %
+--- run 11/20 ---
+arm A parser-only           :   2436.1 ns/iter   6108.1 MB/s
+arm B typestate-only        :   2405.3 ns/iter   6186.4 MB/s
+arm C full-wrapper          :   2525.1 ns/iter   5892.8 MB/s
+Δ(typestate-only vs A): -1.27 %
+Δ(full-wrapper vs A)  : +3.65 %
+--- run 12/20 ---
+arm A parser-only           :   2383.4 ns/iter   6243.1 MB/s
+arm B typestate-only        :   2408.8 ns/iter   6177.4 MB/s
+arm C full-wrapper          :   2513.5 ns/iter   5920.1 MB/s
+Δ(typestate-only vs A): +1.06 %
+Δ(full-wrapper vs A)  : +5.46 %
+--- run 13/20 ---
+arm A parser-only           :   2385.6 ns/iter   6237.4 MB/s
+arm B typestate-only        :   2412.8 ns/iter   6167.0 MB/s
+arm C full-wrapper          :   2572.6 ns/iter   5784.0 MB/s
+Δ(typestate-only vs A): +1.14 %
+Δ(full-wrapper vs A)  : +7.84 %
+--- run 14/20 ---
+arm A parser-only           :   2409.3 ns/iter   6176.1 MB/s
+arm B typestate-only        :   2402.3 ns/iter   6194.1 MB/s
+arm C full-wrapper          :   2563.1 ns/iter   5805.4 MB/s
+Δ(typestate-only vs A): -0.29 %
+Δ(full-wrapper vs A)  : +6.39 %
+--- run 15/20 ---
+arm A parser-only           :   2386.3 ns/iter   6235.5 MB/s
+arm B typestate-only        :   2423.6 ns/iter   6139.7 MB/s
+arm C full-wrapper          :   2520.9 ns/iter   5902.7 MB/s
+Δ(typestate-only vs A): +1.56 %
+Δ(full-wrapper vs A)  : +5.64 %
+--- run 16/20 ---
+arm A parser-only           :   2438.0 ns/iter   6103.4 MB/s
+arm B typestate-only        :   2415.9 ns/iter   6159.2 MB/s
+arm C full-wrapper          :   2626.8 ns/iter   5664.7 MB/s
+Δ(typestate-only vs A): -0.91 %
+Δ(full-wrapper vs A)  : +7.74 %
+--- run 17/20 ---
+arm A parser-only           :   2465.9 ns/iter   6034.4 MB/s
+arm B typestate-only        :   2443.0 ns/iter   6091.0 MB/s
+arm C full-wrapper          :   2515.5 ns/iter   5915.4 MB/s
+Δ(typestate-only vs A): -0.93 %
+Δ(full-wrapper vs A)  : +2.01 %
+--- run 18/20 ---
+arm A parser-only           :   2426.4 ns/iter   6132.6 MB/s
+arm B typestate-only        :   2449.7 ns/iter   6074.1 MB/s
+arm C full-wrapper          :   2503.6 ns/iter   5943.5 MB/s
+Δ(typestate-only vs A): +0.96 %
+Δ(full-wrapper vs A)  : +3.18 %
+--- run 19/20 ---
+arm A parser-only           :   2441.9 ns/iter   6093.7 MB/s
+arm B typestate-only        :   2465.1 ns/iter   6036.2 MB/s
+arm C full-wrapper          :   2560.2 ns/iter   5812.1 MB/s
+Δ(typestate-only vs A): +0.95 %
+Δ(full-wrapper vs A)  : +4.84 %
+--- run 20/20 ---
+arm A parser-only           :   2531.9 ns/iter   5877.0 MB/s
+arm B typestate-only        :   2435.2 ns/iter   6110.3 MB/s
+arm C full-wrapper          :   2606.3 ns/iter   5709.4 MB/s
+Δ(typestate-only vs A): -3.82 %
+Δ(full-wrapper vs A)  : +2.94 %
+
+summary: typestate-only mean Δ = +0.16 % (σ 1.94 %, gate ≤ 0.5 % or |Δ|≤2σ)  PASS
+summary: full-wrapper   mean Δ = +4.93 % (σ 2.25 %, gate ≤ 5 % or ≤gate+σ)  PASS

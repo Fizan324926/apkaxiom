@@ -55,7 +55,8 @@
     clippy::unreadable_literal,
     clippy::manual_let_else,
     clippy::single_match_else,
-    clippy::single_match
+    clippy::single_match,
+    clippy::doc_markdown
 )]
 
 use std::collections::BTreeMap;
@@ -665,6 +666,33 @@ mod tests {
             0x19, 0xdb, 0x06, 0xc1,
         ];
         assert_eq!(sha256(two_blocks_input), two_blocks);
+    }
+
+    /// Cross-check the inline FIPS-180-4 implementation against
+    /// the RustCrypto `sha2` crate on a randomised payload
+    /// (P1.9 §V item 16). Pure Rust check, no shell dep.
+    #[test]
+    fn sha256_cross_check_against_rustcrypto() {
+        use sha2::{Digest, Sha256};
+        let mut payload = Vec::with_capacity(16384);
+        let mut s: u64 = 0x1357_9bdf_2468_ace0;
+        for _ in 0..16384 {
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            payload.push((s >> 32) as u8);
+        }
+        let ours = sha256(&payload);
+        let theirs = {
+            let mut h = Sha256::new();
+            h.update(&payload);
+            let bytes: [u8; 32] = h.finalize().into();
+            bytes
+        };
+        assert_eq!(
+            ours, theirs,
+            "inline SHA-256 disagrees with RustCrypto's sha2"
+        );
     }
 
     /// Cross-check the inline FIPS-180-4 implementation against

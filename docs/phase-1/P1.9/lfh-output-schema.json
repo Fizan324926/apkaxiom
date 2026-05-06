@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apkaxiom.org/schemas/p1.9/lfh-output.json",
+  "title": "P1.9 LFH evaluator output line",
+  "description": "One JSON object per input line emitted by both `Apkaxiom.Tv.LfhEval` (Lean) and `tools/lfh-eval-rust` (Rust) and `tools/lfh-eval-extracted` (auto-generated). Validating both sides' output against this schema is item 6 of the §V audit; a divergence on any field's presence, type, or range is a real bug.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "i", "out", "sig", "vers", "flags", "method", "time", "date",
+        "crc", "csize", "usize", "nlen", "elen", "name", "extra", "consumed"
+      ],
+      "properties": {
+        "i":        { "type": "integer", "minimum": 0,                          "description": "Per-line index assigned by the evaluator." },
+        "out":      { "type": "string",  "const": "ok" },
+        "sig":      { "type": "integer", "minimum": 0, "maximum": 4294967295,   "description": "Always 0x04034b50 = 67324752." },
+        "vers":     { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "flags":    { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "method":   { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "time":     { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "date":     { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "crc":      { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "csize":    { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "usize":    { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "nlen":     { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "elen":     { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "name":     { "type": "string",  "pattern": "^[0-9a-f]*$",              "description": "Lowercase hex, even length." },
+        "extra":    { "type": "string",  "pattern": "^[0-9a-f]*$" },
+        "consumed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["i", "out", "tag", "name"],
+      "properties": {
+        "i":     { "type": "integer", "minimum": 0 },
+        "out":   { "type": "string",  "const": "err" },
+        "tag":   { "type": "integer", "minimum": 1, "maximum": 255,         "description": "1=shortHeader, 2=badSignature, 3=shortName, 4=shortExtra, 255=hexDecode." },
+        "name":  { "type": "string",  "enum": ["shortHeader", "badSignature", "shortName", "shortExtra", "hexDecode"] }
+      }
+    }
+  ]
+}

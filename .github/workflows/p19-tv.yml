@@ -1,0 +1,119 @@
+name: P1.9 TV gates (multi-arch)
+
+# P1.9 §V item 5 — multi-architecture reproducibility check.
+# Runs the full P1.9 gate suite on x86_64 + aarch64 Linux (and
+# Darwin where actions/cache supports it), then asserts the
+# committed `tv-receipt-lfh-three-way.txt` matches the freshly-
+# produced receipt on EACH architecture, byte-identical.
+#
+# This is the "extraction byte-identical on 3 reference machines"
+# gate the README §10 row 4 calls out as HARD. Until this
+# workflow runs in production CI, the gate is conditional on
+# operator infra (§C). The workflow file lands so the gate is
+# *runnable* — the actual CI minutes are operator-bound.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "theorems/**"
+      - "crates/axiom-zip-ref/**"
+      - "crates/axiom-l0-zip-lfh-verified/**"
+      - "crates/axiom-l0-zip-lfh-extracted/**"
+      - "tools/lean-to-rust/**"
+      - "tools/translation-validator/**"
+      - "tools/lfh-eval-rust/**"
+      - "tools/lfh-eval-extracted/**"
+      - "tools/eocd-eval-rust/**"
+      - "tools/tv-schema-check/**"
+      - "corpus/zip/**"
+      - "lakefile.toml"
+      - "lake-manifest.json"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tv-three-way:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Lake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .lake/build
+            .lake/packages/*/.lake/build
+          key: ${{ runner.os }}-${{ runner.arch }}-lake-${{ hashFiles('lake-manifest.json') }}
+
+      - name: Run P1.9 gates
+        run: |
+          nix develop --accept-flake-config --command make p19-gates
+
+      - name: Schema-check evaluator outputs
+        run: |
+          nix develop --accept-flake-config --command bash -c '
+            cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$f"; done) | lake exe lfh-eval | ./target/release/tv-schema-check
+            cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$f"; done) | ./target/release/lfh-eval-rust | ./target/release/tv-schema-check
+            cat <(for f in corpus/zip/lfh-valid/*.bin corpus/zip/lfh-adversarial/*.bin; do xxd -p -c 9999 < "$f"; done) | ./target/release/lfh-eval-extracted | ./target/release/tv-schema-check
+          '
+
+      - name: Coverage gate
+        run: |
+          nix develop --accept-flake-config --command bash scripts/coverage-gate.sh 85.0
+
+      - name: Upload receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-receipt-${{ runner.os }}-${{ runner.arch }}
+          path: docs/phase-1/P1.9/tv-receipt-lfh-three-way.txt
+
+  receipt-cross-host-equality:
+    needs: tv-three-way
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: receipts
+
+      - name: Compare cross-host receipts
+        # Each tv-three-way job uploaded a receipt; here we cross-
+        # compare them. They MUST be byte-identical — the receipt
+        # is content-determined (no timestamps, no machine IDs).
+        run: |
+          set -euo pipefail
+          first=""
+          for receipt in receipts/*/tv-receipt-lfh-three-way.txt; do
+            if [[ -z "$first" ]]; then
+              first="$receipt"
+              continue
+            fi
+            if ! cmp "$first" "$receipt"; then
+              echo "RECEIPT DIVERGENCE: $first vs $receipt"
+              echo "--- $first ---"
+              cat "$first"
+              echo "--- $receipt ---"
+              cat "$receipt"
+              exit 1
+            fi
+          done
+          echo "PASS: all uploaded receipts are byte-identical across architectures."
