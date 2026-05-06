@@ -1,0 +1,33 @@
+[package]
+name = "axiom-crypto-hacl"
+description = "Unified crypto surface for APKAXIOM — SHA-256/Ed25519/ECDSA-P256 via formally verified libcrux (HACL*-extracted Rust); RSA via RustCrypto (documented honest deviation: no libcrux-rsa exists)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Formally verified (HACL*-extracted Rust) primitives.
+libcrux-sha2 = "0.0.6"
+libcrux-ed25519 = "0.0.7"
+libcrux-ecdsa = "0.0.6"
+
+# RSA honest deviation — no libcrux-rsa exists (ADR framing in CHECKLIST §A).
+# RustCrypto rsa 0.9 + sha2 are already in the workspace via axiom-sigverify.
+rsa = { version = "=0.9.7", default-features = false, features = ["sha2"] }
+sha2 = { version = "0.10", default-features = false }
+pkcs8 = { version = "=0.10.2", default-features = false, features = ["alloc"] }
+spki = { version = "=0.7.3", default-features = false, features = ["alloc"] }
+der = { version = "=0.7.9", default-features = false, features = ["alloc"] }
+
+# Re-export blake3 hashing from the dedicated crate.
+axiom-blake3-hacl = { path = "../axiom-blake3-hacl" }
+
+[lints]
+workspace = true

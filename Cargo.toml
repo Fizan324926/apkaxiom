@@ -2,6 +2,9 @@
 resolver = "2"
 members = [
     "crates/axiom-blake3-hacl",
+    "crates/axiom-crypto-hacl",
+    "crates/axiom-l1-signing-verified",
+    "tools/p116-signing-bench",
     "crates/axiom-l0",
     "crates/axiom-l0-zip-lfh-extracted",
     "crates/axiom-l0-zip-lfh-verified",

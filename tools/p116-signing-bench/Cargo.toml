@@ -1,0 +1,21 @@
+[package]
+name = "p116-signing-bench"
+description = "P1.16 verdict-agreement bench: walks an APK corpus, compares axiom-l1-signing-verified against apksigner, reports 0-disagreement gate and throughput."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "p116-signing-bench"
+path = "src/main.rs"
+
+[dependencies]
+axiom-l1-signing-verified = { path = "../../crates/axiom-l1-signing-verified" }
+walkdir = { workspace = true }
+
+[lints]
+workspace = true

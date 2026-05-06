@@ -1,0 +1,57 @@
+name: P1.16 HACL*-backed signing verifier
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'tools/p116-signing-bench/**'
+      - 'docs/phase-1/P1.16/**'
+      - '.github/workflows/p116.yml'
+  pull_request:
+    paths:
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'tools/p116-signing-bench/**'
+
+jobs:
+  p116:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.runner }}-cargo-p116-${{ hashFiles('Cargo.lock') }}
+
+      - name: HARD gate — axiom-crypto-hacl unit tests (HACL* KAT + cross-check)
+        run: cargo test -q -p axiom-crypto-hacl --lib
+
+      - name: HARD gate — axiom-l1-signing-verified unit tests
+        run: cargo test -q -p axiom-l1-signing-verified --lib
+
+      - name: Build p116-signing-bench (release)
+        run: cargo build -q -p p116-signing-bench --release
+
+      - name: HARD gate — verdict-agreement 100/100 on real-APK corpus
+        run: |
+          ./target/release/p116-signing-bench \
+            --corpus fuzz/corpus/real-apks \
+            --verbose

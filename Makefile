@@ -1252,6 +1252,33 @@ fmt: ## Auto-format Rust + Nix.
 	cargo fmt --all
 	@command -v nixpkgs-fmt >/dev/null && nixpkgs-fmt flake.nix || true
 
+##@ P1.16 — HACL*-backed signing verifier
+
+.PHONY: p116-tests
+p116-tests: ## P1.16 — unit tests for axiom-crypto-hacl + axiom-l1-signing-verified.
+	cargo test -q -p axiom-crypto-hacl --lib
+	cargo test -q -p axiom-l1-signing-verified --lib
+
+.PHONY: p116-signing-bench
+p116-signing-bench: ## P1.16 — verdict-agreement gate (0 disagreements on corpus).
+	cargo build -q -p p116-signing-bench --release
+	$(ROOT)/target/release/p116-signing-bench --corpus $(ROOT)/fuzz/corpus/real-apks
+
+.PHONY: p116-throughput
+p116-throughput: ## P1.16 — throughput gate (≥ 1 000 APKs/sec, requires ≥ 50 APKs).
+	cargo build -q -p p116-signing-bench --release
+	$(ROOT)/target/release/p116-signing-bench \
+		--corpus $(ROOT)/fuzz/corpus/real-apks \
+		--bench
+
+.PHONY: p116-gates
+p116-gates: ## P1.16 — all CI gates: tests + verdict-agreement.
+	$(MAKE) p116-tests
+	$(MAKE) p116-signing-bench
+
+.PHONY: p116
+p116: p116-gates ## Alias — run every P1.16 gate.
+
 ##@ Nix
 
 .PHONY: nix-check
