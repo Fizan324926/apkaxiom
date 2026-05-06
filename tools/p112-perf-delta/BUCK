@@ -1,0 +1,16 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 row 4 perf-delta gate — verified vs hand-written ZIP layer.
+
+rust_binary(
+    name = "p112-perf-delta",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_perf_delta",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

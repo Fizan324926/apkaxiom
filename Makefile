@@ -627,6 +627,79 @@ p111-gates: ## Run every P1.11 gate end-to-end.
 	$(MAKE) p111-differential-rs
 	$(MAKE) p111-buck2
 
+##@ P1.12 — Verified ZIP layer (LFH + CDR + EOCD + Consistency)
+
+.PHONY: p112-bench-10k
+p112-bench-10k: ## P1.12 G5 — generate the 10 000-archive deterministic Bench-10K corpus.
+	cargo run -q -p p112-bench-10k --release -- corpus/zip/bench-10k
+
+.PHONY: p112-perf-delta
+p112-perf-delta: ## P1.12 row 4 — verified-vs-handwritten perf gate (HARD ≤ 15 %).
+	cargo run -q -p p112-perf-delta --release -- --gate 15.0 --strict 5.0
+
+.PHONY: p112-throughput
+p112-throughput: ## P1.12 row 4 — multi-core throughput gate (HARD ≥ 250 APKs/sec/16-core).
+	cargo run -q -p p112-throughput --release -- --gate 250
+
+.PHONY: p112-latency
+p112-latency: ## P1.12 row 4 — per-archive p99 latency gate (HARD ≤ 80 ms).
+	cargo run -q -p p112-latency --release
+
+.PHONY: p112-commit-chain
+p112-commit-chain: ## P1.12 row 4 — Bench-1K commit-chain reproducibility (100 % bit-identical).
+	cargo run -q -p p112-commit-chain --release -- --count 1000
+
+.PHONY: p112-tv-cdr
+p112-tv-cdr: ## P1.12 G4 — regenerate the CDR Lean ↔ Rust translation-validation receipt.
+	cargo build -q -p cdr-eval-rust --release
+	cd theorems && lake build cdr-eval
+	cargo run -q -p translation-validator --release -- \
+	  --corpus $(ROOT)/corpus/zip/cdr-valid \
+	  --corpus $(ROOT)/corpus/zip/cdr-adversarial \
+	  --rust-bin $(ROOT)/target/release/cdr-eval-rust \
+	  --lean-cmd "$(ROOT)/theorems/.lake/build/bin/cdr-eval" \
+	  --receipt $(ROOT)/docs/phase-1/P1.12/tv-receipt-cdr.txt
+
+.PHONY: p112-tv-consistency
+p112-tv-consistency: ## P1.12 G4 — regenerate the whole-archive Lean ↔ Rust TV receipt.
+	cargo build -q -p archive-eval-rust --release
+	cd theorems && lake build archive-eval
+	cargo run -q -p translation-validator --release -- \
+	  --corpus $(ROOT)/corpus/zip/archive-valid \
+	  --rust-bin $(ROOT)/target/release/archive-eval-rust \
+	  --lean-cmd "$(ROOT)/theorems/.lake/build/bin/archive-eval" \
+	  --receipt $(ROOT)/docs/phase-1/P1.12/tv-receipt-consistency.txt
+
+.PHONY: p112-tv
+p112-tv: ## P1.12 G4 — regenerate every CDR + Consistency TV receipt.
+	$(MAKE) p112-tv-cdr
+	$(MAKE) p112-tv-consistency
+
+.PHONY: p112-axiom-l0-feature-matrix
+p112-axiom-l0-feature-matrix: ## P1.12 G10 — assert axiom-l0 builds + tests on both verified-zip and legacy-zip.
+	cargo build  -q -p axiom-l0 --release
+	cargo test   -q -p axiom-l0 --release
+	cargo build  -q -p axiom-l0 --release --no-default-features --features legacy-zip
+	cargo test   -q -p axiom-l0 --release --no-default-features --features legacy-zip
+
+.PHONY: p112-buck2
+p112-buck2: ## P1.12 G12 — verify Buck2 builds the new crates.
+	buck2 build \
+	  //crates/axiom-l0-zip-verified:axiom-l0-zip-verified \
+	  //crates/axiom-l0:axiom-l0
+
+.PHONY: p112-gates
+p112-gates: ## Run every P1.12 gate end-to-end.
+	$(MAKE) p112-bench-10k
+	$(MAKE) p112-perf-delta
+	$(MAKE) p112-throughput
+	$(MAKE) p112-latency
+	$(MAKE) p112-commit-chain
+	$(MAKE) p112-axiom-l0-feature-matrix
+
+.PHONY: p112
+p112: p112-gates ## Alias — run every P1.12 gate.
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

@@ -5,6 +5,7 @@ members = [
     "crates/axiom-l0",
     "crates/axiom-l0-zip-lfh-extracted",
     "crates/axiom-l0-zip-lfh-verified",
+    "crates/axiom-l0-zip-verified",
     "crates/axiom-l1-rs",
     "crates/axiom-sigblock",
     "crates/axiom-sigverify",
@@ -24,6 +25,8 @@ members = [
     "tools/p17-bench-1k",
     "tools/p18-perf-delta",
     "tools/eocd-eval-rust",
+    "tools/cdr-eval-rust",
+    "tools/archive-eval-rust",
     "tools/lfh-eval-extracted",
     "tools/tv-schema-check",
     "tools/lfh-eval-rust",
@@ -34,6 +37,11 @@ members = [
     "tools/p111-differential",
     "tools/p111-tamper-fuzz",
     "tools/p19-perf-delta",
+    "tools/p112-bench-10k",
+    "tools/p112-perf-delta",
+    "tools/p112-throughput",
+    "tools/p112-latency",
+    "tools/p112-commit-chain",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

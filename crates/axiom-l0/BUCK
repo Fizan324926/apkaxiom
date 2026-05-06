@@ -3,6 +3,13 @@
 # `rust_library` and `rust_test` are exposed as built-in rules by the bundled
 # Buck2 prelude (see prelude/native.bzl::_rust_*_macro_stub). No `load()` is
 # required.
+#
+# P1.12 — axiom-l0 surfaces the verified ZIP layer through
+# `axiom_l0::zip::*`. The Buck2 build always uses the verified
+# route (we don't re-encode Cargo's feature matrix in BUCK; the
+# `legacy-zip` feature is exercised via the
+# `make p112-axiom-l0-feature-matrix` cargo target). The verified
+# route matches the default `cargo build` behaviour.
 
 rust_library(
     name = "axiom-l0",
@@ -10,6 +17,10 @@ rust_library(
     crate = "axiom_l0",
     crate_root = "src/lib.rs",
     edition = "2021",
+    features = ["verified-zip"],
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -19,4 +30,8 @@ rust_test(
     crate = "axiom_l0",
     crate_root = "src/lib.rs",
     edition = "2021",
+    features = ["verified-zip"],
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
 )

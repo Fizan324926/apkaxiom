@@ -1,6 +1,6 @@
 [package]
 name = "axiom-l0"
-description = "APKAXIOM L0 — minimal trusted core (placeholder for Phase 1; real implementation arrives in P1.3)"
+description = "APKAXIOM L0 — minimal trusted core (translation-validated ZIP layer + RIBC kernel)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,6 +11,22 @@ repository.workspace = true
 
 [lib]
 path = "src/lib.rs"
+
+[features]
+# Default: route the ZIP layer through axiom-l0-zip-verified (the
+# translation-validated umbrella; per-module receipts in
+# docs/phase-1/P1.12/tv-receipt-*.txt). The `legacy-zip` feature
+# routes through axiom-zip-ref (the hand-written reference parser
+# the P1.5/P1.6 three-way differential gates on). Verified path is
+# the default; legacy is kept for the verified-vs-handwritten perf
+# gate (`make p112-perf-delta`) and slated for removal in Phase 2.
+default = ["verified-zip"]
+verified-zip = ["dep:axiom-l0-zip-verified"]
+legacy-zip = ["dep:axiom-zip-ref"]
+
+[dependencies]
+axiom-l0-zip-verified = { path = "../axiom-l0-zip-verified", optional = true }
+axiom-zip-ref = { path = "../axiom-zip-ref", optional = true }
 
 [lints]
 workspace = true

@@ -1,0 +1,15 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 row 4 p99 latency gate.
+
+rust_binary(
+    name = "p112-latency",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_latency",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

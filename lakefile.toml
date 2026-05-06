@@ -51,3 +51,16 @@ supportInterpreter = true
 name = "sig-eval"
 root = "Apkaxiom.Tv.SigEval"
 supportInterpreter = true
+
+# P1.12 — CDR evaluator binary; mirrors `tools/cdr-eval-rust`.
+[[lean_exe]]
+name = "cdr-eval"
+root = "Apkaxiom.Tv.CdrEval"
+supportInterpreter = true
+
+# P1.12 — whole-archive (Consistency) evaluator; mirrors
+# `tools/archive-eval-rust`.
+[[lean_exe]]
+name = "archive-eval"
+root = "Apkaxiom.Tv.ArchiveEval"
+supportInterpreter = true

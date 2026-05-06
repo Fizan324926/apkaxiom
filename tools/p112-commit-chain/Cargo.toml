@@ -1,0 +1,16 @@
+[package]
+name = "p112-commit-chain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axiom-l0-zip-verified = { path = "../../crates/axiom-l0-zip-verified" }
+axiom-blake3-hacl = { path = "../../crates/axiom-blake3-hacl" }
+
+[lints]
+workspace = true

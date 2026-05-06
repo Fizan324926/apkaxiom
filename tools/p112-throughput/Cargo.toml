@@ -1,0 +1,16 @@
+[package]
+name = "p112-throughput"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axiom-l0-zip-verified = { path = "../../crates/axiom-l0-zip-verified" }
+axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }
+
+[lints]
+workspace = true

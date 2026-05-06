@@ -1,0 +1,16 @@
+[package]
+name = "axiom-l0-zip-verified"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axiom-zip-ref = { path = "../axiom-zip-ref" }
+axiom-l0-zip-lfh-verified = { path = "../axiom-l0-zip-lfh-verified" }
+
+[lints]
+workspace = true

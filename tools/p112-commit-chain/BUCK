@@ -1,0 +1,17 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 row 4 commit-chain reproducibility gate — Bench-1K, 2 runs,
+# 100 % bit-identical aggregate root.
+
+rust_binary(
+    name = "p112-commit-chain",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_commit_chain",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
+    ],
+    visibility = ["PUBLIC"],
+)

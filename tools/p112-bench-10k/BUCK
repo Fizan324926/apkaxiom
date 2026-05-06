@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 G5 — Bench-10K corpus generator (10 000 deterministic
+# well-formed ZIP archives, round-tripped through the verified
+# parser before being written).
+
+rust_binary(
+    name = "p112-bench-10k",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_bench_10k",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

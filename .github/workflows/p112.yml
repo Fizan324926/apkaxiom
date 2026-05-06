@@ -1,0 +1,81 @@
+name: P1.12 verified ZIP layer (multi-arch)
+
+# P1.12 row 4 — translation-validated full ZIP layer (LFH + CDR +
+# EOCD + Consistency). Runs the four HARD gates plus the per-module
+# TV-receipt regen on x86_64 + aarch64 Linux. The verified path is
+# the default `axiom-l0::zip` route; any drift in throughput, p99,
+# perf-delta, or commit-chain reproducibility breaks the gate.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/axiom-l0/**"
+      - "crates/axiom-l0-zip-verified/**"
+      - "crates/axiom-l0-zip-lfh-verified/**"
+      - "crates/axiom-zip-ref/**"
+      - "tools/p112-bench-10k/**"
+      - "tools/p112-perf-delta/**"
+      - "tools/p112-throughput/**"
+      - "tools/p112-latency/**"
+      - "tools/p112-commit-chain/**"
+      - "tools/cdr-eval-rust/**"
+      - "tools/archive-eval-rust/**"
+      - "theorems/Apkaxiom/Tv/CdrEval.lean"
+      - "theorems/Apkaxiom/Tv/ArchiveEval.lean"
+      - ".github/workflows/p112.yml"
+  pull_request:
+    paths:
+      - "crates/axiom-l0/**"
+      - "crates/axiom-l0-zip-verified/**"
+      - "crates/axiom-l0-zip-lfh-verified/**"
+      - "crates/axiom-zip-ref/**"
+      - "tools/p112-**"
+      - "tools/cdr-eval-rust/**"
+      - "tools/archive-eval-rust/**"
+      - "theorems/Apkaxiom/Tv/CdrEval.lean"
+      - "theorems/Apkaxiom/Tv/ArchiveEval.lean"
+  workflow_dispatch:
+
+jobs:
+  p112-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-p112-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Bench-10K corpus generation (10 000 archives, verified-path round-trip)
+        run: nix develop --command make p112-bench-10k
+
+      - name: Verified-vs-handwritten perf-delta gate (HARD ≤ 15 %)
+        run: nix develop --command make p112-perf-delta
+
+      - name: Throughput gate (HARD ≥ 250 APKs/sec/16-core)
+        run: nix develop --command make p112-throughput
+
+      - name: p99 latency gate (HARD ≤ 80 ms)
+        run: nix develop --command make p112-latency
+
+      - name: Commit-chain reproducibility (Bench-1K, 100 % bit-identical)
+        run: nix develop --command make p112-commit-chain
+
+      - name: axiom-l0 feature matrix (verified-zip + legacy-zip)
+        run: nix develop --command make p112-axiom-l0-feature-matrix
