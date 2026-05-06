@@ -95,6 +95,7 @@ name = "axiom-l1-rs"
 version = "0.0.0"
 dependencies = [
  "axiom-blake3-hacl",
+ "axiom-ir",
  "axiom-l0",
  "axiom-zip-ref",
  "miniz_oxide",

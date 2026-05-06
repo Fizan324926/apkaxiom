@@ -14,6 +14,7 @@ path = "src/lib.rs"
 
 [dependencies]
 axiom-l0 = { path = "../axiom-l0" }
+axiom-ir = { path = "../axiom-ir" }
 axiom-zip-ref = { path = "../axiom-zip-ref" }
 axiom-blake3-hacl = { path = "../axiom-blake3-hacl" }
 thiserror = "1"

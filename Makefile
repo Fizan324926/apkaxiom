@@ -1052,6 +1052,39 @@ p114-gates: ## P1.14 — every CI gate (no MinIO; that needs Docker outside CI).
 .PHONY: p114
 p114: p114-gates ## Alias — run every P1.14 gate.
 
+##@ P1.15 — AXIOM-IR-v0.1 emitter
+
+P115_CORPUS ?= $(ROOT)/fuzz/corpus/real-apks
+
+.PHONY: p115-roundtrip
+p115-roundtrip: ## P1.15 — byte-identical round-trip gate on real APKs (≥ 95 %).
+	cargo build -q -p p115-roundtrip --release
+	$(ROOT)/target/release/p115-roundtrip --corpus $(P115_CORPUS)
+
+.PHONY: p115-ir-overhead-bench
+p115-ir-overhead-bench: ## P1.15 — IR emission overhead gate (≤ 15 % throughput hit).
+	cargo build -q -p p115-roundtrip --release
+	$(ROOT)/target/release/p115-ir-overhead-bench
+
+.PHONY: p115-tests
+p115-tests: ## P1.15 — unit + determinism tests for axiom-l1-rs ir module.
+	cargo test -p axiom-l1-rs -p p115-roundtrip --lib
+
+.PHONY: p115-semantic-check
+p115-semantic-check: ## P1.15 — semantic decode gate (all packages non-empty).
+	cargo build -q -p p115-roundtrip --release
+	$(ROOT)/target/release/p115-semantic-check --corpus $(P115_CORPUS)
+
+.PHONY: p115-gates
+p115-gates: ## P1.15 — every CI gate.
+	$(MAKE) p115-tests
+	$(MAKE) p115-roundtrip
+	$(MAKE) p115-ir-overhead-bench
+	$(MAKE) p115-semantic-check
+
+.PHONY: p115
+p115: p115-gates ## Alias — run every P1.15 gate.
+
 
 .PHONY: p113-fuzz-50k
 p113-fuzz-50k: ## P1.13 Gap-1 — 50 000-iter dev-mode soak with all arms (rate-limited 1/50).

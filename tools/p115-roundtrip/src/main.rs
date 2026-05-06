@@ -328,3 +328,4 @@ mod tests {
         assert_eq!(ir1, ir2, "ManifestIr is not deterministic");
     }
 }
+

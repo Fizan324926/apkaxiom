@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "p115-ir-overhead-bench"
 path = "src/bin/ir_overhead_bench.rs"
 
+[[bin]]
+name = "p115-semantic-check"
+path = "src/bin/semantic_check.rs"
+
 [dependencies]
 axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
 axiom-zip-ref = { path = "../../crates/axiom-zip-ref" }

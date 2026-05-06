@@ -1,0 +1,55 @@
+name: P1.15 AXIOM-IR-v0.1 emitter
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/axiom-l1-rs/src/ir/**'
+      - 'crates/axiom-l1-rs/src/apk.rs'
+      - 'crates/axiom-l1-rs/src/apk_data.rs'
+      - 'tools/p115-roundtrip/**'
+      - 'docs/phase-1/P1.15/**'
+      - '.github/workflows/p115.yml'
+  pull_request:
+    paths:
+      - 'crates/axiom-l1-rs/src/ir/**'
+      - 'crates/axiom-l1-rs/src/apk.rs'
+      - 'tools/p115-roundtrip/**'
+
+jobs:
+  p115:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.runner }}-cargo-p115-${{ hashFiles('Cargo.lock') }}
+
+      - name: HARD gate — unit + determinism tests
+        run: make p115-tests
+
+      - name: HARD gate — byte-identical round-trip ≥ 95 % on F-Droid corpus
+        run: make p115-roundtrip
+
+      - name: HARD gate — IR emission overhead ≤ 15 %
+        run: make p115-ir-overhead-bench
+
+      - name: HARD gate — semantic decode (all packages non-empty)
+        run: make p115-semantic-check

@@ -305,29 +305,24 @@ impl Apk<Unverified> {
     ///     let _ = apk.signature_block();
     /// }
     /// ```
+    pub fn verify_v2(self) -> Result<Apk<SignatureVerified>, ApkError> {
+        verify_with_variant::<V2>(self)
+    }
+
     /// Raw AXML bytes captured from `AndroidManifest.xml`, if present.
-    /// Used by the IR round-trip gate without going through signature
-    /// verification.
+    /// Exposed without requiring signature verification so the IR round-
+    /// trip gate can operate on the raw bytes directly.
     #[must_use]
     pub fn manifest_bytes(&self) -> Option<&[u8]> {
         self.state_data.captured.manifest.as_deref()
     }
 
     /// Raw ARSC bytes captured from `resources.arsc`, if present.
-    /// Used by the IR round-trip gate without going through signature
-    /// verification.
+    /// Exposed without requiring signature verification so the IR round-
+    /// trip gate can operate on the raw bytes directly.
     #[must_use]
     pub fn resources_bytes(&self) -> Option<&[u8]> {
         self.state_data.captured.resources.as_deref()
-    }
-
-    /// Verify the APK Signing Block v2.
-    ///
-    /// # Errors
-    /// [`ApkError::SignatureVerify`] when the v1 signature probe
-    /// rejects the input.
-    pub fn verify_v2(self) -> Result<Apk<SignatureVerified>, ApkError> {
-        verify_with_variant::<V2>(self)
     }
 
     /// Verify the APK Signing Block v3 (key-rotation support).

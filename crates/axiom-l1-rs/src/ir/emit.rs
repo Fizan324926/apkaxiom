@@ -13,32 +13,45 @@
 //! reverse path back to bytes is byte-identical for every chunk
 //! we recognise.
 
-use crate::apk_data::{Manifest, Resources};
-use super::{arsc, axml};
+use axiom_ir::manifest::ManifestModule;
+use axiom_ir::resource::ResourceTable;
 
-/// Manifest IR — wraps the AXML structural form. The dialect-
-/// specific semantic view (package, components, intents) lives
-/// in `axiom-ir`'s `ManifestModule`; this carrier preserves the
-/// chunk tree so the reencoder can produce bit-identical AXML.
+use crate::apk_data::{Manifest, Resources};
+use super::{arsc, axml, manifest_decode, resource_decode};
+
+/// Manifest IR — carries both the structural chunk tree (for byte-
+/// identical reencode) and the decoded [`ManifestModule`] semantic view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestIr {
-    /// Parsed AXML chunk tree.
+    /// Parsed AXML chunk tree — write back with [`reencode_manifest`] for
+    /// byte-identical output.
     pub doc: axml::AxmlDoc,
+    /// Semantic manifest view — package name, components, permissions, SDK
+    /// bounds. Populated by [`manifest_decode::decode`].
+    pub module: ManifestModule,
 }
 
-/// Resource IR — wraps the ARSC structural form. Same role as
-/// [`ManifestIr`] for `resources.arsc`.
+/// Resource IR — carries both the structural ARSC chunk tree and the
+/// decoded [`ResourceTable`] semantic view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResourceIr {
-    /// Parsed ARSC chunk tree.
+    /// Parsed ARSC chunk tree — write back with [`reencode_resources`] for
+    /// byte-identical output.
     pub doc: arsc::ArscDoc,
+    /// Semantic resource view — package name, global string pool, type/key
+    /// names. Populated by [`resource_decode::decode`].
+    pub table: ResourceTable,
 }
 
 /// Emit a manifest IR from the raw AXML bytes wrapped by
 /// [`Manifest`]. Errors propagate from the chunk parser.
+///
+/// Both the structural chunk tree and the [`ManifestModule`] semantic
+/// view are populated in one pass.
 pub fn emit_manifest(manifest: &Manifest) -> Result<ManifestIr, axml::AxmlError> {
     let doc = axml::parse(&manifest.axml_bytes)?;
-    Ok(ManifestIr { doc })
+    let module = manifest_decode::decode(&doc);
+    Ok(ManifestIr { doc, module })
 }
 
 /// Reverse path: produce AXML bytes from a [`ManifestIr`].
@@ -49,9 +62,13 @@ pub fn reencode_manifest(ir: &ManifestIr) -> Vec<u8> {
 
 /// Emit a resource IR from the raw ARSC bytes wrapped by
 /// [`Resources`].
+///
+/// Both the structural chunk tree and the [`ResourceTable`] semantic
+/// view are populated in one pass.
 pub fn emit_resources(resources: &Resources) -> Result<ResourceIr, arsc::ArscError> {
     let doc = arsc::parse(&resources.arsc_bytes)?;
-    Ok(ResourceIr { doc })
+    let table = resource_decode::decode(&doc);
+    Ok(ResourceIr { doc, table })
 }
 
 /// Reverse path: produce ARSC bytes from a [`ResourceIr`].

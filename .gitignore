@@ -123,3 +123,5 @@ fuzz/afl-instrumented/target/
 fuzz/observability/
 fuzz/corpus/real-apks/index-v1.*
 fuzz/findings-realapks/
+# P1.15 Bench-1K — 1 000 F-Droid APKs; fetched by scripts/p115-fetch-bench1k.sh.
+fuzz/corpus/bench-1k/

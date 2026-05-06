@@ -10,17 +10,26 @@
 //! into structural representations [`axml::AxmlDoc`] and
 //! [`arsc::ArscDoc`], then maps those into the dialect IRs.
 //!
+//! Two layers of IR:
+//!
+//! 1. **Structural** (`emit.rs`): the raw chunk trees — preserves every
+//!    byte, enables byte-identical reencode. This is the round-trip gate.
+//!
+//! 2. **Semantic** (`manifest_decode.rs`, `resource_decode.rs`): parsed
+//!    element/attribute walks that populate [`axiom_ir::manifest::ManifestModule`]
+//!    and [`axiom_ir::resource::ResourceTable`]. These are the dialect
+//!    types consumed by `axiom-ir`'s canonical bytes, text, and JSON
+//!    wire formats.
+//!
 //! **Round-trip lemma**: `bytes_to_axml(axml_to_bytes(d)) == d` for
-//! every well-formed AXML input. The emitter preserves chunk
-//! order, header sizes, and string-pool encoding so the reverse
-//! path is bit-identical. Same for ARSC. The HARD gate at
-//! P1.15 §10 row 3 is ≥ 95 % of Bench-1K APKs round-tripping
-//! byte-for-byte; documented exceptions are inputs whose
-//! original bytes carried structural anomalies (over-aligned
-//! chunks, trailing padding) that the parser normalises away.
+//! every well-formed AXML input. Same for ARSC. HARD gate: ≥ 95 % of
+//! Bench-1K APKs round-trip byte-for-byte.
 
 #![allow(clippy::cast_possible_truncation)]
 
 pub mod arsc;
 pub mod axml;
 pub mod emit;
+pub mod manifest_decode;
+pub mod resource_decode;
+pub(crate) mod strings;
