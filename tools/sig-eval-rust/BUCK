@@ -1,0 +1,15 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.11 Rust evaluator binary — mirrors `lake exe sig-eval`.
+
+rust_binary(
+    name = "sig-eval-rust",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "sig_eval_rust",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-sigblock:axiom-sigblock",
+    ],
+    visibility = ["PUBLIC"],
+)

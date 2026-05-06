@@ -6,6 +6,7 @@ members = [
     "crates/axiom-l0-zip-lfh-extracted",
     "crates/axiom-l0-zip-lfh-verified",
     "crates/axiom-l1-rs",
+    "crates/axiom-sigblock",
     "crates/axiom-ir",
     "crates/axiom-extract-hello",
     "crates/axiom-zip-ref",
@@ -28,6 +29,7 @@ members = [
     "tools/p110-hash-throughput",
     "tools/p110-merkle-perf-delta",
     "tools/p110-tamper-fuzz",
+    "tools/sig-eval-rust",
     "tools/p19-perf-delta",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it

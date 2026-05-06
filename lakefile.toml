@@ -41,3 +41,13 @@ supportInterpreter = true
 name = "eocd-eval"
 root = "Apkaxiom.Tv.EocdEval"
 supportInterpreter = true
+
+# P1.11 — APK signing-block evaluator binary used by the
+# translation-validator. Reads hex-encoded APK bytes on stdin
+# (one APK per line), runs `Apkaxiom.Signing.Block.locate` +
+# v2/v3/v3.1 internal parsers, and emits one JSON line per
+# input. Mirrored byte-for-byte by `tools/sig-eval-rust`.
+[[lean_exe]]
+name = "sig-eval"
+root = "Apkaxiom.Tv.SigEval"
+supportInterpreter = true

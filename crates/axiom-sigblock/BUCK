@@ -1,0 +1,28 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.11 APK signing-block parser. Locates the v2/v3/v3.1 carrier
+# between last LFH and CD, walks ID-tagged pairs, decodes
+# v2/v3/v3.1 signed-data internal structure.
+
+rust_library(
+    name = "axiom-sigblock",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_sigblock",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-sigblock-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_sigblock",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:thiserror",
+    ],
+)
