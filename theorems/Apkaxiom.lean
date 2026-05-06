@@ -13,6 +13,9 @@ import Apkaxiom.Zip.CentralDirectory
 import Apkaxiom.Zip.CentralDirectory.Properties
 import Apkaxiom.Zip.Consistency
 import Apkaxiom.Zip.Consistency.EncoderProperties
+import Apkaxiom.Signing.Asn1
+import Apkaxiom.Signing.X509
+import Apkaxiom.Signing.Pkcs7
 import Apkaxiom.Signing.Block
 import Apkaxiom.Signing.Scheme
 import Apkaxiom.Signing.V1
@@ -21,4 +24,14 @@ import Apkaxiom.Signing.V3
 import Apkaxiom.Signing.V3_1
 import Apkaxiom.Signing.Dispatch
 import Apkaxiom.Signing.Crypto
+import Apkaxiom.Signing.Asn1.Properties
+import Apkaxiom.Signing.X509.Properties
+import Apkaxiom.Signing.Pkcs7.Properties
+import Apkaxiom.Signing.PoR.Properties
 import Apkaxiom.Signing.Block.Properties
+import Apkaxiom.Signing.Scheme.Properties
+import Apkaxiom.Signing.V1.Properties
+import Apkaxiom.Signing.V2.Properties
+import Apkaxiom.Signing.V3.Properties
+import Apkaxiom.Signing.V3_1.Properties
+import Apkaxiom.Signing.Dispatch.Properties

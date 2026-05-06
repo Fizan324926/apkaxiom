@@ -57,5 +57,23 @@ sha2 = { version = "0.10", default-features = false }
 # subset of the crypto stack uses HACL* BLAKE2b for the
 # audit-proof demonstration.
 blake3 = { version = "=1.5.5", default-features = false, features = ["pure"] }
+# P1.11 state-of-the-art closure — real cryptographic verifier.
+# RSA-PKCS1-v1.5 + RSA-PSS, ECDSA over P-256, Ed25519, X.509
+# parsing. Production replaces the abstract `CryptoOracle`; the
+# 16-APK differential becomes Lean ↔ Rust-verifier ↔ apksigner
+# at the verifier level (not just block-parser level).
+# Pin base64ct < 1.7 — newer versions require edition2024 / Rust ≥ 1.85;
+# we're pinned at 1.83 via flake.lock.
+base64ct = "=1.6.0"
+# Pin the rust-crypto family at versions that resolve a base64ct < 1.7
+# transitive (avoids edition2024 cascade).
+rsa = { version = "=0.9.7", default-features = false, features = ["sha2"] }
+p256 = { version = "=0.13.2", default-features = false, features = ["ecdsa", "pem", "pkcs8"] }
+ed25519-dalek = { version = "=2.1.1", default-features = false, features = ["pkcs8", "rand_core"] }
+x509-cert = { version = "=0.2.5", default-features = false, features = ["pem"] }
+spki = { version = "=0.7.3", default-features = false }
+der = { version = "=0.7.9", default-features = false, features = ["alloc", "oid"] }
+const-oid = { version = "=0.9.6", default-features = false }
+sha1 = { version = "=0.10.6", default-features = false }
 
 [patch.crates-io]

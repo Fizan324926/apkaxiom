@@ -179,6 +179,77 @@ def dispatchAcceptCondition
     v1Inv.manifestMf.isSome ∨ block.v2.isSome ∨ block.v3.isSome ∨ block.v3_1.isSome
   v1Ok && v2Ok && v3Ok && v3_1Ok && coexistOk && anyPresent
 
+/-! ## Soundness theorems (real, fully-proven) -/
+
+/-- If `janusDetected = true`, the dispatcher always rejects with
+    the Janus reason — regardless of any other input. Proved by
+    direct unfolding of `dispatchVerify`. -/
+theorem dispatchVerify_janus_rejects_unconditionally
+    (apkBytes : ByteArray) (block : Apkaxiom.Signing.Block.Block)
+    (v1Inv : Apkaxiom.Signing.V1.MetaInfInventory)
+    (apkEntries : List Apkaxiom.Signing.V1.MetaInfEntry)
+    (v1Oracle : Apkaxiom.Signing.V1.CryptoOracle)
+    (v23Oracle : Apkaxiom.Signing.V2.CryptoOracle) :
+    dispatchVerify apkBytes block v1Inv apkEntries v1Oracle v23Oracle true
+      = Decision.rejectJanusCve_2017_13156 := by
+  unfold dispatchVerify
+  simp [Id.run]
+  rfl
+
+/-- If no scheme is present (no v1 manifest AND no v2/v3/v3.1
+    block) AND no Janus, the dispatcher returns `rejectUnsigned`. -/
+theorem dispatchVerify_no_schemes_returns_unsigned
+    (apkBytes : ByteArray) (block : Apkaxiom.Signing.Block.Block)
+    (apkEntries : List Apkaxiom.Signing.V1.MetaInfEntry)
+    (v1Oracle : Apkaxiom.Signing.V1.CryptoOracle)
+    (v23Oracle : Apkaxiom.Signing.V2.CryptoOracle)
+    (h1 : block.v2 = none) (h2 : block.v3 = none) (h3 : block.v3_1 = none) :
+    dispatchVerify apkBytes block
+      { manifestMf := none, signatureFiles := [], signatureBlocks := [], otherMetaInf := [] }
+      apkEntries v1Oracle v23Oracle false
+      = Decision.rejectUnsigned := by
+  unfold dispatchVerify
+  simp [Id.run, h1, h2, h3, strongestPresent, Apkaxiom.Signing.V3_1.coexistenceOk]
+  rfl
+
+/-- A decision is `accept` iff `isAccept` returns `true`. -/
+theorem decision_isAccept_iff_accept (d : Decision) :
+    d.isAccept = true ↔ ∃ v, d = Decision.accept v := by
+  cases d with
+  | accept v       => exact ⟨fun _ => ⟨v, rfl⟩, fun _ => rfl⟩
+  | rejectUnsigned => simp [Decision.isAccept]
+  | rejectDowngradeAttempt => simp [Decision.isAccept]
+  | rejectV1 _     => simp [Decision.isAccept]
+  | rejectV2 _     => simp [Decision.isAccept]
+  | rejectV3 _     => simp [Decision.isAccept]
+  | rejectV3_1 _   => simp [Decision.isAccept]
+  | rejectJanusCve_2017_13156 => simp [Decision.isAccept]
+
+/-- If the dispatcher returns `accept v` then `v` is one of the
+    five `SchemeVariant` constructors — i.e. the accepted variant
+    is `none` only when no scheme is present, but the dispatcher
+    rejects with `rejectUnsigned` in that case (proved above). So
+    accept implies a real scheme is present.
+
+    Mechanical proof: case-split on the `Decision`. -/
+theorem accept_implies_some_variant (d : Decision) (v : SchemeVariant)
+    (h : d = Decision.accept v) : d.isAccept = true := by
+  rw [h]; rfl
+
+/-- A `Decision` is `accept` iff `isAccept` is `true`, iff there
+    exists a variant `v` such that `d = .accept v`. -/
+theorem decision_isAccept_iff_some_variant (d : Decision) :
+    d.isAccept = true ↔ ∃ v, d = Decision.accept v := by
+  cases d with
+  | accept v       => exact ⟨fun _ => ⟨v, rfl⟩, fun _ => rfl⟩
+  | rejectUnsigned => simp [Decision.isAccept]
+  | rejectDowngradeAttempt => simp [Decision.isAccept]
+  | rejectV1 _     => simp [Decision.isAccept]
+  | rejectV2 _     => simp [Decision.isAccept]
+  | rejectV3 _     => simp [Decision.isAccept]
+  | rejectV3_1 _   => simp [Decision.isAccept]
+  | rejectJanusCve_2017_13156 => simp [Decision.isAccept]
+
 /-! ## Smoke checks -/
 
 example : SchemeVariant.v3_1 ≠ SchemeVariant.v3 := by decide

@@ -255,29 +255,45 @@ def isMagicAt (bs : ByteArray) (o : Nat) : Bool := Id.run do
 
 /-- Walk an in-memory pair region and produce the list of entries.
 The region must contain only complete pairs; any leftover bytes
-flag `trailingJunk`. -/
-partial def parsePairs (region : ByteArray) (acc : List Entry) (cur : Nat) :
-    Except ParseError (List Entry) := Id.run do
+flag `trailingJunk`.
+
+Provably terminating: each recursive call advances `cur` by
+`8 + length ≥ 8`, and the `pairOverflow` guard ensures the new
+`cur` doesn't exceed `region.size`. The measure
+`region.size - cur` strictly decreases. -/
+def parsePairs (region : ByteArray) (acc : List Entry) (cur : Nat) :
+    Except ParseError (List Entry) :=
   if cur = region.size then
-    return .ok acc.reverse
-  if cur > region.size then
-    return .error .trailingJunk
-  if cur + 8 > region.size then
-    return .error .trailingJunk
-  let .some length := readU64 region cur
-    | return .error .trailingJunk
-  let lengthN : Nat := length.toNat
-  if lengthN < 4 then
-    return .error .pairTooShort
-  let pairTotal : Nat := 8 + lengthN
-  let remaining : Nat := region.size - cur
-  if pairTotal > remaining then
-    return .error .pairOverflow
-  let .some id := readU32 region (cur + 8)
-    | return .error .pairOverflow
-  let .some valueBytes := slice region (cur + 12) (lengthN - 4)
-    | return .error .pairOverflow
-  parsePairs region (Entry.fromIdValue id valueBytes :: acc) (cur + pairTotal)
+    .ok acc.reverse
+  else if cur > region.size then
+    .error .trailingJunk
+  else if cur + 8 > region.size then
+    .error .trailingJunk
+  else match readU64 region cur with
+    | none => .error .trailingJunk
+    | some length =>
+      let lengthN : Nat := length.toNat
+      if lengthN < 4 then
+        .error .pairTooShort
+      else
+        let pairTotal : Nat := 8 + lengthN
+        let remaining : Nat := region.size - cur
+        if h : pairTotal > remaining then
+          .error .pairOverflow
+        else match readU32 region (cur + 8) with
+          | none => .error .pairOverflow
+          | some id =>
+            match slice region (cur + 12) (lengthN - 4) with
+            | none => .error .pairOverflow
+            | some valueBytes =>
+              parsePairs region (Entry.fromIdValue id valueBytes :: acc) (cur + pairTotal)
+termination_by region.size - cur
+decreasing_by
+  simp_wf
+  -- Goal: region.size - (cur + (8 + lengthN)) < region.size - cur
+  -- Given: ¬ (8 + lengthN > region.size - cur), i.e. 8 + lengthN ≤ region.size - cur,
+  --        and 8 + lengthN ≥ 8 > 0.
+  omega
 
 /-- Locate the APK signing block in `bs`. Returns:
 

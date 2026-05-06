@@ -558,8 +558,30 @@ p111-block-parse: ## P1.11 §B item 1 — Rust APK signing-block parser unit + i
 	cargo test -p axiom-sigblock --release
 
 .PHONY: p111-lean-build
-p111-lean-build: ## P1.11 §B item 2 — Lake-build every Lean signing module.
-	nix develop --accept-flake-config --command lake build Apkaxiom.Signing.Block Apkaxiom.Signing.Block.Properties Apkaxiom.Signing.Scheme Apkaxiom.Signing.V1 Apkaxiom.Signing.V2 Apkaxiom.Signing.V3 Apkaxiom.Signing.V3_1 Apkaxiom.Signing.Dispatch Apkaxiom.Signing.Crypto
+p111-lean-build: ## P1.11 — Lake-build every Lean signing module (4 029 LOC).
+	nix develop --accept-flake-config --command lake build Apkaxiom.Signing.Asn1 Apkaxiom.Signing.X509 Apkaxiom.Signing.Pkcs7 Apkaxiom.Signing.Block Apkaxiom.Signing.Scheme Apkaxiom.Signing.V1 Apkaxiom.Signing.V2 Apkaxiom.Signing.V3 Apkaxiom.Signing.V3_1 Apkaxiom.Signing.Dispatch Apkaxiom.Signing.Crypto Apkaxiom.Signing.Asn1.Properties Apkaxiom.Signing.X509.Properties Apkaxiom.Signing.Pkcs7.Properties Apkaxiom.Signing.PoR.Properties Apkaxiom.Signing.Block.Properties Apkaxiom.Signing.Scheme.Properties Apkaxiom.Signing.V1.Properties Apkaxiom.Signing.V2.Properties Apkaxiom.Signing.V3.Properties Apkaxiom.Signing.V3_1.Properties Apkaxiom.Signing.Dispatch.Properties
+
+.PHONY: p111-verifier
+p111-verifier: ## P1.11 — full Rust v1/v2/v3/v3.1 verifier tests (cryptographic) on 17 fixtures.
+	cargo test -p axiom-sigverify --release
+
+.PHONY: p111-kat
+p111-kat: ## P1.11 G9 + G10 — KAT regression + cross-impl SHA-256 (RustCrypto vs Python hashlib reference).
+	cargo test -p axiom-sigverify --release --test kat_fixtures
+
+.PHONY: p111-fuzz-inproc
+p111-fuzz-inproc: ## P1.11 G12 — in-process fuzz on locate / parse_v2 / parse_v3 / parse_v3_1 (40 K runs).
+	cargo test -p axiom-sigblock --release --test fuzz_inproc
+
+.PHONY: p111-tamper-fuzz
+p111-tamper-fuzz: ## P1.11 G11 — 10 K random-bit-flip mutations × 4 fixtures, gate ≥ 95 % per committed region.
+	cargo run -q -p p111-tamper-fuzz --release -- \
+	  --runs $(or $(P111_TAMPER_RUNS),10000) \
+	  --gate $(or $(P111_TAMPER_GATE),95.0)
+
+.PHONY: p111-differential-rs
+p111-differential-rs: ## P1.11 G5 — Rust differential binary; verifier-level Lean ↔ Rust ↔ apksigner agreement.
+	APKSIGNER=$(or $(APKSIGNER),$(HOME)/android-sdk/build-tools/35.0.0/apksigner) cargo run -q -p p111-differential --release
 
 .PHONY: p111-sig-eval
 p111-sig-eval: ## P1.11 §B item 3 — build both evaluator binaries.
@@ -587,13 +609,22 @@ p111-buck2: ## Verify Buck2 builds for every P1.11 target.
 	  //crates/axiom-sigblock:axiom-sigblock \
 	  //tools/sig-eval-rust:sig-eval-rust
 
+.PHONY: p111-coverage
+p111-coverage: ## P1.11 G13 — line coverage on axiom-sigblock + axiom-sigverify (gate ≥ 75 %).
+	cargo llvm-cov --no-cfg-coverage -p axiom-sigblock --summary-only
+	cargo llvm-cov --no-cfg-coverage -p axiom-sigverify --summary-only
+
 .PHONY: p111-gates
 p111-gates: ## Run every P1.11 gate end-to-end.
 	$(MAKE) p111-block-parse
 	$(MAKE) p111-lean-build
+	$(MAKE) p111-verifier
+	$(MAKE) p111-kat
+	$(MAKE) p111-fuzz-inproc
+	$(MAKE) p111-tamper-fuzz
 	$(MAKE) p111-sig-eval
 	$(MAKE) p111-adversarial
-	$(MAKE) p111-differential
+	$(MAKE) p111-differential-rs
 	$(MAKE) p111-buck2
 
 ##@ Bazel sub-workspace
