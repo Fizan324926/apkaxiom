@@ -176,6 +176,59 @@ fn copy_integer_into(src: &[u8], dst: &mut [u8; 32]) -> Option<()> {
     Some(())
 }
 
+/// Extract the 65-byte uncompressed SEC1 P-256 public key from a
+/// SubjectPublicKeyInfo DER blob (`0x04 ‖ X ‖ Y`).
+///
+/// Returns `None` on any parse error (wrong tag, wrong length, not uncompressed).
+#[must_use]
+pub fn extract_p256_public_key_from_spki(spki_der: &[u8]) -> Option<[u8; 65]> {
+    // Outer SEQUENCE
+    if spki_der.first() != Some(&0x30) {
+        return None;
+    }
+    let (spki_body, _) = read_der_length(spki_der, 1)?;
+    // AlgorithmIdentifier SEQUENCE — skip it entirely
+    if spki_body.first() != Some(&0x30) {
+        return None;
+    }
+    let (_, after_alg) = read_der_length(spki_body, 1)?;
+    // BIT STRING containing the public key
+    if after_alg.first() != Some(&0x03) {
+        return None;
+    }
+    let (bit_string_body, _) = read_der_length(after_alg, 1)?;
+    // First byte is the "unused bits" count — must be 0x00
+    if bit_string_body.first() != Some(&0x00) {
+        return None;
+    }
+    let key_bytes = &bit_string_body[1..];
+    // P-256 uncompressed: 0x04 || X (32 bytes) || Y (32 bytes) = 65 bytes
+    if key_bytes.len() != 65 || key_bytes[0] != 0x04 {
+        return None;
+    }
+    let mut out = [0u8; 65];
+    out.copy_from_slice(key_bytes);
+    Some(out)
+}
+
+/// ECDSA-P256-SHA256 verification from a SPKI DER public key + DER signature.
+///
+/// This is the form used by APK signing (v2/v3): the public key is stored
+/// as a SubjectPublicKeyInfo DER blob and the signature is an ASN.1
+/// SEQUENCE { INTEGER r, INTEGER s }.
+///
+/// Internally routes through `libcrux-ecdsa` (HACL\*-backed).
+#[must_use]
+pub fn ecdsa_p256_verify_spki_der(spki_der: &[u8], signed_data: &[u8], sig_der: &[u8]) -> bool {
+    let Some(pk) = extract_p256_public_key_from_spki(spki_der) else {
+        return false;
+    };
+    let Some((r, s)) = parse_der_ecdsa_sig(sig_der) else {
+        return false;
+    };
+    ecdsa_p256_verify_payload(&pk, signed_data, &r, &s)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

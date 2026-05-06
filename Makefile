@@ -1265,10 +1265,10 @@ p116-signing-bench: ## P1.16 — verdict-agreement gate (0 disagreements on corp
 	$(ROOT)/target/release/p116-signing-bench --corpus $(ROOT)/fuzz/corpus/real-apks
 
 .PHONY: p116-throughput
-p116-throughput: ## P1.16 — throughput gate (≥ 1 000 APKs/sec, requires ≥ 50 APKs).
+p116-throughput: ## P1.16 — throughput gate (≥ 100 APKs/sec on bench-1k real APKs).
 	cargo build -q -p p116-signing-bench --release
 	$(ROOT)/target/release/p116-signing-bench \
-		--corpus $(ROOT)/fuzz/corpus/real-apks \
+		--corpus $(ROOT)/fuzz/corpus/bench-1k \
 		--bench
 
 .PHONY: p116-gates

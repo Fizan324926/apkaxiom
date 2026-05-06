@@ -311,10 +311,21 @@ fn verify_one_signer_hacl(
         }
 
         // Signature check.
-        // RSA-PKCS1-SHA512 and RSA-PSS-SHA512 are handled locally because
-        // axiom-sigverify does not wire them. All other algorithms delegate
-        // to axiom-sigverify::scheme_v2::verify_signature.
+        // Algorithms handled via axiom-crypto-hacl (libcrux, HACL*-backed):
+        //   EcdsaSha256   → axiom_crypto_hacl::ecdsa_p256_verify_spki_der
+        //   RsaPkcs1Sha512, RsaPssSha512 → local RSA-SHA512 (not in axiom-sigverify)
+        // Everything else delegates to axiom_sigverify::scheme_v2::verify_signature.
         let sig_ok: Result<bool, String> = match alg {
+            axiom_sigblock::scheme::SignatureAlgorithmId::EcdsaSha256 => {
+                Ok(axiom_crypto_hacl::ecdsa_p256_verify_spki_der(
+                    &signer.public_key,
+                    &signer.signed_data,
+                    &sig_entry.signature,
+                ))
+            }
+            axiom_sigblock::scheme::SignatureAlgorithmId::DsaSha256 => {
+                Ok(verify_dsa_sha256(&signer.public_key, &signer.signed_data, &sig_entry.signature))
+            }
             axiom_sigblock::scheme::SignatureAlgorithmId::RsaPkcs1Sha512 => {
                 Ok(verify_rsa_pkcs1_sha512(&signer.public_key, &signer.signed_data, &sig_entry.signature))
             }
@@ -403,6 +414,30 @@ fn verify_rsa_pss_sha512(spki_der: &[u8], signed_data: &[u8], signature: &[u8]) 
         return false;
     };
     vk.verify(signed_data, &sig).is_ok()
+}
+
+/// Verify DSA-SHA256 (honest deviation — RustCrypto `dsa 0.6.3`).
+///
+/// No libcrux DSA implementation exists. DSA-SHA256 (algorithm 0x0301)
+/// is used by a small number of legacy APKs in the corpus. This implementation
+/// uses the RustCrypto `dsa` crate, documented as an honest deviation in
+/// CHECKLIST §A alongside the RSA deviation.
+fn verify_dsa_sha256(spki_der: &[u8], signed_data: &[u8], sig_der: &[u8]) -> bool {
+    use dsa::pkcs8::DecodePublicKey;
+    use dsa::signature::DigestVerifier;
+    use sha2::Digest;
+    let Ok(vk) = dsa::VerifyingKey::from_public_key_der(spki_der) else {
+        return false;
+    };
+    let sig = {
+        use rsa::pkcs1::der::Decode;
+        let Ok(s) = dsa::Signature::from_der(sig_der) else {
+            return false;
+        };
+        s
+    };
+    let digest = sha2::Sha256::new().chain_update(signed_data);
+    vk.verify_digest(digest, &sig).is_ok()
 }
 
 /// Returns `true` if the algorithm ID is a verity supplementary algorithm.

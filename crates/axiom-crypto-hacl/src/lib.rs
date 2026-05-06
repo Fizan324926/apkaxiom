@@ -79,6 +79,15 @@ pub fn ecdsa_p256_verify(
     ecdsa::ecdsa_p256_verify(public_key_uncompressed, digest, r, s)
 }
 
+/// ECDSA-P256-SHA256 verification from a SPKI DER public key + DER signature.
+///
+/// Convenience wrapper used on the APK signing hot path. Routes through
+/// `libcrux-ecdsa` (HACL\*-backed). See [`ecdsa::ecdsa_p256_verify_spki_der`].
+#[must_use]
+pub fn ecdsa_p256_verify_spki_der(spki_der: &[u8], signed_data: &[u8], sig_der: &[u8]) -> bool {
+    ecdsa::ecdsa_p256_verify_spki_der(spki_der, signed_data, sig_der)
+}
+
 /// RSA-PKCS1-v1.5 + SHA-256 verification (honest deviation — RustCrypto).
 ///
 /// - `spki_der`: SubjectPublicKeyInfo DER.

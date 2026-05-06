@@ -20,6 +20,8 @@ axiom-l1-rs = { path = "../axiom-l1-rs" }
 # RSA-PKCS1-SHA512 signature verification (not wired in axiom-sigverify).
 rsa = { version = "=0.9.7", default-features = false, features = ["sha2"] }
 sha2 = { version = "0.10", default-features = false }
+# DSA-SHA256 honest deviation: no libcrux DSA exists; uses RustCrypto (audited).
+dsa = { version = "=0.6.3" }
 
 [lints]
 workspace = true
