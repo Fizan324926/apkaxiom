@@ -15,6 +15,7 @@ path = "src/lib.rs"
 [dependencies]
 axiom-l0 = { path = "../axiom-l0" }
 axiom-zip-ref = { path = "../axiom-zip-ref" }
+axiom-blake3-hacl = { path = "../axiom-blake3-hacl" }
 thiserror = "1"
 # Pure-Rust DEFLATE decoder. APKs uniformly DEFLATE-compress at
 # least their AndroidManifest.xml and META-INF/*.RSA carrier

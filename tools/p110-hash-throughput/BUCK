@@ -1,0 +1,16 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.10 §10 row 2 hash-throughput gate. BLAKE3 single-core
+# throughput on a 256 MiB random buffer; spec gate ≥ 1.5 GB/s.
+
+rust_binary(
+    name = "p110-hash-throughput",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p110_hash_throughput",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
+    ],
+    visibility = ["PUBLIC"],
+)

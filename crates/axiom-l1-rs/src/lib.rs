@@ -27,6 +27,7 @@
 pub mod apk;
 pub mod apk_async;
 pub mod apk_data;
+pub mod commit_chain;
 pub mod event;
 pub mod state;
 pub mod stream;

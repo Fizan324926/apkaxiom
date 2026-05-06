@@ -1,0 +1,28 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.10 verified-crypto hashing surface. Production BLAKE3 via the
+# BLAKE3-team Rust crate; HACL* BLAKE2b binding placeholder behind
+# a `cfg(feature = "hacl-c")` gate (see ADR-0028).
+
+rust_library(
+    name = "axiom-blake3-hacl",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_blake3_hacl",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:blake3",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "axiom-blake3-hacl-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "axiom_blake3_hacl",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//third-party/rust:blake3",
+    ],
+)

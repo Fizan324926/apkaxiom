@@ -479,6 +479,43 @@ p19-gates: ## Run every P1.9 sub-phase gate end-to-end.
 	$(MAKE) p19-perf-delta
 	$(MAKE) p19-buck2
 
+##@ P1.10 — Merkle commit chain
+
+.PHONY: p110-hash-throughput
+p110-hash-throughput: ## P1.10 §10 row 2 — BLAKE3 single-core throughput on 256 MiB (gate ≥ 1.5 GB/s).
+	cargo run -q -p p110-hash-throughput --release -- \
+	  --gate $(or $(P110_HASH_GATE),1.5)
+
+.PHONY: p110-merkle-perf-delta
+p110-merkle-perf-delta: ## P1.10 §10 row 5 — Merkle-overhead vs flat-hash baseline (gate ≤ 10% or |Δ|≤2σ).
+	cargo run -q -p p110-merkle-perf-delta --release -- \
+	  --runs $(or $(P110_RUNS),20) \
+	  --iters $(or $(P110_ITERS),50) \
+	  --gate $(or $(P110_PERF_GATE),10.0)
+
+.PHONY: p110-reproducibility
+p110-reproducibility: ## P1.10 §10 row 4 — Merkle root bit-identical across runs on 4 real APKs.
+	cargo test -p axiom-l1-rs --release --test commit_chain_reproducibility -- --nocapture
+
+.PHONY: p110-vectors
+p110-vectors: ## P1.10 §10 row 1 — BLAKE3 official test-vector parity (5 unit tests).
+	cargo test -p axiom-blake3-hacl --release -- --nocapture
+
+.PHONY: p110-buck2
+p110-buck2: ## Verify Buck2 builds for every P1.10 target.
+	buck2 build \
+	  //crates/axiom-blake3-hacl:axiom-blake3-hacl \
+	  //tools/p110-hash-throughput:p110-hash-throughput \
+	  //tools/p110-merkle-perf-delta:p110-merkle-perf-delta
+
+.PHONY: p110-gates
+p110-gates: ## Run every P1.10 sub-phase gate end-to-end.
+	$(MAKE) p110-vectors
+	$(MAKE) p110-reproducibility
+	$(MAKE) p110-hash-throughput
+	$(MAKE) p110-merkle-perf-delta
+	$(MAKE) p110-buck2
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info
