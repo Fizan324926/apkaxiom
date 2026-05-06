@@ -49,5 +49,13 @@ miniz_oxide = "0.8"
 # P1.9 §V item 16 — cross-check the inline FIPS-180-4 SHA-256
 # implementation against RustCrypto's audited `sha2` crate.
 sha2 = { version = "0.10", default-features = false }
+# P1.10 — BLAKE3 production hashing. The official BLAKE3-team
+# Rust crate; audited, SIMD-accelerated. ADR-0028 documents the
+# honest spec deviation: the README§4 calls for `HACL*-verified
+# BLAKE3`, but HACL* does not ship a verified BLAKE3 (only
+# BLAKE2b/BLAKE2s). Production hash uses this crate; the verified
+# subset of the crypto stack uses HACL* BLAKE2b for the
+# audit-proof demonstration.
+blake3 = { version = "=1.5.5", default-features = false, features = ["pure"] }
 
 [patch.crates-io]

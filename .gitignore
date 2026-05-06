@@ -66,6 +66,9 @@ result-*
 *.swo
 .DS_Store
 
+# ----- Tooling local state (not source of truth) -----
+.claude/
+
 # ----- Misc -----
 *.log
 *.tmp

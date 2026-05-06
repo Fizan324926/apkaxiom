@@ -1,0 +1,6 @@
+# blake3's build.rs probes target features and emits SIMD cfgs
+# (blake3_avx2_rust, blake3_sse41_rust, blake3_sse2_rust). Without
+# this, platform.rs references `crate::avx2` which is gated behind
+# those cfgs, causing E0433 under Buck2 (cargo runs build.rs by
+# default, which is why `cargo build` works without this fixup).
+buildscript.run = true

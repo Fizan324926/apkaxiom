@@ -1,0 +1,18 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.10 §10 row 5 Merkle-overhead gate. Stream-parser flat-hash
+# baseline vs commit-chain (per-leaf + Merkle fold). Spec gate
+# Δ ≤ 10 % or |Δ| ≤ 2 σ.
+
+rust_binary(
+    name = "p110-merkle-perf-delta",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p110_merkle_perf_delta",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
+        "//crates/axiom-l1-rs:axiom-l1-rs",
+    ],
+    visibility = ["PUBLIC"],
+)

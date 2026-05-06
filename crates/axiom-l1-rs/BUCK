@@ -7,6 +7,7 @@ rust_library(
     crate_root = "src/lib.rs",
     edition = "2021",
     deps = [
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
         "//crates/axiom-l0:axiom-l0",
         "//crates/axiom-zip-ref:axiom-zip-ref",
         "//third-party/rust:miniz_oxide",
@@ -22,6 +23,7 @@ rust_test(
     crate_root = "src/lib.rs",
     edition = "2021",
     deps = [
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
         "//crates/axiom-l0:axiom-l0",
         "//crates/axiom-zip-ref:axiom-zip-ref",
         "//third-party/rust:miniz_oxide",
