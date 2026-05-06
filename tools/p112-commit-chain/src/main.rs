@@ -3,17 +3,16 @@
 //! `p112-commit-chain` — P1.12 row 4 "Bench-1K commit-chain
 //! reproducibility 100 %" gate.
 //!
-//! Validates the determinism contract on the verified ZIP layer:
-//! parsing the same input twice produces a bit-identical canonical
-//! serialisation of the parse result, and hence a bit-identical
-//! BLAKE3 commit. The gate runs the verified parser over the first
-//! 1 000 archives of the Bench-10K corpus twice in a row and
-//! asserts that:
+//! Validates the determinism contract on the **production**
+//! P1.10 commit-chain pathway: parsing the same input twice via
+//! `axiom_l1_rs::commit_chain::parse_with_commit_chain` produces
+//! a bit-identical leaf list and Merkle root. The gate runs the
+//! streaming parser over the first 1 000 archives of the
+//! Bench-10K corpus twice in a row and asserts:
 //!
 //!   1. Each input file's BLAKE3 is identical between runs (sanity:
 //!      the corpus on disk hasn't changed mid-run).
-//!   2. Each archive's commit-chain root (BLAKE3 over the canonical
-//!      serialisation of the verified parse output) is identical
+//!   2. Each archive's commit-chain Merkle root is identical
 //!      between runs.
 //!   3. The aggregate Merkle root (BLAKE3 fold over the per-archive
 //!      roots) is identical between runs.
@@ -28,13 +27,10 @@
     clippy::uninlined_format_args
 )]
 
-use std::{
-    fmt::Write,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use axiom_blake3_hacl::{Blake3, Hash, Hasher};
-use axiom_l0_zip_verified::consistency::{parse_archive, Archive};
+use axiom_blake3_hacl::{hex_encode, Blake3, Hash, Hasher};
+use axiom_l1_rs::commit_chain::{parse_with_commit_chain, CommitChain};
 
 const BENCH_SIZE_DEFAULT: usize = 1000;
 
@@ -44,66 +40,6 @@ fn parse_arg<T: std::str::FromStr>(name: &str, default: T) -> T {
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(default)
-}
-
-/// Canonicalise a parsed `Archive` into a deterministic byte
-/// sequence: leaf-by-leaf, in source order, fixed field encoding.
-/// Any drift between the verified parser's output structure
-/// (field set / order) would be a loud diff in the resulting hash.
-fn canonicalise(a: &Archive) -> Vec<u8> {
-    let mut out: Vec<u8> = Vec::new();
-    // EOCD canonical fields.
-    out.extend_from_slice(b"eocd:");
-    out.extend_from_slice(&a.eocd.disk_number.to_le_bytes());
-    out.extend_from_slice(&a.eocd.cd_start_disk.to_le_bytes());
-    out.extend_from_slice(&a.eocd.entries_on_this_disk.to_le_bytes());
-    out.extend_from_slice(&a.eocd.total_entries.to_le_bytes());
-    out.extend_from_slice(&a.eocd.cd_size.to_le_bytes());
-    out.extend_from_slice(&a.eocd.cd_offset.to_le_bytes());
-    out.extend_from_slice(&(a.eocd.comment.len() as u32).to_le_bytes());
-    out.extend_from_slice(&a.eocd.comment);
-    // LFHs in source order.
-    out.extend_from_slice(b"|lfhs:");
-    out.extend_from_slice(&(a.lfhs.len() as u32).to_le_bytes());
-    for lfh in &a.lfhs {
-        out.extend_from_slice(&lfh.version_needed.to_le_bytes());
-        out.extend_from_slice(&lfh.general_flags.to_le_bytes());
-        out.extend_from_slice(&lfh.compression_method.to_le_bytes());
-        out.extend_from_slice(&lfh.last_mod_time.to_le_bytes());
-        out.extend_from_slice(&lfh.last_mod_date.to_le_bytes());
-        out.extend_from_slice(&lfh.crc32.to_le_bytes());
-        out.extend_from_slice(&lfh.compressed_size.to_le_bytes());
-        out.extend_from_slice(&lfh.uncompressed_size.to_le_bytes());
-        out.extend_from_slice(&(lfh.file_name.len() as u32).to_le_bytes());
-        out.extend_from_slice(&lfh.file_name);
-        out.extend_from_slice(&(lfh.extra_field.len() as u32).to_le_bytes());
-        out.extend_from_slice(&lfh.extra_field);
-    }
-    // CDRs in source order.
-    out.extend_from_slice(b"|cdrs:");
-    out.extend_from_slice(&(a.cdrs.len() as u32).to_le_bytes());
-    for c in &a.cdrs {
-        out.extend_from_slice(&c.version_made_by.to_le_bytes());
-        out.extend_from_slice(&c.version_needed.to_le_bytes());
-        out.extend_from_slice(&c.general_flags.to_le_bytes());
-        out.extend_from_slice(&c.compression_method.to_le_bytes());
-        out.extend_from_slice(&c.last_mod_time.to_le_bytes());
-        out.extend_from_slice(&c.last_mod_date.to_le_bytes());
-        out.extend_from_slice(&c.crc32.to_le_bytes());
-        out.extend_from_slice(&c.compressed_size.to_le_bytes());
-        out.extend_from_slice(&c.uncompressed_size.to_le_bytes());
-        out.extend_from_slice(&c.disk_number_start.to_le_bytes());
-        out.extend_from_slice(&c.internal_file_attributes.to_le_bytes());
-        out.extend_from_slice(&c.external_file_attributes.to_le_bytes());
-        out.extend_from_slice(&c.lfh_offset.to_le_bytes());
-        out.extend_from_slice(&(c.file_name.len() as u32).to_le_bytes());
-        out.extend_from_slice(&c.file_name);
-        out.extend_from_slice(&(c.extra_field.len() as u32).to_le_bytes());
-        out.extend_from_slice(&c.extra_field);
-        out.extend_from_slice(&(c.file_comment.len() as u32).to_le_bytes());
-        out.extend_from_slice(&c.file_comment);
-    }
-    out
 }
 
 fn b3_hash(data: &[u8]) -> Hash {
@@ -147,36 +83,41 @@ fn merkle_root(leaves: &[Hash]) -> Hash {
 }
 
 fn hex(h: &Hash) -> String {
-    let mut s = String::with_capacity(h.len() * 2);
-    for b in h {
-        let _ = write!(s, "{b:02x}");
-    }
-    s
+    hex_encode(h)
 }
 
 struct RunOutcome {
     input_hashes: Vec<Hash>,
+    /// One BLAKE3 root per archive — emitted by the production
+    /// `parse_with_commit_chain` pathway, not a custom canonicaliser.
     output_hashes: Vec<Hash>,
+    /// Total leaf count summed across the run, surfaces drift early.
+    total_leaves: u64,
     aggregate_root: Hash,
 }
 
 fn run(corpus: &Path, count: usize) -> std::io::Result<RunOutcome> {
     let mut input_hashes = Vec::with_capacity(count);
     let mut output_hashes = Vec::with_capacity(count);
+    let mut total_leaves: u64 = 0;
     for i in 0..count {
         let path = corpus.join(format!("{i:05}.bin"));
         let bytes = std::fs::read(&path)?;
         input_hashes.push(b3_hash(&bytes));
-        let parsed = parse_archive(&bytes).map_err(|e| {
-            std::io::Error::other(format!("verified parse failed at sample {i}: {e:?}"))
+        let cursor = std::io::Cursor::new(bytes.as_slice());
+        let (_events, chain): (_, CommitChain) = parse_with_commit_chain(cursor).map_err(|e| {
+            std::io::Error::other(format!(
+                "P1.10 commit-chain parse failed at sample {i}: {e:?}"
+            ))
         })?;
-        let canon = canonicalise(&parsed);
-        output_hashes.push(b3_hash(&canon));
+        output_hashes.push(chain.root);
+        total_leaves += chain.leaves.len() as u64;
     }
     let aggregate_root = merkle_root(&output_hashes);
     Ok(RunOutcome {
         input_hashes,
         output_hashes,
+        total_leaves,
         aggregate_root,
     })
 }
@@ -187,7 +128,7 @@ fn main() {
     let corpus = PathBuf::from(&corpus_dir);
 
     println!(
-        "p112-commit-chain: {} archives × 2 runs from {}",
+        "p112-commit-chain: {} archives × 2 runs from {} (P1.10 production chain)",
         count, corpus_dir
     );
 
@@ -209,6 +150,7 @@ fn main() {
     let input_match = r1.input_hashes == r2.input_hashes;
     let output_match = r1.output_hashes == r2.output_hashes;
     let agg_match = r1.aggregate_root == r2.aggregate_root;
+    let leaves_match = r1.total_leaves == r2.total_leaves;
 
     let mut input_diffs = 0usize;
     let mut output_diffs = 0usize;
@@ -230,10 +172,16 @@ fn main() {
         if input_match { "PASS" } else { "FAIL" }
     );
     println!(
-        "  output-hash agreement : {}/{}  ({})",
+        "  per-archive root match: {}/{}  ({})",
         count - output_diffs,
         count,
         if output_match { "PASS" } else { "FAIL" }
+    );
+    println!(
+        "  total leaves run 1/2  : {} / {}  ({})",
+        r1.total_leaves,
+        r2.total_leaves,
+        if leaves_match { "PASS" } else { "FAIL" }
     );
     println!("  aggregate root run 1  : {}", hex(&r1.aggregate_root));
     println!("  aggregate root run 2  : {}", hex(&r2.aggregate_root));
@@ -242,14 +190,14 @@ fn main() {
         if agg_match { "PASS" } else { "FAIL" }
     );
 
-    let pass = input_match && output_match && agg_match;
+    let pass = input_match && output_match && agg_match && leaves_match;
     if !pass {
         eprintln!("::error::p112-commit-chain reproducibility FAILED");
         std::process::exit(1);
     }
     println!();
     println!(
-        "p112-commit-chain: 100 % reproducibility on {} archives ✓",
+        "p112-commit-chain: 100 % reproducibility on {} archives via P1.10 production chain ✓",
         count
     );
 }

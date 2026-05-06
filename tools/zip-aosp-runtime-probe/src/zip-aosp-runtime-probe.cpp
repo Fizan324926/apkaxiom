@@ -33,14 +33,14 @@ constexpr uint8_t kRuntimeReject = 100;
 
 void print_ok(size_t n) { std::printf("ok %zu\n", n); }
 void print_err(int code) {
-    // Map AOSP's negative ZipError codes to a single archive-rejected
-    // tag (100). The differential harness compares (ok | reject)
-    // categories — we don't claim 1:1 enum parity with our 12-tag
-    // ArchiveError. The Lean / Rust / struct-probe legs already
-    // give per-tag agreement; this leg supplies the binary
-    // accept/reject signal from the actual AOSP runtime.
-    (void)code;
-    std::printf("err %u\n", static_cast<unsigned>(kRuntimeReject));
+    // Print AOSP's signed ZipError code on the err line so
+    // downstream parity tools can categorise rejections by
+    // reason (kInvalidFile=-3, kEmptyArchive=-6, kInvalidOffset=-8,
+    // kInconsistentInformation=-9, kInvalidEntryName=-10, …).
+    // Format: `err <reject-tag> <aosp-code>`. The reject tag
+    // (100) is preserved for backward compatibility with the
+    // P1.6 differential harness that only does accept/reject.
+    std::printf("err %u %d\n", static_cast<unsigned>(kRuntimeReject), code);
 }
 
 std::vector<uint8_t> read_stdin() {

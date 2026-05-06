@@ -633,6 +633,48 @@ p111-gates: ## Run every P1.11 gate end-to-end.
 p112-bench-10k: ## P1.12 G5 — generate the 10 000-archive deterministic Bench-10K corpus.
 	cargo run -q -p p112-bench-10k --release -- corpus/zip/bench-10k
 
+.PHONY: p112-corpus-drift
+p112-corpus-drift: ## P1.12 Gap-11 — assert the committed Bench-10K corpus is byte-identical to a fresh regen.
+	@if [ ! -d corpus/zip/bench-10k ]; then \
+	  echo "::error::corpus/zip/bench-10k missing — run \`make p112-bench-10k\` first"; exit 1; \
+	fi
+	@TMP=$$(mktemp -d); \
+	  cargo run -q -p p112-bench-10k --release -- $$TMP/bench-10k; \
+	  if diff -rq corpus/zip/bench-10k $$TMP/bench-10k > /tmp/p112-corpus-drift.diff 2>&1; then \
+	    echo "p112-corpus-drift: bench-10k byte-identical to regen ✓"; \
+	    rm -rf $$TMP; \
+	  else \
+	    echo "::error::p112-corpus-drift: committed bench-10k differs from a fresh regen"; \
+	    head -20 /tmp/p112-corpus-drift.diff; \
+	    rm -rf $$TMP; exit 1; \
+	  fi
+
+.PHONY: p112-tamper-fuzz
+p112-tamper-fuzz: ## P1.12 Gap-8 — differential tamper-fuzz: 10 mutations × 10 000 archives, verified ≡ direct on every trial.
+	cargo run -q -p p112-tamper-fuzz --release -- --runs 10 --archives 10000
+
+.PHONY: p112-aosp-parity
+p112-aosp-parity: ## P1.12 Gap-9 — AOSP runtime parity on Bench-10K (verified-accept ⇒ AOSP-accept ≥ 99 %).
+	$(MAKE) p16-aosp-runtime-probe
+	cargo run -q -p p112-aosp-parity --release -- --count 10000
+
+.PHONY: p112-tv-bench-10k
+p112-tv-bench-10k: ## P1.12 Gap-1 — Lean ↔ Rust TV on the full 10K Bench corpus.
+	cargo build -q -p archive-eval-rust --release
+	cd $(ROOT) && lake build archive-eval
+	cargo run -q -p translation-validator --release -- \
+	  --corpus $(ROOT)/corpus/zip/bench-10k \
+	  --rust-bin $(ROOT)/target/release/archive-eval-rust \
+	  --lean-cmd $(ROOT)/.lake/build/bin/archive-eval \
+	  --receipt $(ROOT)/docs/phase-1/P1.12/tv-receipt-bench-10k.txt
+
+.PHONY: p112-coverage
+p112-coverage: ## P1.12 Gap-10 — line-coverage gate on the verified umbrella + axiom-zip-ref (≥ 75 %).
+	cargo llvm-cov --no-cfg-coverage \
+	  -p axiom-l0-zip-verified \
+	  -p axiom-zip-ref \
+	  --summary-only
+
 .PHONY: p112-perf-delta
 p112-perf-delta: ## P1.12 row 4 — verified-vs-handwritten perf gate (HARD ≤ 15 %).
 	cargo run -q -p p112-perf-delta --release -- --gate 15.0 --strict 5.0
@@ -683,10 +725,17 @@ p112-axiom-l0-feature-matrix: ## P1.12 G10 — assert axiom-l0 builds + tests on
 	cargo test   -q -p axiom-l0 --release --no-default-features --features legacy-zip
 
 .PHONY: p112-buck2
-p112-buck2: ## P1.12 G12 — verify Buck2 builds the new crates.
+p112-buck2: ## P1.12 G12 + Gap-15 — verify Buck2 builds every P1.12 crate + tool.
 	buck2 build \
 	  //crates/axiom-l0-zip-verified:axiom-l0-zip-verified \
-	  //crates/axiom-l0:axiom-l0
+	  //crates/axiom-l0:axiom-l0 \
+	  //tools/p112-bench-10k:p112-bench-10k \
+	  //tools/p112-perf-delta:p112-perf-delta \
+	  //tools/p112-throughput:p112-throughput \
+	  //tools/p112-latency:p112-latency \
+	  //tools/p112-commit-chain:p112-commit-chain \
+	  //tools/p112-tamper-fuzz:p112-tamper-fuzz \
+	  //tools/p112-aosp-parity:p112-aosp-parity
 
 .PHONY: p112-gates
 p112-gates: ## Run every P1.12 gate end-to-end.

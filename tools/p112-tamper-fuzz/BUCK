@@ -1,0 +1,17 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 Gap-8 differential tamper-fuzz: bit-flip Bench-10K
+# archives and assert verified-Rust ≡ direct-Rust verdicts.
+
+rust_binary(
+    name = "p112-tamper-fuzz",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_tamper_fuzz",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-zip-ref:axiom-zip-ref",
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

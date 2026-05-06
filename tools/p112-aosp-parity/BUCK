@@ -1,0 +1,17 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.12 Gap-9 AOSP runtime parity gate on Bench-10K. Pipes each
+# archive through external/libziparchive's OpenArchiveFromMemory
+# and asserts verified-accept ⇒ AOSP-accept ≥ 99 %.
+
+rust_binary(
+    name = "p112-aosp-parity",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p112_aosp_parity",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+    ],
+    visibility = ["PUBLIC"],
+)

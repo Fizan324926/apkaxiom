@@ -1,28 +1,24 @@
 // Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 
-//! `p112-perf-delta` — P1.12 row 4 perf-delta gate.
+//! `p112-perf-delta` — P1.12 row 4 perf-delta gate (honest framing).
 //!
-//! Measures full-archive parse throughput on the Bench-10K corpus
-//! via two routes:
+//! What this binary measures:
 //!
-//! - **arm A — hand-Rust direct:** `axiom_zip_ref::archive::parse_archive`,
-//!   the production parser the P1.5/P1.6 three-way differential
-//!   gates on (Lean ↔ Rust ↔ libziparchive, 2860/2860 inputs).
-//! - **arm B — verified umbrella:**
-//!   `axiom_l0_zip_verified::consistency::parse_archive`, the
-//!   re-export from the umbrella crate that backs the
-//!   default-on `axiom-l0::zip` ZIP layer.
+//! 1. **Re-export overhead.** The `axiom-l0-zip-verified` umbrella
+//!    `pub use`s `axiom_zip_ref::archive::parse_archive` — identical
+//!    monomorphisation. We verify the umbrella indirection is
+//!    statistically indistinguishable from a direct call (|Δ| ≤ 2σ).
+//!    A regression that changed the umbrella from a `pub use` to a
+//!    boxing wrapper would surface here.
 //!
-//! Per ADR-0030 (P1.12 §D-1), arm B is a `pub use` of arm A —
-//! same function, same monomorphisation. The measured delta is
-//! therefore expected to be zero modulo microbench noise; we
-//! still measure and assert the gate so a regression that
-//! changed the re-export shape (e.g. into a thin wrapper that
-//! boxes the input) would fire the alarm.
-//!
-//! Spec gate is **≤ 15 %** (P1.12 HARD). This binary defaults to
-//! a stricter threshold of **≤ 5 %** plus a ±2σ band because the
-//! re-export semantics make any nonzero mean delta surprising.
+//! 2. **Absolute per-byte cost.** The verified path's per-byte
+//!    parse cost on Bench-10K. Spec gate is **≤ 50 ns/byte** —
+//!    a 100 kB APK parses in ≤ 5 ms, a 1 MB APK in ≤ 50 ms. This
+//!    is the production-meaningful budget; the original "verified
+//!    vs hand-written ≤ 15 %" gate from the README §10 is degenerate
+//!    by construction (both arms call the same function via
+//!    `pub use`) so we replace it with this absolute budget. ADR-0030
+//!    §"Perf-delta calibration" records this reframe.
 
 #![forbid(unsafe_code)]
 #![allow(
@@ -37,8 +33,8 @@ use std::{
 };
 
 const RUNS: usize = 20;
-const GATE_PCT_DEFAULT: f64 = 15.0;
-const STRICT_PCT_DEFAULT: f64 = 5.0;
+const REEXPORT_SIGMA_BAND: f64 = 2.0;
+const NS_PER_BYTE_GATE_DEFAULT: f64 = 50.0;
 const ITERS_PER_RUN_DEFAULT: u64 = 3;
 
 fn load_corpus(dir: &Path) -> std::io::Result<Vec<Vec<u8>>> {
@@ -55,7 +51,8 @@ fn load_corpus(dir: &Path) -> std::io::Result<Vec<Vec<u8>>> {
     Ok(samples)
 }
 
-fn arm_hand_rust(samples: &[Vec<u8>]) -> usize {
+#[inline(never)]
+fn arm_direct(samples: &[Vec<u8>]) -> usize {
     let mut acc: usize = 0;
     for bytes in samples {
         if let Ok(a) = axiom_zip_ref::archive::parse_archive(bytes) {
@@ -65,7 +62,8 @@ fn arm_hand_rust(samples: &[Vec<u8>]) -> usize {
     acc
 }
 
-fn arm_verified(samples: &[Vec<u8>]) -> usize {
+#[inline(never)]
+fn arm_umbrella(samples: &[Vec<u8>]) -> usize {
     let mut acc: usize = 0;
     for bytes in samples {
         if let Ok(a) = axiom_l0_zip_verified::consistency::parse_archive(bytes) {
@@ -76,7 +74,6 @@ fn arm_verified(samples: &[Vec<u8>]) -> usize {
 }
 
 fn time_arm(label: &str, iters: u64, samples: &[Vec<u8>], f: impl Fn(&[Vec<u8>]) -> usize) -> f64 {
-    // Warm.
     std::hint::black_box(f(std::hint::black_box(samples)));
     let start = Instant::now();
     for _ in 0..iters {
@@ -103,9 +100,8 @@ fn parse_arg<T: std::str::FromStr>(name: &str, default: T) -> T {
 }
 
 fn main() {
-    let gate_pct: f64 = parse_arg("--gate", GATE_PCT_DEFAULT);
-    let strict_pct: f64 = parse_arg("--strict", STRICT_PCT_DEFAULT);
     let iters: u64 = parse_arg("--iters", ITERS_PER_RUN_DEFAULT);
+    let ns_per_byte_gate: f64 = parse_arg("--ns-per-byte-gate", NS_PER_BYTE_GATE_DEFAULT);
     let corpus_dir: String = parse_arg("--corpus", "corpus/zip/bench-10k".to_string());
 
     let dir = PathBuf::from(&corpus_dir);
@@ -120,36 +116,59 @@ fn main() {
         eprintln!("ERROR: corpus {corpus_dir} is empty — run `make p112-bench-10k` first");
         std::process::exit(2);
     }
+    let total_bytes: u64 = samples.iter().map(|s| s.len() as u64).sum();
+    let avg_bytes = total_bytes as f64 / samples.len() as f64;
+
     println!(
-        "p112-perf-delta: {RUNS} runs × {iters} iters × {} samples; gate ≤ {gate_pct:.1} % (strict {strict_pct:.1} %)",
-        samples.len()
+        "p112-perf-delta: {RUNS} runs × {iters} iters × {} samples (avg {:.0} B); ns/byte gate ≤ {:.1}",
+        samples.len(),
+        avg_bytes,
+        ns_per_byte_gate
     );
 
     let mut deltas = Vec::with_capacity(RUNS);
+    let mut umbrella_ns_per_archive: Vec<f64> = Vec::with_capacity(RUNS);
     for r in 1..=RUNS {
         println!("--- run {r}/{RUNS} ---");
-        let a = time_arm("A hand-rust", iters, &samples, arm_hand_rust);
-        let b = time_arm("B verified", iters, &samples, arm_verified);
+        let a = time_arm("A direct (zip-ref)", iters, &samples, arm_direct);
+        let b = time_arm("B umbrella (l0-verified)", iters, &samples, arm_umbrella);
         let d = (b - a) / a * 100.0;
         println!("  Δ(B vs A): {d:+.2} %");
         deltas.push(d);
+        umbrella_ns_per_archive.push(b);
     }
     let (m, s) = mean_stddev(&deltas);
-    let in_strict_band = m.abs() <= 2.0 * s;
-    let pass_hard = m <= gate_pct;
-    let pass_strict = m <= strict_pct || in_strict_band;
+    let in_band = m.abs() <= REEXPORT_SIGMA_BAND * s;
+    let (m_b, _) = mean_stddev(&umbrella_ns_per_archive);
+    let ns_per_byte = m_b / avg_bytes;
+
     println!();
-    println!("summary: mean Δ = {m:+.2} % (σ {s:.2} %, n={RUNS})",);
+    println!("=== summary ===");
+    println!("  re-export Δ           : {m:+.2} %  (σ {s:.2} %, n={RUNS})");
     println!(
-        "  hard gate (≤ {gate_pct:.1} %):     {}",
-        if pass_hard { "PASS" } else { "FAIL" }
+        "  re-export within ±{REEXPORT_SIGMA_BAND}σ : {}",
+        if in_band { "PASS" } else { "FAIL" }
     );
     println!(
-        "  strict gate (≤ {strict_pct:.1} % or |Δ|≤2σ): {}",
-        if pass_strict { "PASS" } else { "FAIL" }
+        "  verified ns/archive   : {:>7.1}  (avg over {RUNS} runs)",
+        m_b
     );
-    if !pass_hard {
-        eprintln!("::error::p112-perf-delta mean {m:.2}% exceeds HARD gate {gate_pct:.1}%");
+    println!(
+        "  verified ns/byte      : {:>7.2}  (gate ≤ {:.1})  {}",
+        ns_per_byte,
+        ns_per_byte_gate,
+        if ns_per_byte <= ns_per_byte_gate {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+
+    let pass = in_band && ns_per_byte <= ns_per_byte_gate;
+    if !pass {
+        eprintln!(
+            "::error::p112-perf-delta failed: in_band={in_band}, ns/byte={ns_per_byte:.2} (gate {ns_per_byte_gate:.1})"
+        );
         std::process::exit(1);
     }
 }

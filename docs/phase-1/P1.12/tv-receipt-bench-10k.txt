@@ -1,0 +1,10 @@
+tv-receipt v2
+corpus-sha256: 00f018ee1db0a192fb994b05473ac38796a64123cd23b1683c0d2137e4b1fd9a
+corpus-size: 10000 (non-empty: 10000, skipped: 0)
+lean-output-sha256: 5d353987fe5e892ab63cfd2ac01c56b8b3ff632235e509b1d58d0ae2970b20e7
+rust-output-sha256: 5d353987fe5e892ab63cfd2ac01c56b8b3ff632235e509b1d58d0ae2970b20e7
+agree: 10000/10000 (lean ↔ rust)
+lean-toolchain: Lean (version 4.29.1, commit v4.29.1, Release)
+rust-toolchain: rustc 1.83.0 (90b35a623 2024-11-26)
+lake-manifest-sha256: 5fbd87d07f7154e633de6ac4f75db1901ec6d7d8564cd4e0fb46e7b4e6716a32
+cargo-lock-sha256: 680993929c9723ebaa591ca281d3af018e74cbc82f04f9f018f6ab0e41308866

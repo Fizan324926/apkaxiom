@@ -185,11 +185,24 @@ const fn lfh_has_data_descriptor(lfh_record: &lfh::Lfh) -> bool {
 ///      `compression_method` must still agree.
 const fn cdr_lfh_fields_agree(cdr_record: &cdr::Cdr, lfh_record: &lfh::Lfh) -> bool {
     if lfh_has_data_descriptor(lfh_record) {
-        // DD branch: LFH fields must be zero, compression method must agree.
-        lfh_record.crc32 == 0
+        // DD branch (AOSP-compatible). Per APPNOTE.TXT §4.4.4 the
+        // LFH's crc32 / compressed_size / uncompressed_size are
+        // *defined to be zero* when bit 3 is set; the canonical
+        // values trail in the data descriptor. apksigner-signed
+        // APKs deviate from this and fill the LFH with the
+        // canonical values anyway, and AOSP libziparchive accepts
+        // both shapes. We mirror that: LFH-fields are valid iff
+        // they are all zero **or** they match the CDR. Anything
+        // else (e.g. only crc32 set, sizes mismatched) remains a
+        // field-set violation.
+        let method_ok = cdr_record.compression_method == lfh_record.compression_method;
+        let lfh_zero = lfh_record.crc32 == 0
             && lfh_record.compressed_size == 0
-            && lfh_record.uncompressed_size == 0
-            && cdr_record.compression_method == lfh_record.compression_method
+            && lfh_record.uncompressed_size == 0;
+        let lfh_matches_cdr = cdr_record.crc32 == lfh_record.crc32
+            && cdr_record.compressed_size == lfh_record.compressed_size
+            && cdr_record.uncompressed_size == lfh_record.uncompressed_size;
+        method_ok && (lfh_zero || lfh_matches_cdr)
     } else {
         // Strict-equality branch (the common case for APKs).
         cdr_record.crc32 == lfh_record.crc32

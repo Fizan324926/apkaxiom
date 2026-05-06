@@ -651,6 +651,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "p112-aosp-parity"
+version = "0.0.0"
+dependencies = [
+ "axiom-l0-zip-verified",
+]
+
+[[package]]
 name = "p112-bench-10k"
 version = "0.0.0"
 dependencies = [
@@ -664,6 +671,7 @@ version = "0.0.0"
 dependencies = [
  "axiom-blake3-hacl",
  "axiom-l0-zip-verified",
+ "axiom-l1-rs",
 ]
 
 [[package]]
@@ -675,6 +683,14 @@ dependencies = [
 
 [[package]]
 name = "p112-perf-delta"
+version = "0.0.0"
+dependencies = [
+ "axiom-l0-zip-verified",
+ "axiom-zip-ref",
+]
+
+[[package]]
+name = "p112-tamper-fuzz"
 version = "0.0.0"
 dependencies = [
  "axiom-l0-zip-verified",

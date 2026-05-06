@@ -230,11 +230,23 @@ def cdrLfhFieldsAgree
     (cdr : Apkaxiom.Zip.CentralDirectory.Cdr)
     (lfh : Apkaxiom.Zip.LocalHeader.Lfh) : Bool :=
   if lfhHasDataDescriptor lfh then
-    -- DD branch: LFH fields must be zero, compressionMethod must agree.
-    lfh.crc32             = 0 &&
-    lfh.compressedSize    = 0 &&
-    lfh.uncompressedSize  = 0 &&
-    cdr.compressionMethod = lfh.compressionMethod
+    -- DD branch (AOSP-compatible): `compressionMethod` must agree.
+    -- Per APPNOTE.TXT §4.4.4 the LFH's `crc32` / `compressedSize` /
+    -- `uncompressedSize` are *defined to be zero* when bit 3 is set,
+    -- and the canonical values trail in the data descriptor. In
+    -- practice (apksigner-signed APKs, AOSP libziparchive) the
+    -- LFH carries either zero **or** the canonical values; the
+    -- runtime accepts both. We mirror that: LFH-fields are valid
+    -- iff they are all zero **or** they match the CDR. Anything
+    -- else (e.g. only crc32 set, sizes mismatched) remains a
+    -- field-set violation.
+    cdr.compressionMethod = lfh.compressionMethod &&
+    ((lfh.crc32             = 0 &&
+      lfh.compressedSize    = 0 &&
+      lfh.uncompressedSize  = 0) ||
+     (cdr.crc32             = lfh.crc32 &&
+      cdr.compressedSize    = lfh.compressedSize &&
+      cdr.uncompressedSize  = lfh.uncompressedSize))
   else
     -- Strict-equality branch (the common case for APKs).
     cdr.crc32             = lfh.crc32 &&

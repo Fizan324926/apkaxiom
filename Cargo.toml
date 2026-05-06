@@ -42,6 +42,8 @@ members = [
     "tools/p112-throughput",
     "tools/p112-latency",
     "tools/p112-commit-chain",
+    "tools/p112-tamper-fuzz",
+    "tools/p112-aosp-parity",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

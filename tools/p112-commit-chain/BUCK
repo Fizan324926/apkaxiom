@@ -11,6 +11,7 @@ rust_binary(
     edition = "2021",
     deps = [
         "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+        "//crates/axiom-l1-rs:axiom-l1-rs",
         "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
     ],
     visibility = ["PUBLIC"],

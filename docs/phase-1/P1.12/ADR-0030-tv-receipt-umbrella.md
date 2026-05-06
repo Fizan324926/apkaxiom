@@ -83,11 +83,31 @@ re-run loudly.
     evaluator are the standard artifact pair for any verified
     parser sub-module.
 
+**Perf-delta calibration.** The README §10 row "Verified perf
+within 15 % of hand-written" cannot be measured as written —
+both arms are the same monomorphisation (`pub use ...`). Gap-4
+replaces this gate with two honest ones in `tools/p112-perf-delta`:
+
+  1. **Re-export overhead** is statistically indistinguishable
+     from a direct call: |Δ| ≤ 2σ over 20 runs. A regression that
+     turned the `pub use` into a boxing wrapper would surface here.
+  2. **Absolute per-byte cost** of the verified path on Bench-10K:
+     ≤ 50 ns/byte. Observed ≈ 0.65–0.71 ns/byte; a 100 kB APK
+     parses in ≈ 5 ms, a 1 MB APK in ≈ 50 ms.
+
+**Bench-10K calibration.** The Bench-10K corpus is canonical-shape
+(no DD-mode entries, AOSP-compatible compression methods 0/8 only,
+unique filenames within each archive). DD-mode coverage and the
+adversarial badpack-class corpus live separately in `corpus/zip/
+{badpack-cves,adversarial-mutated}` and gate via the P1.6
+three-way differential.
+
 **References.**
 
   * [docs/phase-1/P1.12/CHECKLIST.md](CHECKLIST.md)
   * [docs/phase-1/P1.12/verified-l0.md](verified-l0.md)
   * [tv-receipt-cdr.txt](tv-receipt-cdr.txt) (399/399 byte-identical)
   * [tv-receipt-consistency.txt](tv-receipt-consistency.txt) (300/300 byte-identical)
+  * [tv-receipt-bench-10k.txt](tv-receipt-bench-10k.txt) (10 000/10 000 byte-identical, Gap-1)
   * [docs/phase-1/P1.9/tv-receipt-lfh-full.txt](../P1.9/tv-receipt-lfh-full.txt) (1 499/1 499)
   * [docs/phase-1/P1.9/tv-receipt-eocd.txt](../P1.9/tv-receipt-eocd.txt) (299/299)

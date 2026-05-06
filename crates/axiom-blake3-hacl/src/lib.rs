@@ -166,6 +166,27 @@ pub fn blake3_derive_key_xof_oneshot(context: &str, key_material: &[u8], out: &m
     reader.fill(out);
 }
 
+/// Lower-case hex encode a byte slice. Allocation-free over the
+/// caller's buffer is exposed via `hex_encode_into` if you want to
+/// avoid the heap allocation. This helper exists to deduplicate
+/// the per-tool `format!("{b:02x}")` loop scattered across the
+/// p110-/p112- gate harnesses (Gap-14 closure).
+#[must_use]
+pub fn hex_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    hex_encode_into(bytes, &mut out);
+    out
+}
+
+/// Lower-case hex encode `bytes` and append to `out`.
+pub fn hex_encode_into(bytes: &[u8], out: &mut String) {
+    use core::fmt::Write as _;
+    out.reserve(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(out, "{b:02x}");
+    }
+}
+
 // ---------------------------------------------------------------------
 // Tests — production BLAKE3 against the BLAKE3-team test vectors
 // ---------------------------------------------------------------------

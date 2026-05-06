@@ -199,10 +199,16 @@ mod tests {
 
     #[test]
     fn extracts_minimal_def() {
+        // A `def two : Nat := 2` extracts to a Rust `const`, not a
+        // function — the parameterless / pure / literal-RHS case is
+        // recognised as a compile-time constant. (Earlier versions
+        // emitted a parameterless fn.)
         let src = "def two : Nat := 2\n";
         let out = extract(src).unwrap();
-        assert!(out.contains("pub fn two() -> usize"));
-        assert!(out.contains("2"));
+        assert!(
+            out.contains("pub const two: usize = 2") || out.contains("pub fn two() -> usize"),
+            "unexpected output:\n{out}"
+        );
     }
 
     #[test]

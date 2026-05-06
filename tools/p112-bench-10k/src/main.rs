@@ -76,7 +76,13 @@ impl Lcg {
 
 struct EntryAttrs {
     filename: Vec<u8>,
+    body: Vec<u8>,
     crc32: u32,
+    /// `compressed_size` matches `body.len()` so the streaming
+    /// parser (which reads exactly this many bytes after each LFH)
+    /// is satisfied. The verified `parse_archive` doesn't enforce
+    /// this — it walks via the CDR's `lfh_offset` — but the P1.10
+    /// commit-chain pathway does.
     compressed_size: u32,
     uncompressed_size: u32,
     compression_method: u16,
@@ -94,25 +100,58 @@ struct EntryAttrs {
 fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
     debug_assert!(n >= 1);
     let mut entries: Vec<EntryAttrs> = Vec::with_capacity(n);
-    for _ in 0..n {
-        let nl = rng.next_in_range(0, 16) as usize;
-        let mut filename = Vec::with_capacity(nl);
+    for entry_idx in 0..n {
+        // Filename layout: "f-<base36-of-entry_idx>-<random-suffix>"
+        // — the per-archive `entry_idx` prefix guarantees in-archive
+        // filename uniqueness (AOSP rejects duplicate names with
+        // kDuplicateEntry, motivated by the MasterKey CVE-2013-4787
+        // class), and the random suffix keeps the corpus diverse.
+        let nl = rng.next_in_range(0, 12) as usize;
+        let mut filename: Vec<u8> = Vec::with_capacity(nl + 6);
+        filename.extend_from_slice(b"f-");
+        let mut k = entry_idx;
+        let mut digits: Vec<u8> = Vec::with_capacity(4);
+        loop {
+            let d = (k % 36) as u8;
+            digits.push(if d < 10 { b'0' + d } else { b'a' + d - 10 });
+            k /= 36;
+            if k == 0 {
+                break;
+            }
+        }
+        digits.reverse();
+        filename.extend_from_slice(&digits);
+        filename.push(b'-');
         for _ in 0..nl {
-            filename.push((rng.next_in_range(0x20, 0x7f)) as u8);
+            filename.push((rng.next_in_range(0x21, 0x7f)) as u8);
         }
-        let data_descriptor = rng.next_u32().trailing_zeros() >= 2;
-        let mut general_flags = rng.next_u16();
-        if data_descriptor {
-            general_flags |= GPB_DATA_DESCRIPTOR_MASK;
-        } else {
-            general_flags &= !GPB_DATA_DESCRIPTOR_MASK;
+        let body_len = rng.next_in_range(0, 256) as usize;
+        let mut body = Vec::with_capacity(body_len);
+        for _ in 0..body_len {
+            body.push((rng.next_u32() & 0xff) as u8);
         }
+        // Bench-10K disables DD mode by construction — DD entries
+        // need a trailing data-descriptor record (4-byte signature
+        // + 12 bytes CRC/sizes) for the streaming parser to find
+        // the next LFH, and the existing P1.6 corpus already
+        // covers DD-mode comprehensively. Bench-10K's job is e2e
+        // perf + reproducibility on the canonical archive shape.
+        let data_descriptor = false;
+        let general_flags = rng.next_u16() & !GPB_DATA_DESCRIPTOR_MASK;
+        let compressed_size = body_len as u32;
+        // AOSP libziparchive only accepts compression methods 0
+        // (stored) and 8 (deflate); other values are rejected at
+        // runtime. Mix 50/50 across the corpus so the verified
+        // path's parity gate (Gap 9) holds against the real
+        // runtime.
+        let compression_method: u16 = if rng.next_u32() & 1 == 0 { 0 } else { 8 };
         entries.push(EntryAttrs {
             filename,
+            body,
             crc32: rng.next_u32(),
-            compressed_size: rng.next_u32(),
-            uncompressed_size: rng.next_u32(),
-            compression_method: rng.next_u16(),
+            compressed_size,
+            uncompressed_size: compressed_size,
+            compression_method,
             last_mod_time: rng.next_u16(),
             last_mod_date: rng.next_u16(),
             general_flags,
@@ -142,6 +181,13 @@ fn build_archive(rng: &mut Lcg, n: usize) -> Vec<u8> {
         bytes.extend_from_slice(&nl.to_le_bytes());
         bytes.extend_from_slice(&0u16.to_le_bytes()); // extraLen
         bytes.extend_from_slice(&entry.filename);
+        // Body bytes: the streaming parser reads exactly
+        // `compressed_size` after each LFH header. The verified
+        // `parse_archive` walks via the CDR's lfh_offset, so it's
+        // tolerant of either presence or absence of body bytes —
+        // but for the P1.10 commit-chain pathway and for
+        // libziparchive parity, the body must be there.
+        bytes.extend_from_slice(&entry.body);
     }
 
     let cd_start = bytes.len() as u32;
