@@ -749,6 +749,73 @@ p112-gates: ## Run every P1.12 gate end-to-end.
 .PHONY: p112
 p112: p112-gates ## Alias — run every P1.12 gate.
 
+##@ P1.13 — Differential fuzzing plant (Cuttlefish A14 via Nyx)
+
+.PHONY: p113-corpus-seed
+p113-corpus-seed: ## P1.13 G3 — assemble fuzz/corpus/seed/ from existing project corpora.
+	bash $(ROOT)/scripts/p113-corpus-seed.sh
+
+.PHONY: p113-grammar-loadable
+p113-grammar-loadable: ## P1.13 G2 — `cargo test grammar::tests` validates apk-v1.lark loads.
+	cargo test -q -p p113-fuzz-harness --release grammar::tests
+
+.PHONY: p113-fuzz
+p113-fuzz: ## P1.13 G7 (CI) — bounded dev-mode fuzz: 1 000 iters, archive findings.
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	cargo build -q -p p113-fuzz-harness --release
+	rm -rf $(ROOT)/fuzz/findings
+	$(ROOT)/target/release/p113-fuzz-driver \
+	  --mode dev \
+	  --seeds $(ROOT)/fuzz/corpus/seed \
+	  --archive $(ROOT)/fuzz/findings \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --grammar $(ROOT)/fuzz/grammars/apk-v1.lark \
+	  --iters 1000 --log-every 200
+
+.PHONY: p113-fuzz-soak
+p113-fuzz-soak: ## P1.13 production soak (continuous; gated on KVM host §C-1). Defaults to 5-minute budget for CI.
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	cargo build -q -p p113-fuzz-harness --release
+	$(ROOT)/target/release/p113-fuzz-driver \
+	  --mode dev \
+	  --seeds $(ROOT)/fuzz/corpus/seed \
+	  --archive $(ROOT)/fuzz/findings \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --grammar $(ROOT)/fuzz/grammars/apk-v1.lark \
+	  --budget $${P113_SOAK_SECONDS:-300} --log-every 5000
+
+.PHONY: p113-replay
+p113-replay: ## P1.13 G6 — replay first 100 findings; assert byte-identical reproducibility (HARD).
+	cargo build -q -p p113-fuzz-harness --release
+	$(ROOT)/target/release/p113-fuzz-replay \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --limit 100
+
+.PHONY: p113-dashboard-validate
+p113-dashboard-validate: ## P1.13 G8 — validate the Grafana dashboard JSON parses.
+	@python3 -c "import json; json.load(open('$(ROOT)/fuzz/dashboards/grafana-fuzzing.json')); print('grafana JSON valid')"
+
+.PHONY: p113-buck2
+p113-buck2: ## P1.13 G10 — verify Buck2 builds the harness + replay binaries.
+	buck2 build \
+	  //fuzz/harness:p113-fuzz-harness \
+	  //fuzz/harness:p113-fuzz-driver \
+	  //fuzz/harness:p113-fuzz-replay
+
+.PHONY: p113-gates
+p113-gates: ## Run every P1.13 gate end-to-end (dev mode).
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p113-grammar-loadable
+	$(MAKE) p113-fuzz
+	$(MAKE) p113-replay
+	$(MAKE) p113-dashboard-validate
+
+.PHONY: p113
+p113: p113-gates ## Alias — run every P1.13 gate.
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

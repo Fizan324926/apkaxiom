@@ -706,6 +706,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "p113-fuzz-harness"
+version = "0.0.0"
+dependencies = [
+ "axiom-blake3-hacl",
+ "axiom-l0-zip-verified",
+]
+
+[[package]]
 name = "p17-bench-1k"
 version = "0.0.0"
 dependencies = [

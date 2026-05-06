@@ -1,0 +1,177 @@
+// APKAXIOM P1.13 — APK fuzzing grammar v1 (Lark / EBNF).
+//
+// Coverage: ZIP envelope (LFH/CDR/EOCD) + APK signing block
+// (v1/v2/v3/v3.1) + AndroidManifest skeleton.
+//
+// Used by:
+//   - fuzz/harness/src/grammar.rs::Grammar::load (loadability +
+//     production count for the dashboard)
+//   - Future Nautilus integration (CHECKLIST §C-3) for grammar-
+//     aware mutation
+//
+// Stability: this file is gated by `make p113-grammar-drift`
+// (P1.13 corpus drift gate); any byte-level change requires a
+// matching CHECKLIST entry.
+
+// =================================================================
+// 1. Top-level archive
+// =================================================================
+
+archive : lfh_seq (signing_block)? cdr_seq eocd
+
+// =================================================================
+// 2. Local File Header (LFH)
+// =================================================================
+
+lfh_seq : lfh_record+
+
+lfh_record : LFH_SIGNATURE
+             VERSION_NEEDED
+             GENERAL_FLAGS
+             COMPRESSION_METHOD
+             LAST_MOD_TIME
+             LAST_MOD_DATE
+             CRC32
+             COMPRESSED_SIZE
+             UNCOMPRESSED_SIZE
+             NAME_LEN
+             EXTRA_LEN
+             FILENAME
+             EXTRA_FIELD
+             ENTRY_BODY
+             (data_descriptor)?
+
+data_descriptor : DD_SIGNATURE? CRC32 COMPRESSED_SIZE UNCOMPRESSED_SIZE
+
+// =================================================================
+// 3. APK Signing Block (between LFH region and CDR)
+// =================================================================
+
+signing_block : SIG_BLOCK_SIZE
+                pair+
+                SIG_BLOCK_SIZE
+                SIG_BLOCK_MAGIC
+
+pair : PAIR_LENGTH PAIR_ID PAIR_VALUE
+
+// Known pair IDs (informational; fuzzer can choose others):
+//   0x7109871a — APK Signature Scheme v2 Block
+//   0xf05368c0 — APK Signature Scheme v3 Block
+//   0x1b93ad61 — APK Signature Scheme v3.1 Block
+//   0x42726577 — AOSP Padding Block
+//   0x2146444e — Source Stamp v1 Block
+//   0x6dff800d — Source Stamp v2 Block
+
+// =================================================================
+// 4. Central Directory Record (CDR)
+// =================================================================
+
+cdr_seq : cdr_record+
+
+cdr_record : CDR_SIGNATURE
+             VERSION_MADE_BY
+             VERSION_NEEDED
+             GENERAL_FLAGS
+             COMPRESSION_METHOD
+             LAST_MOD_TIME
+             LAST_MOD_DATE
+             CRC32
+             COMPRESSED_SIZE
+             UNCOMPRESSED_SIZE
+             NAME_LEN
+             EXTRA_LEN
+             COMMENT_LEN
+             DISK_NUMBER_START
+             INTERNAL_ATTRS
+             EXTERNAL_ATTRS
+             LFH_OFFSET
+             FILENAME
+             EXTRA_FIELD
+             FILE_COMMENT
+
+// =================================================================
+// 5. End of Central Directory (EOCD)
+// =================================================================
+
+eocd : EOCD_SIGNATURE
+       DISK_NUMBER
+       CD_START_DISK
+       ENTRIES_ON_THIS_DISK
+       TOTAL_ENTRIES
+       CD_SIZE
+       CD_OFFSET
+       COMMENT_LEN
+       COMMENT
+
+// =================================================================
+// 6. Terminals (regex literals — Nautilus / radamsa-friendly)
+// =================================================================
+
+LFH_SIGNATURE  : /\x50\x4b\x03\x04/
+CDR_SIGNATURE  : /\x50\x4b\x01\x02/
+EOCD_SIGNATURE : /\x50\x4b\x05\x06/
+DD_SIGNATURE   : /\x50\x4b\x07\x08/
+
+SIG_BLOCK_MAGIC : "APK Sig Block 42"
+
+VERSION_NEEDED      : /[\x00-\xff]{2}/
+VERSION_MADE_BY     : /[\x00-\xff]{2}/
+GENERAL_FLAGS       : /[\x00-\xff]{2}/
+COMPRESSION_METHOD  : /[\x00-\xff]{2}/
+LAST_MOD_TIME       : /[\x00-\xff]{2}/
+LAST_MOD_DATE       : /[\x00-\xff]{2}/
+CRC32               : /[\x00-\xff]{4}/
+COMPRESSED_SIZE     : /[\x00-\xff]{4}/
+UNCOMPRESSED_SIZE   : /[\x00-\xff]{4}/
+NAME_LEN            : /[\x00-\xff]{2}/
+EXTRA_LEN           : /[\x00-\xff]{2}/
+COMMENT_LEN         : /[\x00-\xff]{2}/
+DISK_NUMBER_START   : /[\x00-\xff]{2}/
+DISK_NUMBER         : /[\x00-\xff]{2}/
+CD_START_DISK       : /[\x00-\xff]{2}/
+ENTRIES_ON_THIS_DISK: /[\x00-\xff]{2}/
+TOTAL_ENTRIES       : /[\x00-\xff]{2}/
+CD_SIZE             : /[\x00-\xff]{4}/
+CD_OFFSET           : /[\x00-\xff]{4}/
+INTERNAL_ATTRS      : /[\x00-\xff]{2}/
+EXTERNAL_ATTRS      : /[\x00-\xff]{4}/
+LFH_OFFSET          : /[\x00-\xff]{4}/
+SIG_BLOCK_SIZE      : /[\x00-\xff]{8}/
+PAIR_LENGTH         : /[\x00-\xff]{8}/
+PAIR_ID             : /[\x00-\xff]{4}/
+PAIR_VALUE          : /[\x00-\xff]*/
+FILENAME            : /[\x21-\x7e]*/
+EXTRA_FIELD         : /[\x00-\xff]*/
+FILE_COMMENT        : /[\x00-\xff]*/
+ENTRY_BODY          : /[\x00-\xff]*/
+COMMENT             : /[\x00-\xff]*/
+
+// =================================================================
+// 7. AndroidManifest.xml skeleton (binary AXML grammar — sketch)
+// =================================================================
+
+axml : AXML_HEADER axml_chunk+
+
+axml_chunk : (string_pool | resource_map | xml_resource_map | xml_start_namespace
+            | xml_end_namespace | xml_start_element | xml_end_element | xml_cdata)
+
+string_pool        : CHUNK_HEADER STRING_POOL_HEADER STRING_OFFSETS STRING_POOL_DATA
+resource_map       : CHUNK_HEADER RESOURCE_IDS
+xml_resource_map   : CHUNK_HEADER XML_RESOURCE_MAP_BODY
+xml_start_namespace: CHUNK_HEADER XML_NAMESPACE
+xml_end_namespace  : CHUNK_HEADER XML_NAMESPACE
+xml_start_element  : CHUNK_HEADER XML_START_ELEMENT_BODY
+xml_end_element    : CHUNK_HEADER XML_END_ELEMENT_BODY
+xml_cdata          : CHUNK_HEADER XML_CDATA_BODY
+
+AXML_HEADER             : /[\x00-\xff]{8}/
+CHUNK_HEADER            : /[\x00-\xff]{8}/
+STRING_POOL_HEADER      : /[\x00-\xff]{20}/
+STRING_OFFSETS          : /[\x00-\xff]*/
+STRING_POOL_DATA        : /[\x00-\xff]*/
+RESOURCE_IDS            : /[\x00-\xff]*/
+XML_RESOURCE_MAP_BODY   : /[\x00-\xff]*/
+XML_NAMESPACE           : /[\x00-\xff]{16}/
+XML_START_ELEMENT_BODY  : /[\x00-\xff]+/
+XML_END_ELEMENT_BODY    : /[\x00-\xff]{20}/
+XML_CDATA_BODY          : /[\x00-\xff]+/

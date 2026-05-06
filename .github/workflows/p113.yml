@@ -1,0 +1,67 @@
+name: P1.13 differential fuzzer (dev mode)
+
+# P1.13 dev-mode CI gate — runs the harness end-to-end without
+# KVM. Real-mode (Cuttlefish + Nyx) gates run on the dedicated
+# KVM host (CHECKLIST §C-1) via a separate workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fuzz/**"
+      - "crates/axiom-l0-zip-verified/**"
+      - "crates/axiom-zip-ref/**"
+      - "external/libziparchive/**"
+      - "tools/zip-aosp-runtime-probe/**"
+      - "scripts/p113-corpus-seed.sh"
+      - ".github/workflows/p113.yml"
+  pull_request:
+    paths:
+      - "fuzz/**"
+      - "crates/axiom-l0-zip-verified/**"
+      - "crates/axiom-zip-ref/**"
+      - "tools/zip-aosp-runtime-probe/**"
+  workflow_dispatch:
+
+jobs:
+  p113-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-p113-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Assemble seed corpus
+        run: nix develop --command make p113-corpus-seed
+
+      - name: Build AOSP libziparchive runtime probe
+        run: nix develop --command make p16-aosp-runtime-probe
+
+      - name: Grammar loadability
+        run: nix develop --command make p113-grammar-loadable
+
+      - name: Bounded dev-mode fuzz (1 000 iters)
+        run: nix develop --command make p113-fuzz
+
+      - name: Replay first 100 findings (HARD reproducibility gate)
+        run: nix develop --command make p113-replay
+
+      - name: Validate Grafana dashboard JSON
+        run: nix develop --command make p113-dashboard-validate

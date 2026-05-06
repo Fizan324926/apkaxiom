@@ -1,0 +1,45 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.13 differential-fuzzer harness. Two binaries:
+#
+#   - p113-fuzz-driver  : the fuzz loop driver
+#   - p113-fuzz-replay  : the finding-replay verifier
+#
+# Both consume the shared library at src/lib.rs.
+
+rust_library(
+    name = "p113-fuzz-harness",
+    srcs = ["src/lib.rs", "src/archive.rs", "src/classifier.rs", "src/cuttlefish.rs", "src/differ.rs", "src/grammar.rs", "src/mutator.rs"],
+    crate = "p113_fuzz_harness",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l0-zip-verified:axiom-l0-zip-verified",
+        "//crates/axiom-blake3-hacl:axiom-blake3-hacl",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_binary(
+    name = "p113-fuzz-driver",
+    srcs = ["src/main.rs"],
+    crate = "p113_fuzz_driver",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        ":p113-fuzz-harness",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+rust_binary(
+    name = "p113-fuzz-replay",
+    srcs = ["src/bin/replay.rs"],
+    crate = "p113_fuzz_replay",
+    crate_root = "src/bin/replay.rs",
+    edition = "2021",
+    deps = [
+        ":p113-fuzz-harness",
+    ],
+    visibility = ["PUBLIC"],
+)

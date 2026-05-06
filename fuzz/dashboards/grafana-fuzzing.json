@@ -1,0 +1,187 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "APKAXIOM P1.13 differential-fuzzer dashboard. Panels are fed by the Prometheus metrics emitted by p113-fuzz-driver (counter labels match the harness src/main.rs Counters struct). Imported JSON validates against Grafana 10.x; the live-data wiring is gated on the Prometheus-on-KVM-host operator one-shot (CHECKLIST §C-4).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "green", "value": 200}
+            ]
+          },
+          "unit": "ops"
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(p113_fuzz_iters_total[1m])",
+          "legendFormat": "iters/sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Mutations/sec",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.99}]},
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "1 - rate(p113_fuzz_target_io_errors_total[5m]) / rate(p113_fuzz_iters_total[5m])",
+          "legendFormat": "uptime",
+          "refId": "A"
+        }
+      ],
+      "title": "Effective uptime (1 - target_io_error_rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "p113_fuzz_distinct_findings",
+          "legendFormat": "distinct findings",
+          "refId": "A"
+        }
+      ],
+      "title": "Distinct findings (cumulative)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "increase(p113_fuzz_findings_total[1h])",
+          "legendFormat": "findings/hour",
+          "refId": "A"
+        }
+      ],
+      "title": "Findings/hour",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {"expr": "rate(p113_fuzz_bucket_total{bucket=\"A\"}[1m])", "legendFormat": "A both-accept", "refId": "A"},
+        {"expr": "rate(p113_fuzz_bucket_total{bucket=\"B\"}[1m])", "legendFormat": "B both-reject-same-tag", "refId": "B"},
+        {"expr": "rate(p113_fuzz_bucket_total{bucket=\"C\"}[1m])", "legendFormat": "C both-reject-diff-tag", "refId": "C"},
+        {"expr": "rate(p113_fuzz_bucket_total{bucket=\"D\"}[1m])", "legendFormat": "D axiom-lax", "refId": "D"},
+        {"expr": "rate(p113_fuzz_bucket_total{bucket=\"E\"}[1m])", "legendFormat": "E axiom-strict (HIGH SEVERITY)", "refId": "E"}
+      ],
+      "title": "Classifier-bucket distribution (rate over 1m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {"defaults": {"unit": "ns"}},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 4},
+      "id": 6,
+      "options": {"legend": {"calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, rate(p113_fuzz_iter_duration_ns_bucket[5m]))", "legendFormat": "p50", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, rate(p113_fuzz_iter_duration_ns_bucket[5m]))", "legendFormat": "p95", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, rate(p113_fuzz_iter_duration_ns_bucket[5m]))", "legendFormat": "p99", "refId": "C"}
+      ],
+      "title": "Per-iteration latency (ns)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 13},
+      "id": 7,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {"expr": "increase(p113_fuzz_findings_total{seed_origin=~\"badpack-cves.*\"}[24h])", "legendFormat": "badpack-cves", "refId": "A"},
+        {"expr": "increase(p113_fuzz_findings_total{seed_origin=~\"adversarial-mutated.*\"}[24h])", "legendFormat": "adversarial-mutated", "refId": "B"},
+        {"expr": "increase(p113_fuzz_findings_total{seed_origin=~\"bench-1k.*\"}[24h])", "legendFormat": "bench-1k", "refId": "C"},
+        {"expr": "increase(p113_fuzz_findings_total{seed_origin=~\"archive-valid.*\"}[24h])", "legendFormat": "archive-valid", "refId": "D"},
+        {"expr": "increase(p113_fuzz_findings_total{seed_origin=~\"wifiautoff-apks.*\"}[24h])", "legendFormat": "wifiautoff-apks", "refId": "E"}
+      ],
+      "title": "Findings/24h by seed-origin",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["apkaxiom", "p113", "fuzzing"],
+  "templating": {"list": []},
+  "time": {"from": "now-7d", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "APKAXIOM P1.13 differential fuzzer",
+  "uid": "apkaxiom-p113",
+  "version": 1,
+  "weekStart": ""
+}

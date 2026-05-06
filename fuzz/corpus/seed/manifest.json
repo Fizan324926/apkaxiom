@@ -1,0 +1,36 @@
+{
+  "schema_version": "p113-seed-1.0",
+  "phase": "P1.13",
+  "sources": {
+    "adversarial-mutated": {
+      "source_dir": "corpus/zip/adversarial-mutated",
+      "count": 250,
+      "limit": 999
+    }
+    ,
+    "archive-valid": {
+      "source_dir": "corpus/zip/archive-valid",
+      "count": 300,
+      "limit": 999
+    }
+    ,
+    "badpack-cves": {
+      "source_dir": "corpus/zip/badpack-cves",
+      "count": 110,
+      "limit": 999
+    }
+    ,
+    "bench-1k": {
+      "source_dir": "corpus/zip/bench-10k",
+      "count": 1000,
+      "limit": 1000
+    }
+    ,
+    "wifiautoff-apks": {
+      "source_dir": "corpus/signing",
+      "count": 14,
+      "limit": 999
+    }
+  },
+  "total_seeds": 1674
+}

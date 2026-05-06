@@ -1,0 +1,33 @@
+[package]
+name = "p113-fuzz-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "p113-fuzz-driver"
+path = "src/main.rs"
+
+[[bin]]
+name = "p113-fuzz-replay"
+path = "src/bin/replay.rs"
+
+[features]
+# Real-mode KVM/Nyx harness path. Disabled by default — building it
+# requires libnyx + a /dev/kvm host. Dev mode (default) runs the
+# whole pipeline in-process against the AOSP libziparchive runtime
+# probe, which proves the classifier + finding archive end-to-end
+# without KVM. ADR-0031 records the split.
+default = []
+nyx-cuttlefish = []
+
+[dependencies]
+axiom-l0-zip-verified = { path = "../../crates/axiom-l0-zip-verified" }
+axiom-blake3-hacl = { path = "../../crates/axiom-blake3-hacl" }
+
+[lints]
+workspace = true
