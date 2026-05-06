@@ -31,7 +31,11 @@
 //! byte-identical roots — asserted by the §F-1 reproducibility
 //! test.
 
-#![allow(clippy::doc_markdown, clippy::missing_errors_doc)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc
+)]
 
 use axiom_blake3_hacl::{Blake3, Hash, Hasher};
 
@@ -74,10 +78,10 @@ impl CommitChain {
         if leaves.is_empty() {
             return Blake3::hash_oneshot(b"");
         }
-        // Bottom-up fold. Promote leaves to "level 0", then
-        // pairwise combine into "level 1", until one node remains.
-        // Odd levels duplicate the last element (per the standard
-        // Bitcoin/Certificate-Transparency pattern).
+        // Bottom-up fold using a single reusable hasher to amortise
+        // BLAKE3 init/finalize overhead across the ~N internal-node
+        // hashes the tree-fold pays.
+        let mut scratch = Blake3::default();
         let mut level: Vec<Hash> = leaves.iter().map(|l| l.hash).collect();
         while level.len() > 1 {
             let mut next = Vec::with_capacity(level.len().div_ceil(2));
@@ -89,7 +93,7 @@ impl CommitChain {
                 } else {
                     level[i]
                 };
-                next.push(combine(&l, &r));
+                next.push(combine_with(&mut scratch, &l, &r));
                 i += 2;
             }
             level = next;
@@ -98,69 +102,177 @@ impl CommitChain {
     }
 }
 
-/// `BLAKE3(0x00 || left || right)` — the internal-node combiner.
-/// `0x00` domain-separates internal nodes from leaves (which the
-/// parser hashes directly without a prefix).
+#[cfg(test)]
 fn combine(left: &Hash, right: &Hash) -> Hash {
-    let mut h = Blake3::default();
-    h.update(&[0x00]);
-    h.update(left);
-    h.update(right);
-    h.finalize()
+    let mut s = Blake3::default();
+    combine_with(&mut s, left, right)
 }
 
-/// Drive the streaming parser over `bytes`, recording a commit
-/// leaf for every `ZipEntryHeader` (header bytes) and
-/// `ZipEntryData` (body chunk) event. Returns the streaming
-/// parser's final state alongside the chain.
+/// `BLAKE3(0x00 || left || right)` — internal-node combiner.
+/// Reuses an existing hasher allocation. Saves the per-call
+/// `Blake3::new` cost across the ~N internal-node hashes a
+/// tree-fold pays.
+fn combine_with(scratch: &mut Blake3, left: &Hash, right: &Hash) -> Hash {
+    scratch.reset();
+    scratch.update(&[0x00]);
+    scratch.update(left);
+    scratch.update(right);
+    scratch.finalize_borrow()
+}
+
+/// Drive the streaming parser, recording a Merkle leaf for every
+/// content-bearing event. The leaf tags emitted are:
 ///
-/// This is the "with hooks" path the P1.10 §10 row 5 perf-delta
-/// gate measures against the bare streaming parser.
+///   - `"lfh-header"` — the verbatim 30-byte LFH prefix + name +
+///     extra-field for each archive entry.
+///   - `"lfh-body"` — every `ZipEntryData` chunk, in order.
+///   - `"signing-block"` — the bytes between the last LFH body and
+///     the central directory (typically the APK v2/v3 signing
+///     block; absent for unsigned archives).
+///   - `"cdr-entry"` — one leaf per central-directory record (46-
+///     byte fixed prefix + name + extra + comment).
+///   - `"eocd"` — the verbatim end-of-central-directory record.
+///
+/// Together these leaves cover **every byte of a well-formed
+/// archive**: a single bit-flip anywhere in any LFH/body/CDR/EOCD/
+/// signing-block changes the Merkle root.
+///
+/// Returns the full event log alongside the chain.
 pub fn parse_with_commit_chain<R: Read>(
     reader: R,
 ) -> Result<(Vec<ParseEvent>, CommitChain), StreamError> {
     let mut parser = ApkParser::from_reader(reader);
     let mut events = Vec::new();
     let mut leaves: Vec<CommitLeaf> = Vec::new();
-    let mut offset: u64 = 0;
+    // Reusable scratch hasher — `reset() + update() + finalize_borrow()`
+    // is significantly faster than `default(); update; finalize` per
+    // leaf when committing many small regions (LFH header / DD / CDR
+    // / EOCD), where the per-call init/finalize cost dominates the
+    // actual hashing.
+    let mut scratch = Blake3::default();
+    let mut leaf_hash = |bytes: &[u8]| -> axiom_blake3_hacl::Hash {
+        scratch.reset();
+        scratch.update(bytes);
+        scratch.finalize_borrow()
+    };
+    // Per-entry body accumulator. The streaming parser fires
+    // `ZipEntryData` once per buffer-chunk, so leaf granularity
+    // would otherwise depend on chunk size — which breaks the
+    // chunk-size invariance gate (P1.10 §B item 7). We accumulate
+    // the body of the *current* entry into a single BLAKE3
+    // hasher; the body leaf is finalised + emitted only when the
+    // next LFH header / signing block / CDR is seen, or at end-of-
+    // stream. This guarantees one body leaf per archive entry,
+    // independent of chunk size.
+    let mut body_acc: Option<BodyAccumulator> = None;
     while let Some(ev) = parser.next_event()? {
         match &ev {
-            ParseEvent::ZipEntryHeader { file_name, .. } => {
-                // The streaming parser doesn't expose the raw
-                // header bytes — it has already consumed them by
-                // the time the event fires. We commit to the
-                // *file name* as a stable per-entry identifier;
-                // the body bytes (next event) are committed with
-                // their actual range. P1.15 will extend this to
-                // commit on the full LFH header bytes once the
-                // streaming layer exposes them.
-                let h = Blake3::hash_oneshot(file_name);
-                let len = file_name.len() as u64;
+            ParseEvent::ZipEntryHeader {
+                raw_header, offset, ..
+            } => {
+                if let Some(b) = body_acc.take() {
+                    leaves.push(b.finalize());
+                }
                 leaves.push(CommitLeaf {
-                    offset,
-                    length: len,
-                    hash: h,
-                    tag: "lfh-name",
+                    offset: *offset,
+                    length: raw_header.len() as u64,
+                    hash: leaf_hash(raw_header),
+                    tag: "lfh-header",
                 });
-                offset += len;
+                body_acc = Some(BodyAccumulator::new(*offset + raw_header.len() as u64));
             }
             ParseEvent::ZipEntryData { offset: o, bytes } => {
-                let h = Blake3::hash_oneshot(bytes);
-                let len = bytes.len() as u64;
+                let acc = body_acc
+                    .as_mut()
+                    .expect("ZipEntryData arrived without a preceding ZipEntryHeader — parser bug");
+                acc.update(*o, bytes);
+            }
+            ParseEvent::DataDescriptor { raw, offset, .. } => {
+                if let Some(b) = body_acc.take() {
+                    leaves.push(b.finalize());
+                }
                 leaves.push(CommitLeaf {
-                    offset: *o,
-                    length: len,
-                    hash: h,
-                    tag: "lfh-body",
+                    offset: *offset,
+                    length: raw.len() as u64,
+                    hash: leaf_hash(raw),
+                    tag: "data-descriptor",
                 });
-                offset = *o + len;
+            }
+            ParseEvent::SigningBlock { raw, offset } => {
+                if let Some(b) = body_acc.take() {
+                    leaves.push(b.finalize());
+                }
+                leaves.push(CommitLeaf {
+                    offset: *offset,
+                    length: raw.len() as u64,
+                    hash: leaf_hash(raw),
+                    tag: "signing-block",
+                });
+            }
+            ParseEvent::CdrEntry { raw, offset, .. } => {
+                if let Some(b) = body_acc.take() {
+                    leaves.push(b.finalize());
+                }
+                leaves.push(CommitLeaf {
+                    offset: *offset,
+                    length: raw.len() as u64,
+                    hash: leaf_hash(raw),
+                    tag: "cdr-entry",
+                });
+            }
+            ParseEvent::EocdSeen { raw, offset, .. } => {
+                if let Some(b) = body_acc.take() {
+                    leaves.push(b.finalize());
+                }
+                leaves.push(CommitLeaf {
+                    offset: *offset,
+                    length: raw.len() as u64,
+                    hash: leaf_hash(raw),
+                    tag: "eocd",
+                });
             }
             _ => {}
         }
         events.push(ev);
     }
+    if let Some(b) = body_acc.take() {
+        leaves.push(b.finalize());
+    }
     let root = CommitChain::merkle_root(&leaves);
     Ok((events, CommitChain { leaves, root }))
+}
+
+/// Per-entry body accumulator — collects body chunks under a
+/// single BLAKE3 hash so the body leaf is one-per-entry,
+/// independent of chunk size.
+struct BodyAccumulator {
+    hasher: Blake3,
+    offset: u64,
+    length: u64,
+}
+
+impl BodyAccumulator {
+    fn new(offset: u64) -> Self {
+        Self {
+            hasher: Blake3::default(),
+            offset,
+            length: 0,
+        }
+    }
+
+    fn update(&mut self, _chunk_offset: u64, bytes: &[u8]) {
+        self.hasher.update(bytes);
+        self.length += bytes.len() as u64;
+    }
+
+    fn finalize(self) -> CommitLeaf {
+        CommitLeaf {
+            offset: self.offset,
+            length: self.length,
+            hash: self.hasher.finalize(),
+            tag: "lfh-body",
+        }
+    }
 }
 
 #[cfg(test)]

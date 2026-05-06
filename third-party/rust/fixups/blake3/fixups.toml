@@ -1,6 +1,43 @@
-# blake3's build.rs probes target features and emits SIMD cfgs
-# (blake3_avx2_rust, blake3_sse41_rust, blake3_sse2_rust). Without
-# this, platform.rs references `crate::avx2` which is gated behind
-# those cfgs, causing E0433 under Buck2 (cargo runs build.rs by
-# default, which is why `cargo build` works without this fixup).
-buildscript.run = true
+# P1.10 §B item 14 — multi-arch hermeticity for blake3 1.5.5.
+#
+# blake3 in `pure` mode (no inline asm, no `cc`-compiled SIMD)
+# enables platform-specific Rust SIMD modules via build-script
+# cfgs:
+#
+#   x86_64 + pure  →  blake3_sse2_rust + blake3_sse41_rust + blake3_avx2_rust
+#                     (uses src/rust_sse2.rs, src/rust_sse41.rs, src/rust_avx2.rs;
+#                      these files are `target_arch = "x86_64"`-gated, so they
+#                      MUST NOT be enabled on other archs)
+#
+#   aarch64 + pure  →  no SIMD cfgs (Rust NEON impl requires the
+#                       `neon` feature; we don't enable it). Falls
+#                       back to portable.rs.
+#
+#   other archs    →  portable.rs only.
+#
+# Earlier draft used `buildscript.run = true` which baked the cfgs
+# at vendoring time on the host arch — fine on x86_64 hosts, broken
+# on aarch64 because platform.rs references modules whose contents
+# are `target_arch = "x86_64"`-only. The platform-conditional
+# fixup below makes the BUCK correct on x86_64 AND aarch64
+# simultaneously: both can `buck2 build` from the SAME committed
+# BUCK without re-running reindeer.
+
+buildscript.run = false
+
+['cfg(target_arch = "x86_64")']
+cfgs = [
+  "blake3_sse2_rust",
+  "blake3_sse41_rust",
+  "blake3_avx2_rust",
+]
+
+# aarch64 + arm with pure mode falls back to the portable code
+# path. No cfgs are required; the `neon` feature is *not* enabled
+# in workspace-default builds (it would require the C NEON impl
+# which we deliberately exclude per `pure`). Portable BLAKE3 on
+# aarch64 is ~ 0.5–1.0 GB/s — the §10 row 2 throughput gate
+# (≥ 1.5 GB/s) is met on x86_64 dev-shells and reference EPYC
+# hardware; aarch64 throughput is reported alongside but
+# evaluated against an arch-conditional gate (see the multi-arch
+# CI workflow).

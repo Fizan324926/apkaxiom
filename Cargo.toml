@@ -27,6 +27,7 @@ members = [
     "tools/lfh-eval-rust",
     "tools/p110-hash-throughput",
     "tools/p110-merkle-perf-delta",
+    "tools/p110-tamper-fuzz",
     "tools/p19-perf-delta",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it

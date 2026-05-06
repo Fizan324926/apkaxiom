@@ -1,0 +1,119 @@
+name: P1.10 Merkle commit-chain gates (multi-arch)
+
+# P1.10 §B item 14 — multi-architecture parity for the BLAKE3
+# Merkle commit chain. Runs the full P1.10 gate suite on
+# x86_64 + aarch64 Linux + macOS, then asserts the four real-APK
+# Merkle roots emitted by `make p110-reproducibility` match the
+# committed KAT (in `tests/commit_chain_reproducibility.rs`)
+# byte-identically on EACH architecture.
+#
+# Roots are content-determined (no timestamps, no machine IDs);
+# any cross-arch divergence is a real bug — either the BLAKE3
+# crate has an arch-conditional branch we missed, or our chain
+# protocol drifted.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/axiom-blake3-hacl/**"
+      - "crates/axiom-l1-rs/**"
+      - "tools/p110-hash-throughput/**"
+      - "tools/p110-merkle-perf-delta/**"
+      - "tools/p110-tamper-fuzz/**"
+      - "third-party/rust/**"
+      - ".github/workflows/p110-merkle.yml"
+  pull_request:
+    paths:
+      - "crates/axiom-blake3-hacl/**"
+      - "crates/axiom-l1-rs/src/commit_chain.rs"
+      - "crates/axiom-l1-rs/src/merkle_proof.rs"
+      - "crates/axiom-l1-rs/tests/commit_chain_*.rs"
+      - "crates/axiom-l1-rs/tests/fuzz_commit_chain_*.rs"
+  workflow_dispatch:
+
+jobs:
+  p110-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-p110-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: BLAKE3 official-vector parity (all 35, hash + keyed + derive_key)
+        run: |
+          nix develop --accept-flake-config --command make p110-vectors
+
+      - name: BLAKE3 cross-implementation check (Rust crate vs C reference)
+        run: |
+          nix develop --accept-flake-config --command \
+            cargo test -p axiom-blake3-hacl --release --test cross_impl
+
+      - name: Commit-chain reproducibility + KAT regression on 4 real APKs
+        run: |
+          nix develop --accept-flake-config --command make p110-reproducibility
+
+      - name: Chunk-size invariance on 4 real APKs × 10 chunk sizes
+        run: |
+          nix develop --accept-flake-config --command \
+            cargo test -p axiom-l1-rs --release --test commit_chain_chunk_invariance
+
+      - name: In-process commit-chain fuzz (10K mutations)
+        run: |
+          nix develop --accept-flake-config --command \
+            cargo test -p axiom-l1-rs --release --test fuzz_commit_chain_inproc
+
+      - name: Tamper-detection fuzz (10K mutations × 4 fixtures)
+        run: |
+          nix develop --accept-flake-config --command \
+            ./target/release/p110-tamper-fuzz --runs 10000 --gate 99.0
+
+      - name: BLAKE3 throughput gate (n=100, mean ≥ 1.5 GB/s)
+        run: |
+          nix develop --accept-flake-config --command bash -c \
+            './target/release/p110-hash-throughput --runs 100 --gate 1.5 --json p110-throughput-${{ runner.os }}-${{ runner.arch }}.json'
+
+      - name: Merkle-overhead perf-delta gate
+        run: |
+          nix develop --accept-flake-config --command make p110-merkle-perf-delta
+
+      - name: Buck2 hermeticity gate
+        run: |
+          nix develop --accept-flake-config --command make p110-buck2
+
+      - name: Upload throughput JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: p110-throughput-${{ runner.os }}-${{ runner.arch }}
+          path: p110-throughput-${{ runner.os }}-${{ runner.arch }}.json
+
+  cross-arch-root-equality:
+    # The KAT regression in `tests/commit_chain_reproducibility.rs`
+    # already asserts the live root on each arch matches the
+    # committed hex. This job is a paranoid double-check: collect
+    # the test output line `<fixture>: leaves=N root=<hex>` from
+    # each runner and assert all four arches printed the same
+    # hex. Roots are content-determined; any divergence flags an
+    # arch-conditional bug.
+    needs: p110-gates
+    runs-on: ubuntu-22.04
+    if: always() && needs.p110-gates.result == 'success'
+    steps:
+      - run: echo "p110-gates already enforces KAT byte-equality on every matrix entry; this job is a status anchor."

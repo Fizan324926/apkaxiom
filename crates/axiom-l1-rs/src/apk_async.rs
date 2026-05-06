@@ -95,6 +95,7 @@ impl ApkAsync<Unverified> {
                     uncompressed_size,
                     crc32,
                     general_flags,
+                    ..
                 } => {
                     if let Some((slot, buf, method, usize_)) = active.take() {
                         persist_capture(

@@ -1,0 +1,17 @@
+# Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
+#
+# P1.10 §B item 5 tamper-detection gate. 10K random single-bit-
+# flip mutations × 4 real F-Droid APK fixtures, asserting ≥ 99 %
+# kill rate per committed region.
+
+rust_binary(
+    name = "p110-tamper-fuzz",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "p110_tamper_fuzz",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    deps = [
+        "//crates/axiom-l1-rs:axiom-l1-rs",
+    ],
+    visibility = ["PUBLIC"],
+)

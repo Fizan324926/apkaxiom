@@ -70,11 +70,37 @@ cargo.rust_library(
     crate = "blake3",
     crate_root = "vendor/blake3-1.5.5/src/lib.rs",
     edition = "2021",
-    env = {
-        "OUT_DIR": "$(location :blake3-1-build-script-run[out_dir])",
-    },
     features = ["pure"],
-    rustc_flags = ["@$(location :blake3-1-build-script-run[rustc_flags])"],
+    platform = {
+        "linux-x86_64": dict(
+            rustc_flags = [
+                "--cfg=blake3_avx2_rust",
+                "--cfg=blake3_sse2_rust",
+                "--cfg=blake3_sse41_rust",
+            ],
+        ),
+        "macos-x86_64": dict(
+            rustc_flags = [
+                "--cfg=blake3_avx2_rust",
+                "--cfg=blake3_sse2_rust",
+                "--cfg=blake3_sse41_rust",
+            ],
+        ),
+        "windows-gnu": dict(
+            rustc_flags = [
+                "--cfg=blake3_avx2_rust",
+                "--cfg=blake3_sse2_rust",
+                "--cfg=blake3_sse41_rust",
+            ],
+        ),
+        "windows-msvc": dict(
+            rustc_flags = [
+                "--cfg=blake3_avx2_rust",
+                "--cfg=blake3_sse2_rust",
+                "--cfg=blake3_sse41_rust",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":arrayref-0.3",
@@ -82,44 +108,6 @@ cargo.rust_library(
         ":cfg-if-1",
         ":constant_time_eq-0.3",
     ],
-)
-
-cargo.rust_binary(
-    name = "blake3-1-build-script-build",
-    srcs = [
-        "vendor/blake3-1.5.5/benches/bench.rs",
-        "vendor/blake3-1.5.5/build.rs",
-        "vendor/blake3-1.5.5/src/ffi_avx2.rs",
-        "vendor/blake3-1.5.5/src/ffi_avx512.rs",
-        "vendor/blake3-1.5.5/src/ffi_neon.rs",
-        "vendor/blake3-1.5.5/src/ffi_sse2.rs",
-        "vendor/blake3-1.5.5/src/ffi_sse41.rs",
-        "vendor/blake3-1.5.5/src/guts.rs",
-        "vendor/blake3-1.5.5/src/io.rs",
-        "vendor/blake3-1.5.5/src/join.rs",
-        "vendor/blake3-1.5.5/src/lib.rs",
-        "vendor/blake3-1.5.5/src/platform.rs",
-        "vendor/blake3-1.5.5/src/portable.rs",
-        "vendor/blake3-1.5.5/src/rust_avx2.rs",
-        "vendor/blake3-1.5.5/src/rust_sse2.rs",
-        "vendor/blake3-1.5.5/src/rust_sse41.rs",
-        "vendor/blake3-1.5.5/src/test.rs",
-        "vendor/blake3-1.5.5/src/traits.rs",
-    ],
-    crate = "build_script_build",
-    crate_root = "vendor/blake3-1.5.5/build.rs",
-    edition = "2021",
-    features = ["pure"],
-    visibility = [],
-    deps = [":cc-1"],
-)
-
-buildscript_run(
-    name = "blake3-1-build-script-run",
-    package_name = "blake3",
-    buildscript_rule = ":blake3-1-build-script-build",
-    features = ["pure"],
-    version = "1.5.5",
 )
 
 cargo.rust_library(
@@ -133,37 +121,6 @@ cargo.rust_library(
     edition = "2018",
     visibility = [],
     deps = [":generic-array-0.14"],
-)
-
-cargo.rust_library(
-    name = "cc-1",
-    srcs = [
-        "vendor/cc-1.2.61/src/command_helpers.rs",
-        "vendor/cc-1.2.61/src/detect_compiler_family.c",
-        "vendor/cc-1.2.61/src/flags.rs",
-        "vendor/cc-1.2.61/src/lib.rs",
-        "vendor/cc-1.2.61/src/parallel/async_executor.rs",
-        "vendor/cc-1.2.61/src/parallel/command_runner.rs",
-        "vendor/cc-1.2.61/src/parallel/job_token.rs",
-        "vendor/cc-1.2.61/src/parallel/mod.rs",
-        "vendor/cc-1.2.61/src/parallel/stderr.rs",
-        "vendor/cc-1.2.61/src/target.rs",
-        "vendor/cc-1.2.61/src/target/apple.rs",
-        "vendor/cc-1.2.61/src/target/generated.rs",
-        "vendor/cc-1.2.61/src/target/llvm.rs",
-        "vendor/cc-1.2.61/src/target/parser.rs",
-        "vendor/cc-1.2.61/src/tempfile.rs",
-        "vendor/cc-1.2.61/src/tool.rs",
-        "vendor/cc-1.2.61/src/utilities.rs",
-    ],
-    crate = "cc",
-    crate_root = "vendor/cc-1.2.61/src/lib.rs",
-    edition = "2018",
-    visibility = [],
-    deps = [
-        ":find-msvc-tools-0.1",
-        ":shlex-1",
-    ],
 )
 
 cargo.rust_library(
@@ -251,26 +208,6 @@ cargo.rust_library(
         ":block-buffer-0.10",
         ":crypto-common-0.1",
     ],
-)
-
-cargo.rust_library(
-    name = "find-msvc-tools-0.1",
-    srcs = [
-        "vendor/find-msvc-tools-0.1.9/src/com.rs",
-        "vendor/find-msvc-tools-0.1.9/src/find_tools.rs",
-        "vendor/find-msvc-tools-0.1.9/src/lib.rs",
-        "vendor/find-msvc-tools-0.1.9/src/registry.rs",
-        "vendor/find-msvc-tools-0.1.9/src/setup_config.rs",
-        "vendor/find-msvc-tools-0.1.9/src/tool.rs",
-        "vendor/find-msvc-tools-0.1.9/src/vs_instances.rs",
-        "vendor/find-msvc-tools-0.1.9/src/winapi.rs",
-        "vendor/find-msvc-tools-0.1.9/src/windows_link.rs",
-        "vendor/find-msvc-tools-0.1.9/src/windows_sys.rs",
-    ],
-    crate = "find_msvc_tools",
-    crate_root = "vendor/find-msvc-tools-0.1.9/src/lib.rs",
-    edition = "2018",
-    visibility = [],
 )
 
 cargo.rust_library(
@@ -888,22 +825,6 @@ cargo.rust_library(
         ":cpufeatures-0.2",
         ":digest-0.10",
     ],
-)
-
-cargo.rust_library(
-    name = "shlex-1",
-    srcs = [
-        "vendor/shlex-1.3.0/src/bytes.rs",
-        "vendor/shlex-1.3.0/src/lib.rs",
-    ],
-    crate = "shlex",
-    crate_root = "vendor/shlex-1.3.0/src/lib.rs",
-    edition = "2015",
-    features = [
-        "default",
-        "std",
-    ],
-    visibility = [],
 )
 
 alias(

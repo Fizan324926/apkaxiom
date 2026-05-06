@@ -11,6 +11,62 @@
 
 use axiom_l1_rs::commit_chain::parse_with_commit_chain;
 
+/// Canonical Merkle roots — KAT regression. These are the
+/// content-determined commitment receipts for the four real
+/// F-Droid APK fixtures committed under `tests/fixtures/`.
+/// Any change to the parser, leaf-formation rule, body
+/// accumulator, or tree-fold that perturbs a single bit-flip
+/// in any fixture flips the corresponding root and fails this
+/// test — even on a clean reproducibility test that only
+/// asserts run-1 == run-2. The KAT is the production
+/// regression seal.
+///
+/// To re-stamp these (after an intentional protocol change):
+///   1. Implement the change.
+///   2. Run `make p110-reproducibility` to print live roots.
+///   3. Update both this constant array AND the matching
+///      table in `docs/phase-1/P1.10/CHECKLIST.md` §D.
+///   4. The matching test below asserts the live computation
+///      equals these committed values — both must move together.
+const KAT_FIXTURES: &[(&str, usize, [u8; 32])] = &[
+    (
+        "fdroid-privileged-2050.apk",
+        50,
+        [
+            0x89, 0x30, 0x8c, 0x49, 0x01, 0xeb, 0xc3, 0x45, 0xf8, 0x0a, 0xe4, 0xdd, 0x9b, 0xe4,
+            0x21, 0x90, 0x57, 0x48, 0x17, 0x17, 0x58, 0x6d, 0xbc, 0x26, 0xc2, 0x03, 0x46, 0x14,
+            0x27, 0x05, 0x10, 0x9b,
+        ],
+    ),
+    (
+        "clipboard.apk",
+        36,
+        [
+            0x11, 0x88, 0x8d, 0xa7, 0xe1, 0xaf, 0x12, 0x88, 0x4b, 0x8c, 0x7a, 0x6f, 0x56, 0x75,
+            0xb4, 0xa0, 0xb7, 0xcf, 0x59, 0xf7, 0xec, 0x25, 0xa7, 0x55, 0x32, 0xd1, 0x16, 0x5e,
+            0x6c, 0xf8, 0x8c, 0x45,
+        ],
+    ),
+    (
+        "tickytacky-mirror.apk",
+        35,
+        [
+            0x5a, 0x30, 0x4a, 0x81, 0xb9, 0x82, 0xc6, 0xba, 0xae, 0x01, 0xbb, 0xd1, 0xc4, 0xd8,
+            0xdb, 0x88, 0x8a, 0x16, 0xf8, 0xcd, 0x00, 0x40, 0x51, 0x33, 0xcd, 0xd2, 0x91, 0x74,
+            0x6c, 0xaa, 0x3c, 0xe6,
+        ],
+    ),
+    (
+        "wifiautoff.apk",
+        27,
+        [
+            0x38, 0xbd, 0xb9, 0x59, 0xb7, 0xed, 0x8e, 0xee, 0x46, 0x2a, 0x59, 0xbe, 0x8b, 0x9d,
+            0x42, 0x3f, 0x3a, 0x07, 0x0e, 0x75, 0x7a, 0xfd, 0xc6, 0x0d, 0x52, 0xcb, 0x8e, 0xef,
+            0xed, 0x35, 0x7e, 0x99,
+        ],
+    ),
+];
+
 const FIXTURE_NAMES: &[&str] = &[
     "fdroid-privileged-2050.apk",
     "clipboard.apk",
@@ -81,9 +137,30 @@ fn merkle_root_changes_when_input_changes() {
     assert_ne!(c1.root, c2.root, "single-bit flip must change Merkle root");
 }
 
-// (The synthetic-archive snapshot test — which would assert a
-// canonical Merkle root over a programmatic archive — relies on
-// `stream::tests::realistic_archive`, which is `cfg(test)`-gated
-// and not reachable from integration tests. The reproducibility
-// gate above runs against the same code path on real APKs, which
-// is the load-bearing case anyway.)
+/// KAT regression — assert live Merkle roots match the committed
+/// constants in [`KAT_FIXTURES`]. This is the load-bearing
+/// regression gate: any silent change to the chain protocol
+/// fails the build, not just markdown drift.
+#[test]
+fn merkle_root_kat_regression_on_four_apks() {
+    for &(name, expected_leaves, expected_root) in KAT_FIXTURES {
+        let bytes =
+            std::fs::read(fixture_path(name)).unwrap_or_else(|e| panic!("{name}: read err {e}"));
+        let (_, chain) = parse_with_commit_chain(bytes.as_slice())
+            .unwrap_or_else(|e| panic!("{name}: parse {e}"));
+        assert_eq!(
+            chain.leaves.len(),
+            expected_leaves,
+            "{name}: leaf count drift — committed {expected_leaves}, got {} (live root {})",
+            chain.leaves.len(),
+            hex_encode(&chain.root)
+        );
+        assert_eq!(
+            chain.root,
+            expected_root,
+            "{name}: KAT regression — committed root {} ≠ live root {}",
+            hex_encode(&expected_root),
+            hex_encode(&chain.root)
+        );
+    }
+}
