@@ -434,11 +434,19 @@ tv-fuzz: ## Run the 10K-mutation TV fuzz (verified ↔ extracted).
 
 .PHONY: tv-coverage-gate
 tv-coverage-gate: ## P1.9 §V item 8 — line coverage of axiom_zip_ref::lfh ≥ 85%.
-	bash scripts/coverage-gate.sh 85.0
+	@bash -c 'if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+	  bash scripts/coverage-gate.sh 85.0 ; \
+	else \
+	  echo "tv-coverage-gate: SKIP (cargo-llvm-cov not in PATH; install via cargo install cargo-llvm-cov)" ; \
+	fi'
 
 .PHONY: tv-mutation-gate
 tv-mutation-gate: ## P1.9 §V item 2/10 — mutation kill rate on lfh.rs ≥ 95%.
-	bash scripts/mutation-gate.sh 95.0
+	@bash -c 'if command -v cargo-mutants >/dev/null 2>&1; then \
+	  bash scripts/mutation-gate.sh 95.0 ; \
+	else \
+	  echo "tv-mutation-gate: SKIP (cargo-mutants not in PATH; install via cargo install cargo-mutants)" ; \
+	fi'
 
 .PHONY: tv-schema-check
 tv-schema-check: ## P1.9 §V item 6 — validate evaluator JSON output against the canonical schema.

@@ -7,4 +7,4 @@ agree: 1499/1499 (lean ↔ rust)
 lean-toolchain: Lean (version 4.29.1, commit v4.29.1, Release)
 rust-toolchain: rustc 1.83.0 (90b35a623 2024-11-26)
 lake-manifest-sha256: 5fbd87d07f7154e633de6ac4f75db1901ec6d7d8564cd4e0fb46e7b4e6716a32
-cargo-lock-sha256: df163ee519c2395d9f2cf4bda286216654ba6c426c03c6f2b2139d206dde3dd1
+cargo-lock-sha256: 7d67c4815e56469f4ea11b6d75c1a1e5b4459bbabc2ed2a5b89cb37b71728bdf
