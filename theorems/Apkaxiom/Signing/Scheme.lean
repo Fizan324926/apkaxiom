@@ -239,89 +239,122 @@ def takeLpSlice (buf : ByteArray) (off : Nat) :
 /-! ## Sequence walkers -/
 
 /-- Walk a digest sequence — list of length-prefixed
-`(algorithm_id u32 || length-prefixed digest)`. -/
-partial def parseDigestSeq
-    (seq : ByteArray) (acc : List DigestEntry) (cur : Nat) :
-    Except SchemeError (List DigestEntry) := Id.run do
-  if cur = seq.size then
-    return .ok acc.reverse
-  if cur > seq.size then
-    return .error .lengthOverflow
-  match takeLpSlice seq cur with
-  | .error e => return .error e
-  | .ok (elt, next) =>
-    if elt.size < 4 then
-      return .error .truncated
-    let .some alg := readU32 elt 0
-      | return .error .truncated
-    match takeLpSlice elt 4 with
-    | .error e => return .error e
-    | .ok (digestSlice, _) =>
-      let entry : DigestEntry :=
-        { algorithmId := alg
-        , algorithm := SignatureAlgorithmId.fromU32 alg
-        , digest := digestSlice }
-      parseDigestSeq seq (entry :: acc) next
+`(algorithm_id u32 || length-prefixed digest)`.
 
-/-- Walk a signature sequence. -/
-partial def parseSignatureSeq
-    (seq : ByteArray) (acc : List SignatureEntry) (cur : Nat) :
-    Except SchemeError (List SignatureEntry) := Id.run do
+Total: each iteration's `next` is the offset *after* a fully-
+read length-prefixed slice (≥ 4 bytes including the length
+prefix), so `seq.size - next < seq.size - cur` strictly. -/
+def parseDigestSeq
+    (seq : ByteArray) (acc : List DigestEntry) (cur : Nat) :
+    Except SchemeError (List DigestEntry) :=
   if cur = seq.size then
-    return .ok acc.reverse
-  if cur > seq.size then
-    return .error .lengthOverflow
-  match takeLpSlice seq cur with
-  | .error e => return .error e
-  | .ok (elt, next) =>
-    if elt.size < 4 then
-      return .error .truncated
-    let .some alg := readU32 elt 0
-      | return .error .truncated
-    match takeLpSlice elt 4 with
-    | .error e => return .error e
-    | .ok (sigSlice, _) =>
-      let entry : SignatureEntry :=
-        { algorithmId := alg
-        , algorithm := SignatureAlgorithmId.fromU32 alg
-        , signature := sigSlice }
-      parseSignatureSeq seq (entry :: acc) next
+    .ok acc.reverse
+  else if h : cur > seq.size then
+    .error .lengthOverflow
+  else match takeLpSlice seq cur with
+    | .error e => .error e
+    | .ok (elt, next) =>
+      if h2 : next ≤ cur then
+        .error .lengthOverflow
+      else if elt.size < 4 then
+        .error .truncated
+      else match readU32 elt 0 with
+        | none => .error .truncated
+        | some alg =>
+          match takeLpSlice elt 4 with
+          | .error e => .error e
+          | .ok (digestSlice, _) =>
+            let entry : DigestEntry :=
+              { algorithmId := alg
+              , algorithm := SignatureAlgorithmId.fromU32 alg
+              , digest := digestSlice }
+            parseDigestSeq seq (entry :: acc) next
+termination_by seq.size - cur
+decreasing_by
+  simp_wf
+  omega
+
+/-- Walk a signature sequence. Total — same termination argument
+as `parseDigestSeq`. -/
+def parseSignatureSeq
+    (seq : ByteArray) (acc : List SignatureEntry) (cur : Nat) :
+    Except SchemeError (List SignatureEntry) :=
+  if cur = seq.size then
+    .ok acc.reverse
+  else if cur > seq.size then
+    .error .lengthOverflow
+  else match takeLpSlice seq cur with
+    | .error e => .error e
+    | .ok (elt, next) =>
+      if next ≤ cur then
+        .error .lengthOverflow
+      else if elt.size < 4 then
+        .error .truncated
+      else match readU32 elt 0 with
+        | none => .error .truncated
+        | some alg =>
+          match takeLpSlice elt 4 with
+          | .error e => .error e
+          | .ok (sigSlice, _) =>
+            let entry : SignatureEntry :=
+              { algorithmId := alg
+              , algorithm := SignatureAlgorithmId.fromU32 alg
+              , signature := sigSlice }
+            parseSignatureSeq seq (entry :: acc) next
+termination_by seq.size - cur
+decreasing_by
+  simp_wf
+  omega
 
 /-- Walk an attribute sequence — list of length-prefixed
-`(id u32 || bytes)`. -/
-partial def parseAttributeSeq
+`(id u32 || bytes)`. Total. -/
+def parseAttributeSeq
     (seq : ByteArray) (acc : List AttributeEntry) (cur : Nat) :
-    Except SchemeError (List AttributeEntry) := Id.run do
+    Except SchemeError (List AttributeEntry) :=
   if cur = seq.size then
-    return .ok acc.reverse
-  if cur > seq.size then
-    return .error .lengthOverflow
-  match takeLpSlice seq cur with
-  | .error e => return .error e
-  | .ok (elt, next) =>
-    if elt.size < 4 then
-      return .error .truncated
-    let .some id := readU32 elt 0
-      | return .error .truncated
-    let .some valueSlice := slice elt 4 (elt.size - 4)
-      | return .error .lengthOverflow
-    let entry : AttributeEntry :=
-      { id := id, value := valueSlice }
-    parseAttributeSeq seq (entry :: acc) next
+    .ok acc.reverse
+  else if cur > seq.size then
+    .error .lengthOverflow
+  else match takeLpSlice seq cur with
+    | .error e => .error e
+    | .ok (elt, next) =>
+      if next ≤ cur then
+        .error .lengthOverflow
+      else if elt.size < 4 then
+        .error .truncated
+      else match readU32 elt 0 with
+        | none => .error .truncated
+        | some id =>
+          match slice elt 4 (elt.size - 4) with
+          | none => .error .lengthOverflow
+          | some valueSlice =>
+            let entry : AttributeEntry := { id := id, value := valueSlice }
+            parseAttributeSeq seq (entry :: acc) next
+termination_by seq.size - cur
+decreasing_by
+  simp_wf
+  omega
 
 /-- Walk a sequence of length-prefixed length-prefixed elements
-(used for the certificate sequence). -/
-partial def parseLpLpSeq
+(used for the certificate sequence). Total. -/
+def parseLpLpSeq
     (seq : ByteArray) (acc : List ByteArray) (cur : Nat) :
-    Except SchemeError (List ByteArray) := Id.run do
+    Except SchemeError (List ByteArray) :=
   if cur = seq.size then
-    return .ok acc.reverse
-  if cur > seq.size then
-    return .error .lengthOverflow
-  match takeLpSlice seq cur with
-  | .error e => return .error e
-  | .ok (elt, next) =>
-    parseLpLpSeq seq (elt :: acc) next
+    .ok acc.reverse
+  else if cur > seq.size then
+    .error .lengthOverflow
+  else match takeLpSlice seq cur with
+    | .error e => .error e
+    | .ok (elt, next) =>
+      if next ≤ cur then
+        .error .lengthOverflow
+      else
+        parseLpLpSeq seq (elt :: acc) next
+termination_by seq.size - cur
+decreasing_by
+  simp_wf
+  omega
 
 /-! ## Per-signer parser -/
 
@@ -405,21 +438,27 @@ def parseSigner (signer : ByteArray) (variant : Variant) :
 /-! ## Block-level parser -/
 
 /-- Walk a v2 / v3 / v3.1 block — outer length-prefixed sequence
-of signers. -/
-partial def parseSignersSeq
+of signers. Total. -/
+def parseSignersSeq
     (seq : ByteArray) (variant : Variant)
     (acc : List Signer) (cur : Nat) :
-    Except SchemeError (List Signer) := Id.run do
+    Except SchemeError (List Signer) :=
   if cur = seq.size then
-    return .ok acc.reverse
-  if cur > seq.size then
-    return .error .lengthOverflow
-  match takeLpSlice seq cur with
-  | .error e => return .error e
-  | .ok (signerBuf, next) =>
-    match parseSigner signerBuf variant with
-    | .error e => return .error e
-    | .ok s => parseSignersSeq seq variant (s :: acc) next
+    .ok acc.reverse
+  else if cur > seq.size then
+    .error .lengthOverflow
+  else match takeLpSlice seq cur with
+    | .error e => .error e
+    | .ok (signerBuf, next) =>
+      if next ≤ cur then
+        .error .lengthOverflow
+      else match parseSigner signerBuf variant with
+        | .error e => .error e
+        | .ok s => parseSignersSeq seq variant (s :: acc) next
+termination_by seq.size - cur
+decreasing_by
+  simp_wf
+  omega
 
 /-- Parse a v2 / v3 / v3.1 block. -/
 def parseBlock (block : ByteArray) (variant : Variant) :

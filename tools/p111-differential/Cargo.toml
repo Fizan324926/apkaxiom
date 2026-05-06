@@ -1,0 +1,16 @@
+[package]
+name = "p111-differential"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axiom-sigblock = { path = "../../crates/axiom-sigblock" }
+axiom-sigverify = { path = "../../crates/axiom-sigverify" }
+
+[lints]
+workspace = true

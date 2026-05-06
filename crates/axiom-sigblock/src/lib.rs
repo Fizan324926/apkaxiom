@@ -50,6 +50,7 @@
     clippy::cast_possible_truncation
 )]
 
+pub mod proof_of_rotation;
 pub mod scheme;
 
 /// 16-byte magic at the tail of every APK signing block.
