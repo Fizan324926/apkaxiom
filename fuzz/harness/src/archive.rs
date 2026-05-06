@@ -58,7 +58,15 @@ use axiom_blake3_hacl::hex_encode;
 use crate::classifier::{Bucket, Verdict};
 
 /// Stable schema version. Bump on any breaking field change.
-pub const SCHEMA_VERSION: &str = "p113-finding-1.0";
+///
+/// 1.0 — initial dev-mode harness output.
+/// 1.1 — adds `target_version` (Android version label, e.g. "A14")
+///       and `synthetic` (bool — true iff verdict was post-filtered
+///       by the Rust synthetic-version layer rather than a real
+///       per-version libziparchive build). Cross-version classifier
+///       reads both fields; older 1.0 records back-fill
+///       `target_version="A14"` and `synthetic=false` on parse.
+pub const SCHEMA_VERSION: &str = "p114-finding-1.1";
 
 /// One archive record. Consumers read the ndjson stream by parsing
 /// each line into this struct.
@@ -89,6 +97,14 @@ pub struct Finding {
     pub seed_origin: Option<String>,
     /// Mutation kind (optional).
     pub mutation_kind: Option<String>,
+    /// Android target version label (`A8`, `A11`, `A14`). Defaults
+    /// to `A14` on 1.0 records (back-fill on parse).
+    pub target_version: String,
+    /// True iff the target verdict was produced by the synthetic
+    /// per-version filter layer rather than a real per-version
+    /// libziparchive build. Cross-version classifier weights real
+    /// disagreements higher than synthetic ones.
+    pub synthetic: bool,
 }
 
 impl Finding {
@@ -100,6 +116,38 @@ impl Finding {
     pub fn from_verdicts(
         mode: &str,
         target_label: &str,
+        input: &[u8],
+        input_path: &str,
+        axiom_l0: Verdict,
+        target: Verdict,
+        bucket: Bucket,
+        seed_origin: Option<String>,
+        mutation_kind: Option<String>,
+    ) -> Self {
+        Self::from_verdicts_versioned(
+            mode,
+            target_label,
+            "A14",
+            false,
+            input,
+            input_path,
+            axiom_l0,
+            target,
+            bucket,
+            seed_origin,
+            mutation_kind,
+        )
+    }
+
+    /// Versioned variant — supplies the Android version label and
+    /// synthetic flag. The legacy `from_verdicts` defaults both
+    /// fields to A14 / non-synthetic.
+    #[must_use]
+    pub fn from_verdicts_versioned(
+        mode: &str,
+        target_label: &str,
+        target_version: &str,
+        synthetic: bool,
         input: &[u8],
         input_path: &str,
         axiom_l0: Verdict,
@@ -122,6 +170,8 @@ impl Finding {
             bucket,
             seed_origin,
             mutation_kind,
+            target_version: target_version.to_string(),
+            synthetic,
         }
     }
 
@@ -165,6 +215,10 @@ impl Finding {
             Some(v) => push_kv_str(&mut s, "mutation_kind", v),
             None => push_kv_null(&mut s, "mutation_kind"),
         }
+        s.push(',');
+        push_kv_str(&mut s, "target_version", &self.target_version);
+        s.push(',');
+        push_kv_bool(&mut s, "synthetic", self.synthetic);
         s.push('}');
         s.push('\n');
         s
@@ -193,6 +247,10 @@ impl Finding {
             bucket: parse_bucket(&get("bucket")?),
             seed_origin: get("seed_origin").filter(|s| s != "null"),
             mutation_kind: get("mutation_kind").filter(|s| s != "null"),
+            // 1.0 records back-fill these fields (Cuttlefish A14 was
+            // the only target before P1.14; nothing was synthetic).
+            target_version: get("target_version").unwrap_or_else(|| "A14".into()),
+            synthetic: get("synthetic").map_or(false, |v| v == "true"),
         })
     }
 }

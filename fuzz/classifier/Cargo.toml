@@ -1,0 +1,30 @@
+[package]
+name = "p114-classifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "p114-classify"
+path = "src/main.rs"
+
+[[bin]]
+name = "p114-classify-eval"
+path = "src/eval.rs"
+
+[[bin]]
+name = "p114-build-holdout"
+path = "src/bin/build_holdout.rs"
+
+[dependencies]
+p113-fuzz-harness = { path = "../harness" }
+
+[lints]
+workspace = true

@@ -132,6 +132,8 @@ mod tests {
             bucket,
             seed_origin: Some(seed.into()),
             mutation_kind: Some("flip".into()),
+            target_version: "A14".into(),
+            synthetic: false,
         }
     }
 

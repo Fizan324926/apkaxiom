@@ -45,6 +45,10 @@ members = [
     "tools/p112-tamper-fuzz",
     "tools/p112-aosp-parity",
     "fuzz/harness",
+    "fuzz/classifier",
+    "fuzz/orchestrator",
+    "fuzz/corpus-archive",
+    "fuzz/cve-template",
 ]
 # `third-party/rust` is its own workspace (Reindeer-managed). Excluding it
 # here prevents Cargo from spuriously trying to merge the two workspaces.

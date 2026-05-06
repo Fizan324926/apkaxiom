@@ -84,5 +84,10 @@ sha1 = { version = "=0.10.6", default-features = false }
 signal-hook = { version = "=0.3.18", default-features = false, features = ["iterator"] }
 signal-hook-registry = "=1.4.8"
 errno = "=0.3.14"
+# P1.14 — corpus archive uploads to MinIO/S3-compatible object
+# stores via hand-rolled S3 v4 signing. Already a transitive dep
+# of the rsa stack; surfacing it as a direct dep so the corpus
+# archive crate can use it without reaching into rsa internals.
+hmac = "=0.12.1"
 
 [patch.crates-io]

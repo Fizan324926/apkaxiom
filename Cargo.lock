@@ -725,6 +725,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "p114-classifier"
+version = "0.0.0"
+dependencies = [
+ "p113-fuzz-harness",
+]
+
+[[package]]
+name = "p114-corpus-archive"
+version = "0.0.0"
+dependencies = [
+ "hmac",
+ "p113-fuzz-harness",
+ "sha2",
+]
+
+[[package]]
+name = "p114-cve-template"
+version = "0.0.0"
+dependencies = [
+ "p113-fuzz-harness",
+ "p114-classifier",
+]
+
+[[package]]
+name = "p114-orchestrator"
+version = "0.0.0"
+dependencies = [
+ "p113-fuzz-harness",
+]
+
+[[package]]
 name = "p17-bench-1k"
 version = "0.0.0"
 dependencies = [

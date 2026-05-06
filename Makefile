@@ -838,6 +838,130 @@ p113-gates: ## Run every P1.13 gate end-to-end (dev mode).
 .PHONY: p113
 p113: p113-gates ## Alias — run every P1.13 gate.
 
+# ---------------------------------------------------------------------
+# P1.14 — cross-version + auto-classifier + corpus archive + CVE draft.
+# ---------------------------------------------------------------------
+
+.PHONY: p114-build
+p114-build: ## P1.14 — build every P1.14 binary (release).
+	cargo build -q --release \
+	  -p p113-fuzz-harness -p p114-classifier -p p114-orchestrator \
+	  -p p114-corpus-archive -p p114-cve-template
+
+.PHONY: p114-fuzz
+p114-fuzz: ## P1.14 — 3 000-iter cross-version dev-mode fuzz with synthetic A8/A11/A14.
+	$(MAKE) p114-build
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	rm -rf $(ROOT)/fuzz/findings
+	$(ROOT)/target/release/p113-fuzz-driver \
+	  --mode dev --seeds $(ROOT)/fuzz/corpus/seed --archive $(ROOT)/fuzz/findings \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --probes "A14:synthetic,A11:synthetic,A8:synthetic" \
+	  --iters 3000 --log-every 1000
+
+.PHONY: p114-classify
+p114-classify: ## P1.14 — classify the harness archive into the 4-way taxonomy.
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-classify \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --out $(ROOT)/fuzz/findings/classified.ndjson
+
+.PHONY: p114-classify-eval
+p114-classify-eval: ## P1.14 — HARD gate: classifier micro-precision >= 0.80 vs holdout.
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-build-holdout \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --inputs-dir $(ROOT)/fuzz/findings \
+	  --out $(ROOT)/fuzz/classifier/holdout.tsv --max 100
+	$(ROOT)/target/release/p114-classify-eval \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --holdout $(ROOT)/fuzz/classifier/holdout.tsv \
+	  --min-precision 0.80
+
+.PHONY: p114-orchestrate
+p114-orchestrate: ## P1.14 — 4-worker × 500-iter Centipede-style pool.
+	$(MAKE) p114-build
+	rm -rf $(ROOT)/fuzz/findings-pool
+	$(ROOT)/target/release/p114-orchestrate \
+	  --driver $(ROOT)/target/release/p113-fuzz-driver \
+	  --seeds $(ROOT)/fuzz/corpus/seed \
+	  --archive-root $(ROOT)/fuzz/findings-pool \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --probes "A14:synthetic,A11:synthetic,A8:synthetic" \
+	  --workers 4 --iters-per-worker 500 --merge-every-secs 5
+
+.PHONY: p114-minio-up
+p114-minio-up: ## P1.14 — start a local MinIO container (admin / generated password).
+	@if docker ps --format '{{.Names}}' | grep -q '^p114-minio$$'; then \
+	  echo "p114-minio already running"; \
+	else \
+	  PASS=$$(openssl rand -base64 24); \
+	  echo "MINIO_PASS=$$PASS" > /tmp/p114-minio.env; \
+	  docker rm -f p114-minio 2>/dev/null || true; \
+	  docker run -d --name p114-minio -p 9000:9000 -p 9001:9001 \
+	    -e MINIO_ROOT_USER=admin -e MINIO_ROOT_PASSWORD="$$PASS" \
+	    -v /tmp/p114-minio-data:/data quay.io/minio/minio:latest server /data --console-address ":9001"; \
+	  sleep 2; \
+	  echo "MinIO up at http://127.0.0.1:9000 — credentials in /tmp/p114-minio.env"; \
+	fi
+
+.PHONY: p114-minio-down
+p114-minio-down: ## P1.14 — stop the local MinIO container.
+	docker rm -f p114-minio 2>/dev/null || true
+
+.PHONY: p114-corpus-push
+p114-corpus-push: ## P1.14 — push the harness archive into MinIO (uses $$S3_*).
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-corpus-push \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --inputs-dir $(ROOT)/fuzz/findings --max 100
+
+.PHONY: p114-corpus-verify
+p114-corpus-verify: ## P1.14 — HARD gate: 30/30 byte-identical round-trip from MinIO.
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-corpus-verify \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --inputs-dir $(ROOT)/fuzz/findings --n 30
+
+.PHONY: p114-cve-template-smoke
+p114-cve-template-smoke: ## P1.14 — produce one CVE draft from the first aosp-cve-candidate.
+	$(MAKE) p114-build
+	@if [ ! -f $(ROOT)/fuzz/findings/classified.ndjson ]; then \
+	  $(MAKE) p114-classify; \
+	fi
+	@SHA=$$(awk '/aosp-cve-candidate/ { print $$0; exit }' $(ROOT)/fuzz/findings/classified.ndjson \
+	    | python3 -c "import json,sys; line=sys.stdin.readline(); print(json.loads(line)['input_sha256'] if line.strip() else '')"); \
+	if [ -z "$$SHA" ]; then echo "no aosp-cve-candidate findings — run make p114-fuzz first"; exit 1; fi; \
+	mkdir -p $(ROOT)/drafts; \
+	$(ROOT)/target/release/p114-cve-template \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --finding-id $$SHA --inputs-dir $(ROOT)/fuzz/findings \
+	  --out $(ROOT)/drafts/CVE-$${SHA:0:8}.md; \
+	echo "wrote $(ROOT)/drafts/CVE-$${SHA:0:8}.md"
+
+.PHONY: p114-dashboard-validate
+p114-dashboard-validate: ## P1.14 — validate the cross-version Grafana dashboard JSON.
+	@python3 -c "import json; d=json.load(open('$(ROOT)/fuzz/dashboards/grafana-cross-version.json')); assert d['uid']=='apkaxiom-p114-xv'; assert len(d['panels']) >= 7; print('OK panels=', len(d['panels']))"
+
+.PHONY: p114-tests
+p114-tests: ## P1.14 — every P1.13 + P1.14 lib test.
+	cargo test -p p113-fuzz-harness -p p114-classifier -p p114-orchestrator -p p114-corpus-archive --lib
+
+.PHONY: p114-gates
+p114-gates: ## P1.14 — every CI gate (no MinIO; that needs Docker outside CI).
+	$(MAKE) p114-tests
+	$(MAKE) p114-fuzz
+	$(MAKE) p114-classify
+	$(MAKE) p114-classify-eval
+	$(MAKE) p114-orchestrate
+	$(MAKE) p114-cve-template-smoke
+	$(MAKE) p114-dashboard-validate
+
+.PHONY: p114
+p114: p114-gates ## Alias — run every P1.14 gate.
+
+
 .PHONY: p113-fuzz-50k
 p113-fuzz-50k: ## P1.13 Gap-1 — 50 000-iter dev-mode soak with all arms (rate-limited 1/50).
 	$(MAKE) p113-corpus-seed

@@ -110,8 +110,13 @@ fuzz/findings/
 
 # P1.13 parallel-worker output + AFL output — runtime artefacts.
 fuzz/findings-parallel/
+fuzz/findings-pool/
 fuzz/afl-output/
 fuzz/afl-instrumented-output/
+# P1.14 — generated holdout TSV (rebuild via `make p114-classify-eval`).
+fuzz/classifier/holdout.tsv
+# P1.14 — CVE drafts; private until coordinated disclosure.
+drafts/
 # afl-instrumented is out-of-workspace (its own Cargo.lock + target/).
 fuzz/afl-instrumented/Cargo.lock
 fuzz/afl-instrumented/target/

@@ -1,0 +1,28 @@
+[package]
+name = "p114-corpus-archive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "p114-corpus-push"
+path = "src/main.rs"
+
+[[bin]]
+name = "p114-corpus-verify"
+path = "src/verify.rs"
+
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+hmac = "0.12"
+p113-fuzz-harness = { path = "../harness" }
+
+[lints]
+workspace = true

@@ -57,3 +57,4 @@ pub mod metrics;
 pub mod mutator;
 pub mod probe;
 pub mod third_arms;
+pub mod version_probes;

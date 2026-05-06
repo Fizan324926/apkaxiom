@@ -18,6 +18,7 @@ dependencies = [
  "der",
  "ed25519-dalek",
  "errno",
+ "hmac",
  "miniz_oxide",
  "p256",
  "rsa",

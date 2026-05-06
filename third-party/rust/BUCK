@@ -884,6 +884,12 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "hmac",
+    actual = ":hmac-0.12",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "hmac-0.12",
     srcs = [

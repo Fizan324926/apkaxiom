@@ -46,6 +46,7 @@ use p113_fuzz_harness::{
     mutator::{mutate, Lcg},
     probe::PersistentProbe,
     third_arms::{arms_from_csv, Arm},
+    version_probes::{parse_probes_csv, VersionedProbe},
 };
 
 const VERSION: &str = "p113-fuzz-driver 0.2.0";
@@ -73,6 +74,12 @@ struct Args {
     /// probe with `kill -9` on overrun; the next call re-spawns
     /// transparently. Default 5000 ms.
     probe_timeout_ms: u64,
+    /// Cross-version probes CSV. Format:
+    ///   `A14:path,A11:path,A8:path` — real per-version probes.
+    ///   `A14:synthetic,A11:synthetic,A8:synthetic` — synthetic
+    ///   layer (P1.14 §A — runs on top of `--probe`'s A14 base).
+    /// Empty = single-version mode (legacy P1.13 behaviour).
+    probes_csv: String,
 }
 
 impl Args {
@@ -102,6 +109,7 @@ impl Args {
             min_e_findings_gate: arg("--min-e-gate"),
             max_io_errors_gate: arg("--max-io-errors"),
             probe_timeout_ms: arg("--probe-timeout-ms").unwrap_or(5_000),
+            probes_csv: arg("--probes").unwrap_or_default(),
         }
     }
 }
@@ -335,6 +343,62 @@ fn main() -> std::io::Result<()> {
         println!("  third-arms   : {}", args.arms_csv);
     }
 
+    // Cross-version probes (P1.14 §A) — built on top of the
+    // primary A14 probe. Each entry is either a path to a real
+    // per-version probe binary or the literal `synthetic` token.
+    // Synthetic entries reuse the primary A14 probe and apply the
+    // documented per-version filter list from `version_probes.rs`.
+    let cross_version_probes: Vec<VersionedProbe> = if args.probes_csv.is_empty() {
+        Vec::new()
+    } else {
+        let mut out: Vec<VersionedProbe> = Vec::new();
+        for (version, path) in parse_probes_csv(&args.probes_csv) {
+            let p_str = path.to_str().unwrap_or("");
+            if p_str == "synthetic" {
+                // Synthetic probes share the primary A14 probe.
+                // We can't move primary_probe in (still in use),
+                // so spawn a new dedicated A14 base for each
+                // synthetic version. This is intentional: it
+                // avoids serialising every cross-version request
+                // through the same probe child.
+                match PersistentProbe::spawn(
+                    &format!("aosp-libziparchive-base-{}", version.label().to_lowercase()),
+                    &args.probe,
+                ) {
+                    Ok(base) => {
+                        let vp = VersionedProbe::synthetic_layer(
+                            version,
+                            base.with_timeout(probe_timeout),
+                        );
+                        println!("  xv-probe     : {} (synthetic)", vp.label);
+                        out.push(vp);
+                    }
+                    Err(e) => eprintln!(
+                        "WARN failed to spawn synthetic base for {}: {e}",
+                        version.label()
+                    ),
+                }
+            } else {
+                if !path.exists() {
+                    eprintln!("WARN xv probe {} missing — skipping", path.display());
+                    continue;
+                }
+                match VersionedProbe::real(version, &path, probe_timeout) {
+                    Ok(vp) => {
+                        println!("  xv-probe     : {} (real)", vp.label);
+                        out.push(vp);
+                    }
+                    Err(e) => eprintln!(
+                        "WARN failed to spawn real probe for {} at {}: {e}",
+                        version.label(),
+                        path.display()
+                    ),
+                }
+            }
+        }
+        out
+    };
+
     // Archive.
     let writer = Arc::new(ArchiveWriter::open(&args.archive)?);
 
@@ -467,6 +531,50 @@ fn main() -> std::io::Result<()> {
             counters.distinct_finding_ids.len() as u64,
             Ordering::Relaxed,
         );
+
+        // Cross-version probe arm — every per-version probe sees
+        // the same input. Each probe emits its own Finding record,
+        // tagged with `target_version` + `synthetic`. The
+        // classifier (p114-classify) groups by input_sha256 and
+        // sorts cross-version disagreements into the
+        // `cross-version-evasion` label.
+        if !cross_version_probes.is_empty() {
+            let xv_path = match &maybe_path {
+                Some(p) => p.clone(),
+                None => {
+                    let sha = save_sharded(&writer, &mutated)?;
+                    shard_input_path(&sha)
+                }
+            };
+            for vp in &cross_version_probes {
+                let v_verdict = match vp.run_one(&mutated) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let v_bucket = classify(&axiom, &v_verdict);
+                if !v_bucket.is_finding() {
+                    // Every probe writes A/B records too so the
+                    // classifier sees the full version verdict
+                    // matrix; without an A record for one version,
+                    // a cross-version disagreement could be
+                    // miscategorised as model-bug.
+                }
+                let f = Finding::from_verdicts_versioned(
+                    &args.mode,
+                    &vp.label,
+                    vp.version.label(),
+                    vp.synthetic,
+                    &mutated,
+                    &xv_path,
+                    axiom.clone(),
+                    v_verdict,
+                    v_bucket,
+                    Some(format!("{}", origin.display())),
+                    Some(kind.label().to_string()),
+                );
+                writer.append(&f)?;
+            }
+        }
 
         // ASan arm — log SEPARATE finding if it diverges from the
         // primary probe's verdict (an ASan crash surfaces as a
