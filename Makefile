@@ -1301,6 +1301,38 @@ soundness-signing: ## P1.17 — Signing extraction tests (P1.16).
 soundness: ## P1.17 — Full soundness regression suite (fail-closed).
 	bash ci/soundness/run.sh full
 
+##@ P1.18 — End-to-end Bench-1K smoke + reproducibility
+
+.PHONY: p118-build
+p118-build: ## P1.18 — build p118-e2e release binary.
+	cargo build -q -p p118-e2e --release
+
+.PHONY: p118-smoke
+p118-smoke: p118-build ## P1.18 — E2E smoke on real-apks corpus (K2 latency + K3 RSS gates).
+	$(ROOT)/target/release/p118-e2e \
+		--corpus $(ROOT)/fuzz/corpus/real-apks \
+		--bench \
+		--json-out /tmp/p118-smoke-receipt.ndjson
+
+.PHONY: p118-bench
+p118-bench: p118-build ## P1.18 — E2E smoke on bench-1k corpus (K2 latency + K3 RSS gates).
+	$(ROOT)/target/release/p118-e2e \
+		--corpus $(ROOT)/fuzz/corpus/bench-1k \
+		--bench \
+		--json-out /tmp/p118-bench-receipt.ndjson
+
+.PHONY: p118-repro
+p118-repro: p118-build ## P1.18 — K10 reproducibility check (two runs, bit-identical NDJSON).
+	bash $(ROOT)/scripts/p118-repro-check.sh $(ROOT)/fuzz/corpus/real-apks
+
+.PHONY: p118-gates
+p118-gates: ## P1.18 — all local gates: smoke + repro.
+	$(MAKE) p118-smoke
+	$(MAKE) p118-repro
+
+.PHONY: p118
+p118: p118-gates ## Alias — run every P1.18 gate.
+
 ##@ Nix
 
 .PHONY: nix-check

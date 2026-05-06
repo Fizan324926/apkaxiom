@@ -1,0 +1,24 @@
+[package]
+name = "p118-e2e"
+description = "Phase 1 end-to-end evaluation harness — ZIP + IR + signing + BLAKE3 on real APK corpora."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "p118-e2e"
+path = "src/main.rs"
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+axiom-l1-signing-verified = { path = "../../crates/axiom-l1-signing-verified" }
+axiom-crypto-hacl = { path = "../../crates/axiom-crypto-hacl" }
+axiom-blake3-hacl = { path = "../../crates/axiom-blake3-hacl" }
+walkdir = "2"
+
+[lints]
+workspace = true

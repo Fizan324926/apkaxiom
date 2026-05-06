@@ -1,0 +1,90 @@
+name: P1.18 E2E evaluation — smoke + cross-arch parity + reproducibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/p118-e2e/**'
+      - 'crates/axiom-l1-rs/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-blake3-hacl/**'
+      - 'fuzz/corpus/real-apks/**'
+      - '.github/workflows/p118.yml'
+  pull_request:
+    paths:
+      - 'tools/p118-e2e/**'
+      - 'crates/axiom-l1-rs/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-blake3-hacl/**'
+  workflow_dispatch:
+
+jobs:
+  # ── Per-architecture: smoke + KPI gates + emit receipt ────────────────────
+  e2e-smoke:
+    name: E2E smoke (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.runner }}-cargo-p118-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.runner }}-cargo-p118-
+
+      - name: Build p118-e2e (release)
+        run: cargo build -q -p p118-e2e --release
+
+      - name: HARD gate — K2 latency + K3 peak RSS on Smoke corpus
+        run: |
+          ./target/release/p118-e2e \
+            --corpus fuzz/corpus/real-apks \
+            --bench \
+            --json-out e2e-receipt.ndjson
+
+      - name: HARD gate — K10 reproducibility (run twice, diff NDJSON)
+        run: bash scripts/p118-repro-check.sh fuzz/corpus/real-apks
+
+      - name: Upload receipt for cross-arch parity check
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-receipt-${{ matrix.runner }}
+          path: e2e-receipt.ndjson
+
+  # ── Cross-arch parity: diff receipts from both runners ───────────────────
+  cross-arch-parity:
+    name: K9 cross-arch parity
+    needs: e2e-smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: receipts
+
+      - name: HARD gate — K9 cross-arch parity (x86_64 vs ARM64 receipt diff)
+        run: |
+          set -euo pipefail
+          X86="receipts/e2e-receipt-ubuntu-22.04/e2e-receipt.ndjson"
+          ARM="receipts/e2e-receipt-ubuntu-22.04-arm/e2e-receipt.ndjson"
+          if diff "$X86" "$ARM"; then
+            echo "PASS K9 cross-arch parity: receipts are bit-identical"
+          else
+            echo "FAIL K9 cross-arch parity: receipts diverge between x86_64 and ARM64"
+            exit 1
+          fi
