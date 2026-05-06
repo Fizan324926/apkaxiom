@@ -551,6 +551,51 @@ p110-gates: ## Run every P1.10 sub-phase gate end-to-end.
 	$(MAKE) p110-merkle-perf-delta
 	$(MAKE) p110-buck2
 
+##@ P1.11 — APK signing schemes (v1/v2/v3/v3.1)
+
+.PHONY: p111-block-parse
+p111-block-parse: ## P1.11 §B item 1 — Rust APK signing-block parser unit + integration tests on 4 F-Droid + 3 multi-scheme fixtures.
+	cargo test -p axiom-sigblock --release
+
+.PHONY: p111-lean-build
+p111-lean-build: ## P1.11 §B item 2 — Lake-build every Lean signing module.
+	nix develop --accept-flake-config --command lake build Apkaxiom.Signing.Block Apkaxiom.Signing.Block.Properties Apkaxiom.Signing.Scheme Apkaxiom.Signing.V1 Apkaxiom.Signing.V2 Apkaxiom.Signing.V3 Apkaxiom.Signing.V3_1 Apkaxiom.Signing.Dispatch Apkaxiom.Signing.Crypto
+
+.PHONY: p111-sig-eval
+p111-sig-eval: ## P1.11 §B item 3 — build both evaluator binaries.
+	cargo build -q -p sig-eval-rust --release
+	nix develop --accept-flake-config --command lake build sig-eval
+
+.PHONY: p111-adversarial
+p111-adversarial: ## P1.11 §B — regenerate adversarial corpus and verify every variant rejects under apksigner.
+	python3 scripts/p111-gen-adversarial.py
+	@for f in corpus/signing/adversarial/*.apk; do \
+	  if apksigner verify "$$f" >/dev/null 2>&1; then \
+	    echo "::error::$$f unexpectedly verifies under apksigner"; exit 1; \
+	  else \
+	    echo "  reject: $$(basename $$f)"; \
+	  fi; \
+	done
+
+.PHONY: p111-differential
+p111-differential: ## P1.11 §B item 4 (HARD) — three-way Lean ↔ Rust ↔ apksigner differential on 16 APKs.
+	bash scripts/p111-differential.sh
+
+.PHONY: p111-buck2
+p111-buck2: ## Verify Buck2 builds for every P1.11 target.
+	buck2 build \
+	  //crates/axiom-sigblock:axiom-sigblock \
+	  //tools/sig-eval-rust:sig-eval-rust
+
+.PHONY: p111-gates
+p111-gates: ## Run every P1.11 gate end-to-end.
+	$(MAKE) p111-block-parse
+	$(MAKE) p111-lean-build
+	$(MAKE) p111-sig-eval
+	$(MAKE) p111-adversarial
+	$(MAKE) p111-differential
+	$(MAKE) p111-buck2
+
 ##@ Bazel sub-workspace
 
 .PHONY: bazel-info

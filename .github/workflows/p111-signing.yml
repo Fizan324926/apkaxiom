@@ -1,0 +1,90 @@
+name: P1.11 APK signing-scheme gates (multi-arch)
+
+# P1.11 §B — three-way Lean ↔ Rust ↔ apksigner differential on the
+# committed signing corpus. Runs on x86_64 + aarch64 Linux + macOS
+# so an arch-conditional bug in the Rust block parser, the Lean
+# evaluator, or the apksigner CLI surfaces as a CI failure rather
+# than a silent disagreement.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/axiom-sigblock/**"
+      - "theorems/Apkaxiom/Signing/**"
+      - "theorems/Apkaxiom/Tv/SigEval.lean"
+      - "tools/sig-eval-rust/**"
+      - "corpus/signing/**"
+      - "scripts/p111-*.sh"
+      - "scripts/p111-*.py"
+      - ".github/workflows/p111-signing.yml"
+  pull_request:
+    paths:
+      - "crates/axiom-sigblock/**"
+      - "theorems/Apkaxiom/Signing/**"
+      - "tools/sig-eval-rust/**"
+  workflow_dispatch:
+
+jobs:
+  p111-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Install apksigner
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update && sudo apt-get install -y apksigner
+          else
+            brew install --quiet android-platform-tools
+            # macOS: apksigner ships with build-tools; brew tap the SDK.
+            brew install --cask android-commandlinetools || true
+            yes | sdkmanager "build-tools;35.0.0" || true
+            echo "$HOME/Library/Android/sdk/build-tools/35.0.0" >> $GITHUB_PATH
+          fi
+          which apksigner
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-p111-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Lake
+        uses: actions/cache@v4
+        with:
+          path: |
+            .lake/build
+            .lake/packages/*/.lake/build
+          key: ${{ runner.os }}-${{ runner.arch }}-p111-lake-${{ hashFiles('lake-manifest.json') }}
+
+      - name: Lean build (every signing module)
+        run: nix develop --accept-flake-config --command make p111-lean-build
+
+      - name: Rust block-parse tests
+        run: nix develop --accept-flake-config --command make p111-block-parse
+
+      - name: Build evaluators
+        run: nix develop --accept-flake-config --command make p111-sig-eval
+
+      - name: Adversarial-corpus regeneration + apksigner reject check
+        run: nix develop --accept-flake-config --command make p111-adversarial
+
+      - name: Three-way differential (Lean ↔ Rust ↔ apksigner)
+        run: nix develop --accept-flake-config --command make p111-differential
+
+      - name: Buck2 hermeticity gate
+        run: nix develop --accept-flake-config --command make p111-buck2
