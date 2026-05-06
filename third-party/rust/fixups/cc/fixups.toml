@@ -1,6 +1,0 @@
-# cc-1 includes a .c file at build time via `include_bytes!`.
-# Reindeer only globs .rs by default, so we explicitly pull this
-# in as an extra source. Pure-mode blake3 doesn't actually call
-# `cc::Build::compile`, but cc is a build-dependency so it must
-# still compile.
-extra_srcs = ["src/detect_compiler_family.c"]

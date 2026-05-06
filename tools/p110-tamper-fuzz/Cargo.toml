@@ -1,0 +1,12 @@
+[package]
+name = "p110-tamper-fuzz"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+
+[lints]
+workspace = true

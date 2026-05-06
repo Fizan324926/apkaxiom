@@ -258,7 +258,11 @@ impl<S: AsyncByteSource> ApkAsyncParser<S> {
         let (lfh_record, consumed) = lfh::parse_lfh(header_slice).map_err(StreamError::Lfh)?;
         debug_assert_eq!(consumed as u64, header_total);
 
+        let raw_header = header_slice.to_vec();
+        let header_offset = self.bytes_consumed;
         let header_event = ParseEvent::ZipEntryHeader {
+            raw_header,
+            offset: header_offset,
             file_name: lfh_record.file_name,
             compression_method: lfh_record.compression_method,
             compressed_size: lfh_record.compressed_size,
@@ -363,9 +367,22 @@ impl<S: AsyncByteSource> ApkAsyncParser<S> {
                     bytes: chunk,
                 }));
             }
+            // i == 0: DD starts at the cursor. Capture verbatim.
+            let dd_offset = self.bytes_consumed;
+            let dd_raw = unread[..16].to_vec();
+            let crc32 = u32::from_le_bytes(unread[4..8].try_into().unwrap());
+            let compressed_size = u32::from_le_bytes(unread[8..12].try_into().unwrap());
+            let uncompressed_size = u32::from_le_bytes(unread[12..16].try_into().unwrap());
             self.consume(16);
+            self.pending.push_back(ParseEvent::DataDescriptor {
+                raw: dd_raw,
+                offset: dd_offset,
+                crc32,
+                compressed_size,
+                uncompressed_size,
+            });
             self.state = ParserState::NextEntry;
-            return Box::pin(self.advance_at_entry_start()).await;
+            return Ok(self.pending.pop_front());
         }
         if unread.len() <= 3 {
             let n = self.read_more().await?;
@@ -400,24 +417,76 @@ impl<S: AsyncByteSource> ApkAsyncParser<S> {
         self.emit_eocd_and_complete()
     }
 
+    /// Mirror of the sync parser's CD walk. Emits SigningBlock (if
+    /// non-empty) → CdrEntry × N → EocdSeen → ParseComplete.
+    #[allow(clippy::too_many_lines)]
     fn emit_eocd_and_complete(&mut self) -> Result<Option<ParseEvent>, StreamError> {
-        let eocd_off = eocd::find_eocd(self.unread())
+        let eocd_off_in_buf = eocd::find_eocd(self.unread())
             .ok_or(StreamError::Eocd(eocd::ParseError::BadSignature))?;
-        let (eocd_record, consumed) =
-            eocd::parse_eocd(&self.unread()[eocd_off..]).map_err(StreamError::Eocd)?;
+        let (eocd_record, eocd_consumed) =
+            eocd::parse_eocd(&self.unread()[eocd_off_in_buf..]).map_err(StreamError::Eocd)?;
+        let buf_start_in_stream = self.bytes_consumed;
+        let cd_start_in_stream = u64::from(eocd_record.cd_offset);
+        let cd_size = eocd_record.cd_size as usize;
+        if cd_start_in_stream < buf_start_in_stream {
+            return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+        }
+        let cd_off_in_buf = (cd_start_in_stream - buf_start_in_stream) as usize;
+        let unread_len = self.unread().len();
+        if cd_off_in_buf
+            .checked_add(cd_size)
+            .is_none_or(|end| end > unread_len)
+        {
+            return Err(StreamError::Truncated {
+                at: buf_start_in_stream + cd_off_in_buf as u64,
+                expected: cd_size as u64,
+            });
+        }
+        if cd_off_in_buf > 0 {
+            let sig_bytes = self.unread()[..cd_off_in_buf].to_vec();
+            self.pending.push_back(ParseEvent::SigningBlock {
+                raw: sig_bytes,
+                offset: buf_start_in_stream,
+            });
+        }
+        let cd_bytes_owned = self.unread()[cd_off_in_buf..cd_off_in_buf + cd_size].to_vec();
+        let mut cdr_off_in_cd = 0usize;
+        while cdr_off_in_cd < cd_bytes_owned.len() {
+            let (cdr_record, cdr_consumed) =
+                axiom_zip_ref::cdr::parse_cdr(&cd_bytes_owned[cdr_off_in_cd..])
+                    .map_err(StreamError::Cdr)?;
+            let raw = cd_bytes_owned[cdr_off_in_cd..cdr_off_in_cd + cdr_consumed].to_vec();
+            let cdr_offset_in_stream = cd_start_in_stream + cdr_off_in_cd as u64;
+            self.pending.push_back(ParseEvent::CdrEntry {
+                raw,
+                offset: cdr_offset_in_stream,
+                file_name: cdr_record.file_name,
+                compression_method: cdr_record.compression_method,
+                compressed_size: cdr_record.compressed_size,
+                uncompressed_size: cdr_record.uncompressed_size,
+                crc32: cdr_record.crc32,
+                general_flags: cdr_record.general_flags,
+                lfh_offset: cdr_record.lfh_offset,
+            });
+            cdr_off_in_cd += cdr_consumed;
+        }
+        let eocd_raw = self.unread()[eocd_off_in_buf..eocd_off_in_buf + eocd_consumed].to_vec();
+        let eocd_offset_in_stream = buf_start_in_stream + eocd_off_in_buf as u64;
         let eocd_event = ParseEvent::EocdSeen {
+            raw: eocd_raw,
+            offset: eocd_offset_in_stream,
             total_entries: eocd_record.total_entries,
             cd_offset: eocd_record.cd_offset,
             cd_size: eocd_record.cd_size,
         };
-        self.consume(eocd_off + consumed);
-        let complete_event = ParseEvent::ParseComplete {
+        self.consume(eocd_off_in_buf + eocd_consumed);
+        self.pending.push_back(eocd_event);
+        self.pending.push_back(ParseEvent::ParseComplete {
             entries: self.entries_seen,
             bytes: self.bytes_consumed,
-        };
-        self.pending.push_back(complete_event);
+        });
         self.state = ParserState::Done;
-        Ok(Some(eocd_event))
+        Ok(self.pending.pop_front())
     }
 }
 
@@ -511,10 +580,12 @@ mod tests {
                 None => break,
             }
         }
-        assert_eq!(events.len(), 3);
+        // P1.10: Header + CdrEntry + Eocd + ParseComplete.
+        assert_eq!(events.len(), 4);
         assert!(matches!(events[0], ParseEvent::ZipEntryHeader { .. }));
-        assert!(matches!(events[1], ParseEvent::EocdSeen { .. }));
-        assert!(matches!(events[2], ParseEvent::ParseComplete { .. }));
+        assert!(matches!(events[1], ParseEvent::CdrEntry { .. }));
+        assert!(matches!(events[2], ParseEvent::EocdSeen { .. }));
+        assert!(matches!(events[3], ParseEvent::ParseComplete { .. }));
     }
 
     #[test]

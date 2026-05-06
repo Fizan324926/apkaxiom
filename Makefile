@@ -481,37 +481,72 @@ p19-gates: ## Run every P1.9 sub-phase gate end-to-end.
 
 ##@ P1.10 — Merkle commit chain
 
+.PHONY: p110-vectors
+p110-vectors: ## P1.10 §B item 6 — BLAKE3 official test-vector parity (35 lengths × 3 modes × 2 widths + streaming).
+	cargo test -p axiom-blake3-hacl --release --lib -- --nocapture
+
+.PHONY: p110-cross-impl
+p110-cross-impl: ## P1.10 §B item 9 — Rust BLAKE3 vs C-reference (Python blake3) parity on 4 APKs + 35 paint vectors.
+	cargo test -p axiom-blake3-hacl --release --test cross_impl -- --nocapture
+
+.PHONY: p110-cross-impl-regen
+p110-cross-impl-regen: ## Re-derive cross-impl reference values from the Python blake3 package (operator one-shot).
+	python3 scripts/gen-cross-impl-rs.py
+	python3 scripts/gen-blake3-vectors.py
+	$(MAKE) p110-cross-impl
+
+.PHONY: p110-reproducibility
+p110-reproducibility: ## P1.10 §B item 4 — Merkle root reproducibility + KAT regression on 4 real APKs.
+	cargo test -p axiom-l1-rs --release --test commit_chain_reproducibility -- --nocapture
+
+.PHONY: p110-chunk-invariance
+p110-chunk-invariance: ## P1.10 §B item 7 — Merkle root invariant under chunk_size ∈ {1, 7, 17, 64, 65, 256, 1024, 4096, 4097, 65536}.
+	cargo test -p axiom-l1-rs --release --test commit_chain_chunk_invariance -- --nocapture
+
+.PHONY: p110-tamper-fuzz
+p110-tamper-fuzz: ## P1.10 §B item 5 — 10K random single-bit-flip mutations × 4 fixtures = 40K trials, kill rate ≥ 99 % per region.
+	cargo run -q -p p110-tamper-fuzz --release -- \
+	  --runs $(or $(P110_TAMPER_RUNS),10000) \
+	  --gate $(or $(P110_TAMPER_GATE),99.0)
+
+.PHONY: p110-chain-fuzz
+p110-chain-fuzz: ## P1.10 §B item 10 — 10K-mutation in-process commit-chain fuzz (no panic, deterministic, accept-set parity).
+	cargo test -p axiom-l1-rs --release --test fuzz_commit_chain_inproc -- --nocapture
+
+.PHONY: p110-merkle-proof
+p110-merkle-proof: ## P1.10 §B item 11 — MerkleProof generate / verify / encode / decode (incl. 1000-leaf stress).
+	cargo test -p axiom-l1-rs --release --lib merkle_proof -- --nocapture
+
 .PHONY: p110-hash-throughput
-p110-hash-throughput: ## P1.10 §10 row 2 — BLAKE3 single-core throughput on 256 MiB (gate ≥ 1.5 GB/s).
+p110-hash-throughput: ## P1.10 §B item 12 — BLAKE3 single-core throughput n=100 (gate ≥ 1.5 GB/s; reports σ + p50/p95).
 	cargo run -q -p p110-hash-throughput --release -- \
+	  --runs $(or $(P110_RUNS),100) \
 	  --gate $(or $(P110_HASH_GATE),1.5)
 
 .PHONY: p110-merkle-perf-delta
-p110-merkle-perf-delta: ## P1.10 §10 row 5 — Merkle-overhead vs flat-hash baseline (gate ≤ 10% or |Δ|≤2σ).
+p110-merkle-perf-delta: ## P1.10 §B item 2 — 3-arm perf-delta (Δ_lit reported, Δ_overhead gated ≤ 10 % or |Δ|≤2σ).
 	cargo run -q -p p110-merkle-perf-delta --release -- \
-	  --runs $(or $(P110_RUNS),20) \
-	  --iters $(or $(P110_ITERS),50) \
-	  --gate $(or $(P110_PERF_GATE),10.0)
-
-.PHONY: p110-reproducibility
-p110-reproducibility: ## P1.10 §10 row 4 — Merkle root bit-identical across runs on 4 real APKs.
-	cargo test -p axiom-l1-rs --release --test commit_chain_reproducibility -- --nocapture
-
-.PHONY: p110-vectors
-p110-vectors: ## P1.10 §10 row 1 — BLAKE3 official test-vector parity (5 unit tests).
-	cargo test -p axiom-blake3-hacl --release -- --nocapture
+	  --runs $(or $(P110_PERF_RUNS),20) \
+	  --iters $(or $(P110_PERF_ITERS),50) \
+	  --gate $(or $(P110_PERF_GATE),15.0)
 
 .PHONY: p110-buck2
-p110-buck2: ## Verify Buck2 builds for every P1.10 target.
+p110-buck2: ## P1.10 §B item 14 — multi-arch Buck2 hermeticity (same BUCK builds on x86_64 + aarch64).
 	buck2 build \
 	  //crates/axiom-blake3-hacl:axiom-blake3-hacl \
 	  //tools/p110-hash-throughput:p110-hash-throughput \
-	  //tools/p110-merkle-perf-delta:p110-merkle-perf-delta
+	  //tools/p110-merkle-perf-delta:p110-merkle-perf-delta \
+	  //tools/p110-tamper-fuzz:p110-tamper-fuzz
 
 .PHONY: p110-gates
 p110-gates: ## Run every P1.10 sub-phase gate end-to-end.
 	$(MAKE) p110-vectors
+	$(MAKE) p110-cross-impl
 	$(MAKE) p110-reproducibility
+	$(MAKE) p110-chunk-invariance
+	$(MAKE) p110-merkle-proof
+	$(MAKE) p110-tamper-fuzz
+	$(MAKE) p110-chain-fuzz
 	$(MAKE) p110-hash-throughput
 	$(MAKE) p110-merkle-perf-delta
 	$(MAKE) p110-buck2

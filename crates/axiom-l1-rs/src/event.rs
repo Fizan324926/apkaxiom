@@ -42,6 +42,15 @@ pub enum ParseEvent {
     /// payload (file body) arrives in subsequent `ZipEntryData`
     /// events.
     ZipEntryHeader {
+        /// Verbatim LFH bytes — fixed 30-byte prefix + name +
+        /// extra-field. Hashing this commits to every LFH field
+        /// (CRC, sizes, mod-time, general-flags, extra-fields,
+        /// name) byte-for-byte; a single bit-flip anywhere
+        /// produces a different leaf.
+        raw_header: Vec<u8>,
+        /// Stream-offset of the LFH signature (first byte of
+        /// `raw_header`).
+        offset: u64,
         /// Filename bytes, exactly as they appear in the LFH.
         file_name: Vec<u8>,
         /// `compression_method` (0 = stored, 8 = deflate, …).
@@ -68,11 +77,68 @@ pub enum ParseEvent {
         /// Bytes in this chunk.
         bytes: Vec<u8>,
     },
-    /// The end-of-central-directory signature was found. Surfaced
-    /// before the central directory walk begins so consumers can
-    /// commit a Merkle leaf for the EOCD's authoritative cd_offset
-    /// + cd_size before any per-CDR processing.
+    /// Data-descriptor record (12 or 16 bytes, depending on
+    /// whether the optional signature 0x08074b50 is present).
+    /// Emitted only for entries whose LFH had general-flag bit 3
+    /// set (deferred-CRC mode). The verbatim bytes are committed
+    /// so a single-bit-flip anywhere in the DD changes the
+    /// Merkle root.
+    DataDescriptor {
+        /// Verbatim DD bytes.
+        raw: Vec<u8>,
+        /// Stream-offset of the DD's first byte.
+        offset: u64,
+        /// Recovered CRC-32 of the body.
+        crc32: u32,
+        /// Recovered compressed size.
+        compressed_size: u32,
+        /// Recovered uncompressed size.
+        uncompressed_size: u32,
+    },
+    /// The bytes between the last LFH body and the central
+    /// directory — typically the APK signing block (v2/v3) when
+    /// present, or empty for unsigned archives. Hashing this
+    /// commits to the signing-block bytes verbatim.
+    SigningBlock {
+        /// Verbatim signing-block bytes (`bytes_consumed_at_end_of_body`
+        /// to `cd_offset` from the EOCD).
+        raw: Vec<u8>,
+        /// Stream-offset of the first byte.
+        offset: u64,
+    },
+    /// One central-directory record (CDR). Emitted once per
+    /// archive entry, after all `ZipEntryHeader`/`ZipEntryData`
+    /// for that entry but before the EOCD.
+    CdrEntry {
+        /// Verbatim CDR bytes (46-byte fixed prefix + name +
+        /// extra-field + comment).
+        raw: Vec<u8>,
+        /// Stream-offset of the CDR signature.
+        offset: u64,
+        /// Filename bytes, exactly as they appear in the CDR.
+        file_name: Vec<u8>,
+        /// `compression_method` (0 = stored, 8 = deflate, …).
+        compression_method: u16,
+        /// CDR `compressed_size` field — authoritative even when
+        /// the LFH zeroed it via the data-descriptor flag.
+        compressed_size: u32,
+        /// CDR `uncompressed_size` field — same authoritative
+        /// caveat.
+        uncompressed_size: u32,
+        /// CRC-32 of the uncompressed data (CDR-declared).
+        crc32: u32,
+        /// `general_purpose_bit_flag`.
+        general_flags: u16,
+        /// LFH offset (relative to start of archive) — the
+        /// "where to find this entry's local header" cross-link.
+        lfh_offset: u32,
+    },
+    /// The end-of-central-directory signature was found.
     EocdSeen {
+        /// Verbatim EOCD record bytes.
+        raw: Vec<u8>,
+        /// Stream-offset of the EOCD signature.
+        offset: u64,
         /// `total_entries` from the EOCD.
         total_entries: u16,
         /// `cd_offset` from the EOCD.
@@ -150,6 +216,9 @@ impl ParseEvent {
             Self::ResourceEntry { .. } => 8,
             Self::ResourceEnd => 9,
             Self::ParseComplete { .. } => 10,
+            Self::SigningBlock { .. } => 11,
+            Self::CdrEntry { .. } => 12,
+            Self::DataDescriptor { .. } => 13,
         }
     }
 
@@ -166,6 +235,8 @@ impl ParseEvent {
     pub fn to_json(&self) -> String {
         match self {
             Self::ZipEntryHeader {
+                raw_header,
+                offset,
                 file_name,
                 compression_method,
                 compressed_size,
@@ -173,13 +244,10 @@ impl ParseEvent {
                 crc32,
                 general_flags,
             } => format!(
-                "{{\"tag\":\"ZipEntryHeader\",\"file_name\":{},\"compression_method\":{},\"compressed_size\":{},\"uncompressed_size\":{},\"crc32\":{},\"general_flags\":{}}}",
+                "{{\"tag\":\"ZipEntryHeader\",\"offset\":{offset},\"raw_len\":{},\"raw_header\":{},\"file_name\":{},\"compression_method\":{compression_method},\"compressed_size\":{compressed_size},\"uncompressed_size\":{uncompressed_size},\"crc32\":{crc32},\"general_flags\":{general_flags}}}",
+                raw_header.len(),
+                json_byte_array(raw_header),
                 json_byte_array(file_name),
-                compression_method,
-                compressed_size,
-                uncompressed_size,
-                crc32,
-                general_flags,
             ),
             Self::ZipEntryData { offset, bytes } => format!(
                 "{{\"tag\":\"ZipEntryData\",\"offset\":{},\"len\":{},\"bytes\":{}}}",
@@ -187,8 +255,48 @@ impl ParseEvent {
                 bytes.len(),
                 json_byte_array(bytes),
             ),
-            Self::EocdSeen { total_entries, cd_offset, cd_size } => format!(
-                "{{\"tag\":\"EocdSeen\",\"total_entries\":{total_entries},\"cd_offset\":{cd_offset},\"cd_size\":{cd_size}}}",
+            Self::SigningBlock { raw, offset } => format!(
+                "{{\"tag\":\"SigningBlock\",\"offset\":{offset},\"len\":{},\"raw\":{}}}",
+                raw.len(),
+                json_byte_array(raw),
+            ),
+            Self::DataDescriptor {
+                raw,
+                offset,
+                crc32,
+                compressed_size,
+                uncompressed_size,
+            } => format!(
+                "{{\"tag\":\"DataDescriptor\",\"offset\":{offset},\"len\":{},\"raw\":{},\"crc32\":{crc32},\"compressed_size\":{compressed_size},\"uncompressed_size\":{uncompressed_size}}}",
+                raw.len(),
+                json_byte_array(raw),
+            ),
+            Self::CdrEntry {
+                raw,
+                offset,
+                file_name,
+                compression_method,
+                compressed_size,
+                uncompressed_size,
+                crc32,
+                general_flags,
+                lfh_offset,
+            } => format!(
+                "{{\"tag\":\"CdrEntry\",\"offset\":{offset},\"raw_len\":{},\"raw\":{},\"file_name\":{},\"compression_method\":{compression_method},\"compressed_size\":{compressed_size},\"uncompressed_size\":{uncompressed_size},\"crc32\":{crc32},\"general_flags\":{general_flags},\"lfh_offset\":{lfh_offset}}}",
+                raw.len(),
+                json_byte_array(raw),
+                json_byte_array(file_name),
+            ),
+            Self::EocdSeen {
+                raw,
+                offset,
+                total_entries,
+                cd_offset,
+                cd_size,
+            } => format!(
+                "{{\"tag\":\"EocdSeen\",\"offset\":{offset},\"raw_len\":{},\"raw\":{},\"total_entries\":{total_entries},\"cd_offset\":{cd_offset},\"cd_size\":{cd_size}}}",
+                raw.len(),
+                json_byte_array(raw),
             ),
             Self::ManifestStart => "{\"tag\":\"ManifestStart\"}".to_string(),
             Self::ManifestField { tag, value } => format!(

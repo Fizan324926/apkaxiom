@@ -219,6 +219,7 @@ impl Apk<Unverified> {
                     uncompressed_size,
                     crc32,
                     general_flags,
+                    ..
                 } => {
                     if let Some((slot, buf, method, usize_)) = active_capture.take() {
                         persist_capture(

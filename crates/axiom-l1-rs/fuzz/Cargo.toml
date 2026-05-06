@@ -34,3 +34,18 @@ path = "fuzz_targets/fuzz_apk_typestate.rs"
 test = false
 doc = false
 bench = false
+
+# `cargo +nightly fuzz run fuzz_commit_chain` drives the
+# `parse_with_commit_chain` wrapper with random byte sequences.
+# Pass conditions:
+#   - No panic in the chain wrapper.
+#   - Merkle root + leaf list are deterministic across two runs
+#     on the same accepted input.
+#   - The chain wrapper's accept-set equals the bare streaming
+#     parser's: no input rejected by chain that bare accepts.
+[[bin]]
+name = "fuzz_commit_chain"
+path = "fuzz_targets/fuzz_commit_chain.rs"
+test = false
+doc = false
+bench = false

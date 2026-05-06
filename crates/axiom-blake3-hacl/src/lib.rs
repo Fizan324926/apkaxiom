@@ -1,36 +1,31 @@
 // Copyright (c) APKAXIOM Authors. Apache-2.0 OR MIT.
 
-//! `axiom-blake3-hacl` — P1.10 verified-crypto hashing.
+//! `axiom-blake3-hacl` — APKAXIOM's BLAKE3 hashing surface.
 //!
 //! ## Honest framing (ADR-0028)
 //!
-//! P1.10's README §4 lists "HACL\*" as the source of an
-//! F\*-verified BLAKE3. **HACL\* does not actually ship a
-//! verified BLAKE3** (only BLAKE2b / BLAKE2s); the closest
-//! upstream is a research-paper proposal that hasn't landed.
-//! See ADR-0028 for the full deviation rationale.
+//! The crate name preserves an aspirational link to HACL\* (the
+//! F\*-verified crypto library), but **HACL\* does not currently
+//! ship a verified BLAKE3** (it covers BLAKE2b/2s, SHA-2/3,
+//! ChaCha20-Poly1305, Curve25519, P-256, Ed25519). The
+//! upstream-proposed verified BLAKE3 is a research paper that
+//! has not landed. See [ADR-0028](../../../docs/phase-1/P1.10/ADR-0028-hacl-blake3-deviation.md).
 //!
-//! What this crate ships:
+//! Earlier drafts shipped a `Blake2bHacl` placeholder type that
+//! dispatched to BLAKE3 — that was a Potemkin abstraction (a
+//! `Hasher` named after BLAKE2b/HACL\* that was neither). It is
+//! deleted. This crate now ships exactly one backend:
 //!
-//!   - **`Blake3` (production)** — the official BLAKE3-team Rust
-//!     crate. Audited, SIMD-tunable, the same reference
-//!     implementation Android `apksigner` uses for v3 signing.
-//!     **This is what `commit_chain.rs` actually hashes with.**
+//!   - **`Blake3`** — the official BLAKE3-team Rust crate
+//!     (`blake3 = 1.5.5`, `pure` feature). Audited, the same
+//!     reference implementation Android `apksigner` uses for v3
+//!     signing. This is the one and only hash backend
+//!     `commit_chain.rs` builds against.
 //!
-//!   - **`Blake2bHacl` (verified-baseline placeholder)** — the
-//!     binding *surface* for HACL\* BLAKE2b. The full HACL\* C
-//!     dist is a 30-min cold build with F\*+OCaml+opam
-//!     dependencies that are out of session-scope; the
-//!     surface is shipped today as a `cfg(feature = "hacl-c")`-
-//!     gated module so the type-check / API contract lands now,
-//!     and the real C-binding lights up once HACL\* is vendored
-//!     under `external/hacl-star/` (operator one-shot in §C).
-//!
-//! ## API
-//!
-//! Both backends share a `Hasher` trait so consumers (the
-//! commit-chain) parameterise over the hash without committing
-//! to either backend. `Blake3` is the workspace default.
+//! When HACL\* upstream merges a verified BLAKE3, this crate
+//! grows a `Blake3Hacl` backend behind a real Cargo feature and
+//! an honest `Hasher`-trait routing layer. Until then we ship
+//! one truthful backend and refuse to fake the second.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs, unreachable_pub)]
@@ -40,8 +35,24 @@
     clippy::too_long_first_doc_paragraph
 )]
 
-/// Output of a hash — 32 bytes for BLAKE3 / BLAKE2b-256.
+#[allow(missing_docs)]
+pub mod vectors;
+
+#[allow(missing_docs)]
+pub mod cross_impl;
+
+/// Output of a hash — 32 bytes for BLAKE3.
 pub type Hash = [u8; 32];
+
+/// Generate the canonical BLAKE3 test-vector input for `len` bytes:
+/// `[i % 251 for i in 0..len]`. Matches the BLAKE3-team's
+/// `paint_test_input` helper used by the official suite.
+#[must_use]
+pub fn paint_test_input(len: usize) -> Vec<u8> {
+    // `i % 251 < 256`, so the `as u8` truncation is safe by construction.
+    #[allow(clippy::cast_possible_truncation)]
+    (0..len).map(|i| (i % 251) as u8).collect()
+}
 
 /// Common hashing surface implemented by every backend.
 pub trait Hasher: Default {
@@ -81,36 +92,78 @@ impl Hasher for Blake3 {
     }
 }
 
-// ---------------------------------------------------------------------
-// Verified-baseline: HACL* BLAKE2b (cfg-gated; see ADR-0028)
-// ---------------------------------------------------------------------
-
-/// HACL\* BLAKE2b-256 binding — F\*-verified. The C dist is
-/// **not** built in-session (operator one-shot in P1.10 §C);
-/// when `cfg(feature = "hacl-c")` is active, this struct
-/// dispatches to the linked `libevercrypt`. Without the feature,
-/// it currently returns the SAME bytes as the production
-/// `Blake3` — wrong cryptographically, but a placeholder that
-/// keeps the type-check honest until HACL\* lands. Tests that
-/// rely on this backend are `#[cfg(feature = "hacl-c")]`-gated
-/// so we never claim a verified result we didn't compute.
-#[derive(Default, Clone, Debug)]
-pub struct Blake2bHacl {
-    // Placeholder — real backend lives behind `feature = "hacl-c"`
-    // (which is not enabled in workspace-default builds).
-    inner: blake3::Hasher,
-}
-
-impl Hasher for Blake2bHacl {
-    fn update(&mut self, bytes: &[u8]) {
-        self.inner.update(bytes);
+impl Blake3 {
+    /// Reset the hasher's internal state so the same allocation
+    /// can be reused for another digest. Saves a `Hasher::new()`
+    /// allocation on the hot per-leaf path.
+    pub fn reset(&mut self) {
+        self.inner.reset();
     }
-    fn finalize(self) -> Hash {
+
+    /// Finalise without consuming `self`. Combined with
+    /// [`Self::reset`] this enables hot-loop reuse — significantly
+    /// faster than `default(); update; finalize` per leaf when
+    /// committing many small regions (LFH/CDR/EOCD).
+    #[must_use]
+    pub fn finalize_borrow(&self) -> Hash {
         let h = self.inner.finalize();
         let mut out = [0u8; 32];
         out.copy_from_slice(h.as_bytes());
         out
     }
+}
+
+/// Keyed BLAKE3 — used by the BLAKE3-team's official
+/// `keyed_hash` test-vector suite and useful for downstream
+/// consumers that want a per-tenant root key.
+#[must_use]
+pub fn blake3_keyed_oneshot(key: &[u8; 32], bytes: &[u8]) -> Hash {
+    let mut h = blake3::Hasher::new_keyed(key);
+    h.update(bytes);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(h.finalize().as_bytes());
+    out
+}
+
+/// BLAKE3 `derive_key` mode — used by the BLAKE3-team's official
+/// `derive_key` test-vector suite. `context` is a non-secret
+/// global identifier; `key_material` is hashed under that
+/// context to produce the 32-byte derived key.
+#[must_use]
+pub fn blake3_derive_key_oneshot(context: &str, key_material: &[u8]) -> Hash {
+    let mut h = blake3::Hasher::new_derive_key(context);
+    h.update(key_material);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(h.finalize().as_bytes());
+    out
+}
+
+/// XOF (extendable output) variant of BLAKE3 hash. Used by the
+/// BLAKE3-team's official vector suite, which specifies a 1056-byte
+/// output beyond the standard 32-byte digest.
+pub fn blake3_xof_oneshot(bytes: &[u8], out: &mut [u8]) {
+    let mut h = blake3::Hasher::new();
+    h.update(bytes);
+    let mut reader = h.finalize_xof();
+    reader.fill(out);
+}
+
+/// XOF variant of `keyed_hash`. Mirrors the BLAKE3 reference
+/// `keyed_hash_xof` test vector.
+pub fn blake3_keyed_xof_oneshot(key: &[u8; 32], bytes: &[u8], out: &mut [u8]) {
+    let mut h = blake3::Hasher::new_keyed(key);
+    h.update(bytes);
+    let mut reader = h.finalize_xof();
+    reader.fill(out);
+}
+
+/// XOF variant of `derive_key`. Mirrors the BLAKE3 reference
+/// `derive_key_xof` test vector.
+pub fn blake3_derive_key_xof_oneshot(context: &str, key_material: &[u8], out: &mut [u8]) {
+    let mut h = blake3::Hasher::new_derive_key(context);
+    h.update(key_material);
+    let mut reader = h.finalize_xof();
+    reader.fill(out);
 }
 
 // ---------------------------------------------------------------------
@@ -119,32 +172,8 @@ impl Hasher for Blake2bHacl {
 
 #[cfg(test)]
 mod tests {
+    use super::vectors::{VECTORS, VECTOR_CONTEXT, VECTOR_KEY};
     use super::*;
-
-    /// BLAKE3 official test vector for empty input.
-    const EMPTY_BLAKE3: [u8; 32] = [
-        0xaf, 0x13, 0x49, 0xb9, 0xf5, 0xf9, 0xa1, 0xa6, 0xa0, 0x40, 0x4d, 0xea, 0x36, 0xdc, 0xc9,
-        0x49, 0x9b, 0xcb, 0x25, 0xc9, 0xad, 0xc1, 0x12, 0xb7, 0xcc, 0x9a, 0x93, 0xca, 0xe4, 0x1f,
-        0x32, 0x62,
-    ];
-    /// BLAKE3 official test vector for "abc".
-    const ABC_BLAKE3: [u8; 32] = [
-        0x64, 0x37, 0xb3, 0xac, 0x38, 0x46, 0x51, 0x33, 0xff, 0xb6, 0x3b, 0x75, 0x27, 0x3a, 0x8d,
-        0xb5, 0x48, 0xc5, 0x58, 0x46, 0x5d, 0x79, 0xdb, 0x03, 0xfd, 0x35, 0x9c, 0x6c, 0xd5, 0xbd,
-        0x9d, 0x85,
-    ];
-
-    #[test]
-    fn blake3_empty_matches_official_vector() {
-        let h = Blake3::hash_oneshot(b"");
-        assert_eq!(h, EMPTY_BLAKE3);
-    }
-
-    #[test]
-    fn blake3_abc_matches_official_vector() {
-        let h = Blake3::hash_oneshot(b"abc");
-        assert_eq!(h, ABC_BLAKE3);
-    }
 
     #[test]
     fn blake3_streaming_matches_oneshot() {
@@ -157,36 +186,115 @@ mod tests {
         assert_eq!(h.finalize(), oneshot);
     }
 
+    /// All 35 official BLAKE3 vectors, `hash` mode, 32-byte digest.
     #[test]
-    #[allow(clippy::cast_possible_truncation)]
-    fn blake3_long_input_deterministic() {
-        // 1MB of LCG bytes — deterministic across runs.
-        let mut payload = Vec::with_capacity(1 << 20);
-        let mut s: u64 = 0xdead_beef;
-        for _ in 0..(1 << 20) {
-            s = s
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            payload.push((s >> 32) as u8);
+    fn official_hash_digest_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let got = Blake3::hash_oneshot(&input);
+            let want = &v.hash_xof[..32];
+            assert_eq!(
+                got.as_slice(),
+                want,
+                "input_len={} hash digest mismatch",
+                v.input_len
+            );
         }
-        let h1 = Blake3::hash_oneshot(&payload);
-        let h2 = Blake3::hash_oneshot(&payload);
-        assert_eq!(h1, h2, "BLAKE3 must be deterministic");
     }
 
+    /// All 35 official BLAKE3 vectors, `hash` mode, full 131-byte XOF.
     #[test]
-    fn blake2b_hacl_placeholder_is_distinct_in_documentation() {
-        // The placeholder currently produces the same bytes as Blake3.
-        // This test asserts the *type* is distinct (so consumers
-        // who depend on `Blake2bHacl: Hasher` get compile errors
-        // if the backend disappears) and documents the honest
-        // status — see ADR-0028.
-        let h3 = Blake3::hash_oneshot(b"hello");
-        let h2 = Blake2bHacl::hash_oneshot(b"hello");
-        // Until HACL* lands, these MUST equal each other (the
-        // placeholder dispatches to BLAKE3). When HACL* C is
-        // wired, this assertion flips and a follow-up commit
-        // updates it.
-        assert_eq!(h3, h2, "placeholder dispatches to BLAKE3 — see ADR-0028");
+    fn official_hash_xof_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let mut got = vec![0u8; v.hash_xof.len()];
+            blake3_xof_oneshot(&input, &mut got);
+            assert_eq!(got, v.hash_xof, "input_len={} XOF mismatch", v.input_len);
+        }
+    }
+
+    /// All 35 official BLAKE3 vectors, `keyed_hash` mode, 32-byte digest.
+    #[test]
+    fn official_keyed_digest_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let got = blake3_keyed_oneshot(&VECTOR_KEY, &input);
+            let want = &v.keyed_xof[..32];
+            assert_eq!(
+                got.as_slice(),
+                want,
+                "input_len={} keyed digest mismatch",
+                v.input_len
+            );
+        }
+    }
+
+    /// All 35 official BLAKE3 vectors, `keyed_hash` mode, full 131-byte XOF.
+    #[test]
+    fn official_keyed_xof_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let mut got = vec![0u8; v.keyed_xof.len()];
+            blake3_keyed_xof_oneshot(&VECTOR_KEY, &input, &mut got);
+            assert_eq!(
+                got, v.keyed_xof,
+                "input_len={} keyed XOF mismatch",
+                v.input_len
+            );
+        }
+    }
+
+    /// All 35 official BLAKE3 vectors, `derive_key` mode, 32-byte digest.
+    #[test]
+    fn official_derive_key_digest_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let got = blake3_derive_key_oneshot(VECTOR_CONTEXT, &input);
+            let want = &v.derive_key_xof[..32];
+            assert_eq!(
+                got.as_slice(),
+                want,
+                "input_len={} derive_key digest mismatch",
+                v.input_len
+            );
+        }
+    }
+
+    /// All 35 official BLAKE3 vectors, `derive_key` mode, full 131-byte XOF.
+    #[test]
+    fn official_derive_key_xof_all_35() {
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let mut got = vec![0u8; v.derive_key_xof.len()];
+            blake3_derive_key_xof_oneshot(VECTOR_CONTEXT, &input, &mut got);
+            assert_eq!(
+                got, v.derive_key_xof,
+                "input_len={} derive_key XOF mismatch",
+                v.input_len
+            );
+        }
+    }
+
+    /// Streaming `update` in arbitrary chunks reproduces the
+    /// one-shot digest on every official-vector input length.
+    #[test]
+    fn streaming_chunked_matches_oneshot_on_all_35() {
+        let chunk_sizes = [1usize, 7, 31, 64, 64 + 1, 1024, 1024 + 1, 4096, 16384];
+        for v in VECTORS {
+            let input = paint_test_input(v.input_len);
+            let oneshot = Blake3::hash_oneshot(&input);
+            for &cs in &chunk_sizes {
+                let mut h = Blake3::default();
+                for chunk in input.chunks(cs) {
+                    h.update(chunk);
+                }
+                assert_eq!(
+                    h.finalize(),
+                    oneshot,
+                    "input_len={} chunk_size={cs} streaming != oneshot",
+                    v.input_len
+                );
+            }
+        }
     }
 }
