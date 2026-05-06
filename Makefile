@@ -1279,6 +1279,28 @@ p116-gates: ## P1.16 — all CI gates: tests + verdict-agreement.
 .PHONY: p116
 p116: p116-gates ## Alias — run every P1.16 gate.
 
+##@ P1.17 — Soundness regression suite (fail-closed CI gate)
+
+.PHONY: soundness-sorry-audit
+soundness-sorry-audit: ## P1.17 — sorry audit: no bare sorry in theorems/.
+	bash ci/soundness/run.sh sorry-audit
+
+.PHONY: soundness-lake
+soundness-lake: ## P1.17 — Lake theorem re-verify (requires nix develop).
+	bash ci/soundness/run.sh lake-verify
+
+.PHONY: soundness-tv
+soundness-tv: ## P1.17 — Translation validator (P1.9 TV corpus).
+	$(MAKE) p19-gates
+
+.PHONY: soundness-signing
+soundness-signing: ## P1.17 — Signing extraction tests (P1.16).
+	$(MAKE) p116-tests
+
+.PHONY: soundness
+soundness: ## P1.17 — Full soundness regression suite (fail-closed).
+	bash ci/soundness/run.sh full
+
 ##@ Nix
 
 .PHONY: nix-check

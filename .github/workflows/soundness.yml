@@ -1,0 +1,82 @@
+name: Soundness Regression Suite
+
+# Fail-closed gate: blocks merge on any PR that breaks a Lean theorem,
+# introduces a bare sorry, causes a TV divergence, or breaks signing tests.
+# No override path exists — a timeout counts as a failure.
+
+on:
+  pull_request:
+    paths:
+      - 'theorems/**'
+      - 'crates/**'
+      - 'lakefile.toml'
+      - 'lake-manifest.json'
+      - 'Cargo.lock'
+      - '.github/workflows/soundness.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'theorems/**'
+      - 'crates/**'
+      - 'lakefile.toml'
+      - 'lake-manifest.json'
+      - 'Cargo.lock'
+      - '.github/workflows/soundness.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: soundness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soundness:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Lake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .lake/build
+            .lake/packages/*/.lake/build
+          key: ubuntu-22.04-lake-soundness-${{ hashFiles('lake-manifest.json') }}
+          restore-keys: |
+            ubuntu-22.04-lake-soundness-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-22.04-cargo-soundness-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ubuntu-22.04-cargo-soundness-
+
+      - name: Record start time
+        run: echo "$(date +%s)" > /tmp/.soundness-start
+
+      - name: HARD gate — sorry audit
+        run: bash ci/soundness/run.sh sorry-audit
+
+      - name: HARD gate — Lake theorem re-verify
+        run: nix develop --accept-flake-config --command bash ci/soundness/run.sh lake-verify
+
+      - name: HARD gate — translation validation (P1.9 TV corpus)
+        run: nix develop --accept-flake-config --command bash ci/soundness/run.sh tv-validate
+
+      - name: HARD gate — signing extraction (P1.16)
+        run: nix develop --accept-flake-config --command bash ci/soundness/run.sh signing-tests
+
+      - name: Report wall time
+        if: always()
+        run: bash ci/soundness/run.sh report-timing
