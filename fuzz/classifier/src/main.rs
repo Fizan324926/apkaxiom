@@ -108,10 +108,46 @@ fn main() -> std::io::Result<()> {
     // Exit non-zero only if we found AOSP-CVE candidates — useful
     // for CI gates where the dashboard alert should pop on first
     // verifier-vs-runtime gap.
-    let cves = by_label.get(Label::AospCveCandidate.as_str()).copied().unwrap_or(0);
+    let cves = by_label
+        .get(Label::AospCveCandidate.as_str())
+        .copied()
+        .unwrap_or(0);
     if cves > 0 {
-        eprintln!("p114-classify: {cves} AOSP-CVE candidate(s) — see {}", out.display());
+        eprintln!(
+            "p114-classify: {cves} AOSP-CVE candidate(s) — see {}",
+            out.display()
+        );
     }
 
+    // CI regression gates (audit-2 closure). When a floor is set,
+    // missing it is a CI failure. The XV-evasion floor is the
+    // canonical "we are still finding cross-version disagreements"
+    // signal — a regression here means either the harness regressed
+    // or the synthetic-divergence opt-in was unintentionally turned
+    // off.
+    let min_xv: Option<u64> = arg("--min-xv-gate");
+    let min_cve: Option<u64> = arg("--min-cve-gate");
+    let xv = by_label
+        .get(Label::CrossVersionEvasion.as_str())
+        .copied()
+        .unwrap_or(0);
+    let mut gate_failed = false;
+    if let Some(floor) = min_xv {
+        if xv < floor {
+            eprintln!(
+                "::error::p114-classify: cross-version-evasion {xv} below gate {floor}"
+            );
+            gate_failed = true;
+        }
+    }
+    if let Some(floor) = min_cve {
+        if cves < floor {
+            eprintln!("::error::p114-classify: aosp-cve-candidate {cves} below gate {floor}");
+            gate_failed = true;
+        }
+    }
+    if gate_failed {
+        std::process::exit(1);
+    }
     Ok(())
 }

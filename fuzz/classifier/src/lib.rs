@@ -98,19 +98,29 @@ pub struct FindingGroup {
 
 impl FindingGroup {
     /// True iff at least one target accepts AND at least one
-    /// target rejects on the same input.
+    /// target rejects on the same input, **AND** the verifier
+    /// accepts.
     ///
-    /// **Tighter than naïve `target_a != target_b`** — two
-    /// rejections with different tags don't count. The threat
-    /// model for cross-version evasion is install-pipeline
-    /// staging: an APK that's accepted by an older device but
-    /// rejected by a newer one (or vice-versa), letting the
-    /// attacker stage on the more-permissive device. Two
-    /// different rejection *reasons* aren't evasion-actionable;
-    /// they're spec-quality findings.
+    /// The verifier-accepts gate is essential for the threat
+    /// model: cross-version evasion is "an APK that the verified
+    /// pre-install gate lets through, accepted by version *X*
+    /// and rejected by version *Y*." If the verifier rejects,
+    /// the input is blocked at install time regardless of which
+    /// runtime version is targeted — whatever else the
+    /// per-version targets say, that's a CVE on whichever version
+    /// accepts (caught by `cve.bucket-e-real`), not a staging
+    /// path.
+    ///
+    /// Two rejections with different tags don't count as a
+    /// disagreement — that's a taxonomy delta, not evasion.
     #[must_use]
     pub fn has_cross_version_disagreement(&self) -> bool {
         use p113_fuzz_harness::classifier::Verdict;
+        // Require verifier to accept; otherwise it's a CVE class.
+        let axiom_accepts = matches!(self.axiom(), Some(Verdict::Accept));
+        if !axiom_accepts {
+            return false;
+        }
         let mut accepts = false;
         let mut rejects = false;
         for f in &self.findings {
@@ -273,7 +283,13 @@ mod tests {
     use super::*;
     use p113_fuzz_harness::classifier::Verdict;
 
-    fn finding(target_version: &str, bucket: Bucket, target: Verdict, synthetic: bool) -> Finding {
+    fn finding_axiom(
+        axiom: Verdict,
+        target_version: &str,
+        bucket: Bucket,
+        target: Verdict,
+        synthetic: bool,
+    ) -> Finding {
         Finding {
             finding_id: "abc".into(),
             timestamp_ns: 0,
@@ -282,7 +298,7 @@ mod tests {
             input_sha256: "abc".into(),
             input_path: "inputs/abc.bin".into(),
             input_len: 4,
-            axiom_l0: Verdict::Reject("axiom:bad-eocd".into()),
+            axiom_l0: axiom,
             target,
             bucket,
             seed_origin: Some("seed".into()),
@@ -290,6 +306,16 @@ mod tests {
             target_version: target_version.into(),
             synthetic,
         }
+    }
+
+    fn finding(target_version: &str, bucket: Bucket, target: Verdict, synthetic: bool) -> Finding {
+        finding_axiom(
+            Verdict::Reject("axiom:bad-eocd".into()),
+            target_version,
+            bucket,
+            target,
+            synthetic,
+        )
     }
 
     #[test]
@@ -319,17 +345,54 @@ mod tests {
 
     #[test]
     fn cross_version_evasion_real() {
-        // A14 accepts; A11 rejects → cross-version disagreement.
+        // axiom accepts; A14 accepts; A11 rejects → cross-version
+        // disagreement under the verifier-accepts gate.
         let group = FindingGroup {
             input_sha256: "xv1".into(),
             findings: vec![
-                finding("A14", Bucket::A, Verdict::Accept, false),
-                finding("A11", Bucket::C, Verdict::Reject("aosp:-3".into()), false),
+                finding_axiom(Verdict::Accept, "A14", Bucket::A, Verdict::Accept, false),
+                finding_axiom(
+                    Verdict::Accept,
+                    "A11",
+                    Bucket::D,
+                    Verdict::Reject("aosp:-3".into()),
+                    false,
+                ),
             ],
         };
         let (label, rule_id, _) = Classifier::classify(&group).unwrap();
         assert_eq!(label, Label::CrossVersionEvasion);
         assert_eq!(rule_id, "xv.disagreement-real");
+    }
+
+    #[test]
+    fn axiom_rejects_split_does_not_fire_xv() {
+        // axiom rejects; A14 accepts; A11 rejects. Even though
+        // the targets disagree, the verifier rejection blocks
+        // install at the gate — this is bucket-E CVE territory,
+        // not cross-version evasion.
+        let group = FindingGroup {
+            input_sha256: "ce1".into(),
+            findings: vec![
+                finding_axiom(
+                    Verdict::Reject("axiom:bad".into()),
+                    "A14",
+                    Bucket::E,
+                    Verdict::Accept,
+                    false,
+                ),
+                finding_axiom(
+                    Verdict::Reject("axiom:bad".into()),
+                    "A11",
+                    Bucket::B,
+                    Verdict::Reject("aosp:-3".into()),
+                    false,
+                ),
+            ],
+        };
+        let (label, rule_id, _) = Classifier::classify(&group).unwrap();
+        assert_eq!(label, Label::AospCveCandidate);
+        assert_eq!(rule_id, "cve.bucket-e-real");
     }
 
     #[test]

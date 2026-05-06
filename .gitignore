@@ -121,3 +121,5 @@ drafts/
 fuzz/afl-instrumented/Cargo.lock
 fuzz/afl-instrumented/target/
 fuzz/observability/
+fuzz/corpus/real-apks/index-v1.*
+fuzz/findings-realapks/

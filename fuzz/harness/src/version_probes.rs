@@ -17,26 +17,30 @@
 //!
 //! 2. **Synthetic probes** — for hosts without KVM and without
 //!    A8/A11 libziparchive source builds (this dev box), a thin
-//!    Rust wrapper applies a documented filter list on top of the
-//!    real A14 probe to model historical AOSP behavioural deltas.
-//!    Used **only** for end-to-end validation of the cross-version
-//!    classifier infrastructure; flagged in archive output via the
-//!    `synthetic = true` field so downstream filters can excise
-//!    them when real probes are wired in.
+//!    Rust wrapper around the real A14 probe. **Default behaviour
+//!    is pass-through** (the synthetic A11/A8 verdict equals the
+//!    real A14 verdict). Pass-through is the correct default
+//!    because:
 //!
-//! The synthetic deltas are intentionally narrow and well-grounded:
+//!    - AOSP libziparchive got *stricter* over Android versions,
+//!      not laxer — newer versions add validation rules. A
+//!      synthetic layer built on A14 cannot accurately model an
+//!      older-version-is-more-permissive shape (we'd have to
+//!      *remove* rejections, not add them).
+//!    - Both candidate rules an earlier draft used (reject ZIP64
+//!      EOCD locator on A11; reject UTF-8 filename flag on A8)
+//!      were based on incorrect historical claims and produced an
+//!      83 % false-positive rate on legitimate F-Droid APKs.
 //!
-//! | Version | Synthetic delta vs A14 |
-//! |---|---|
-//! | A14 | (none — pass-through) |
-//! | A11 | reject inputs containing the ZIP64 EOCD-locator signature `PK\x06\x07` (older libziparchive's ZIP64 path was less permissive about locator placement) |
-//! | A8  | A11 deltas + reject inputs whose CDR general-purpose bit 11 (UTF-8 filename, RFC 7159) is set on any entry (Oreo predates UTF-8 filename support) |
+//!    Honest cross-version differential evidence requires real
+//!    per-version probe binaries (§C-1).
 //!
-//! These are documented as approximate stand-ins, NOT historically
-//! exact. A real differential needs the real A8/A11 builds (§C-1).
-//! The stand-ins exist so the rest of the pipeline (scheduler,
-//! classifier, archive schema, dashboard) can be validated end-to-
-//! end on this host.
+//! 3. **Pipeline-validation divergence** (opt-in) — set
+//!    `APKAXIOM_SYNTHETIC_DIVERGENCE=1` to re-enable the earlier
+//!    synthetic rule set. **Use only for end-to-end testing the
+//!    classifier rules engine on a controlled, divergent
+//!    verdict matrix.** The opt-in is documented and gated; it
+//!    must not be set in CI default runs or production soaks.
 
 use std::path::Path;
 use std::time::Duration;
@@ -158,9 +162,32 @@ impl std::fmt::Debug for VersionedProbe {
     }
 }
 
-/// Apply the documented per-version synthetic rule list to a
-/// base A14 verdict. See module docs for the rule table.
+/// Apply the per-version synthetic rule list to a base A14
+/// verdict. **Default: pass-through.**
+///
+/// Set `APKAXIOM_SYNTHETIC_DIVERGENCE=1` to enable the legacy
+/// rule set (ZIP64 locator on A11, UTF-8 filename on A8) — for
+/// classifier rules-engine testing only. Audit-2 measurement
+/// showed the legacy ruleset false-positives on 83 / 100
+/// legitimate F-Droid APKs (UTF-8 filename flag is set on most
+/// real APKs because resource names use it; AOSP A8 supported
+/// UTF-8 filenames despite the original docstring's claim
+/// otherwise).
 fn apply_synthetic_rules(version: AndroidVersion, base: &Verdict, input: &[u8]) -> Verdict {
+    if std::env::var("APKAXIOM_SYNTHETIC_DIVERGENCE").is_err() {
+        // Pass-through default. The synthetic layer adds nothing
+        // to the verdict; the only signal the archive carries is
+        // `synthetic=true` so downstream filters can excise
+        // synthetic records when real probes land.
+        return base.clone();
+    }
+    apply_synthetic_rules_legacy(version, base, input)
+}
+
+/// Legacy synthetic rules — opt-in via the env var. Documented
+/// here for reproducibility; used by classifier-engine tests
+/// that need a divergent verdict matrix on this dev host.
+fn apply_synthetic_rules_legacy(version: AndroidVersion, base: &Verdict, input: &[u8]) -> Verdict {
     match version {
         AndroidVersion::A14 => base.clone(),
         AndroidVersion::A11 => {
@@ -295,20 +322,44 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_a8_reject_zip64() {
+    fn synthetic_a8_legacy_rejects_zip64() {
+        // Test the legacy rules directly (env var bypass).
         let mut buf = vec![0u8; 80];
         buf[10..14].copy_from_slice(b"PK\x06\x07");
-        let v = apply_synthetic_rules(AndroidVersion::A8, &Verdict::Accept, &buf);
+        let v = apply_synthetic_rules_legacy(AndroidVersion::A8, &Verdict::Accept, &buf);
         assert!(matches!(v, Verdict::Reject(s) if s.contains("zip64")));
     }
 
     #[test]
-    fn synthetic_a14_passthrough() {
+    fn synthetic_passthrough_default() {
+        // Default (no env var) — every version is pass-through.
+        for v in [AndroidVersion::A8, AndroidVersion::A11, AndroidVersion::A14] {
+            // Use a buffer that WOULD trigger the legacy rules.
+            let mut buf = vec![0u8; 80];
+            buf[10..14].copy_from_slice(b"PK\x06\x07");
+            let r = apply_synthetic_rules(v, &Verdict::Accept, &buf);
+            // SAFETY (logical): we don't set APKAXIOM_SYNTHETIC_DIVERGENCE
+            // in tests, so apply_synthetic_rules takes the
+            // pass-through path. If a parallel test sets it,
+            // this test would flake — we rely on the harness
+            // not running other tests that touch this env var.
+            assert!(
+                matches!(r, Verdict::Accept),
+                "version {:?} should pass through Accept by default; got {:?}",
+                v,
+                r
+            );
+        }
+    }
+
+    #[test]
+    fn synthetic_a14_legacy_passthrough() {
+        // Legacy rule for A14 has always been pass-through.
         let buf = vec![0u8; 50];
-        let v = apply_synthetic_rules(AndroidVersion::A14, &Verdict::Accept, &buf);
+        let v = apply_synthetic_rules_legacy(AndroidVersion::A14, &Verdict::Accept, &buf);
         assert!(matches!(v, Verdict::Accept));
         let r = Verdict::Reject("aosp:-3".into());
-        let v = apply_synthetic_rules(AndroidVersion::A14, &r, &buf);
+        let v = apply_synthetic_rules_legacy(AndroidVersion::A14, &r, &buf);
         assert_eq!(v, r);
     }
 

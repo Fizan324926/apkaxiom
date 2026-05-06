@@ -1,0 +1,602 @@
+[
+  {
+    "pkg": "com.borneq.heregpslocation",
+    "apk": "com.borneq.heregpslocation_1.apk",
+    "ver": "1.0",
+    "size": 50071
+  },
+  {
+    "pkg": "net.pp3345.ykdroid",
+    "apk": "net.pp3345.ykdroid_7.apk",
+    "ver": "1.3",
+    "size": 50274
+  },
+  {
+    "pkg": "com.mine.autoshine",
+    "apk": "com.mine.autoshine_3.apk",
+    "ver": "1.2",
+    "size": 50606
+  },
+  {
+    "pkg": "com.germainz.activityforcenewtask",
+    "apk": "com.germainz.activityforcenewtask_24.apk",
+    "ver": "2.1.3",
+    "size": 50614
+  },
+  {
+    "pkg": "ryey.flock",
+    "apk": "ryey.flock_8.apk",
+    "ver": "0.4.3",
+    "size": 50616
+  },
+  {
+    "pkg": "i4nc4mp.myLock",
+    "apk": "i4nc4mp.myLock_28.apk",
+    "ver": "42",
+    "size": 51712
+  },
+  {
+    "pkg": "net.basov.lws.fdroid",
+    "apk": "net.basov.lws.fdroid_70000.apk",
+    "ver": "07.00.00",
+    "size": 54087
+  },
+  {
+    "pkg": "org.nerdcircus.android.klaxon",
+    "apk": "org.nerdcircus.android.klaxon_27.apk",
+    "ver": "0.27",
+    "size": 54191
+  },
+  {
+    "pkg": "com.trianguloy.numericriddlegenerator",
+    "apk": "com.trianguloy.numericriddlegenerator_7.apk",
+    "ver": "2.1",
+    "size": 54344
+  },
+  {
+    "pkg": "fi.harism.wallpaper.flowers",
+    "apk": "fi.harism.wallpaper.flowers_10.apk",
+    "ver": "3.2",
+    "size": 54924
+  },
+  {
+    "pkg": "com.piwi.stickeroid",
+    "apk": "com.piwi.stickeroid_6.apk",
+    "ver": "1.1.2",
+    "size": 55901
+  },
+  {
+    "pkg": "com.ciarang.tallyphant",
+    "apk": "com.ciarang.tallyphant_5.apk",
+    "ver": "0.4",
+    "size": 56149
+  },
+  {
+    "pkg": "net.loeuillet.wifi_eap_sim_conf",
+    "apk": "net.loeuillet.wifi_eap_sim_conf_1.apk",
+    "ver": "1.0",
+    "size": 56182
+  },
+  {
+    "pkg": "uk.ac.ed.inf.mandelbrotmaps",
+    "apk": "uk.ac.ed.inf.mandelbrotmaps_2.apk",
+    "ver": "1.01",
+    "size": 57194
+  },
+  {
+    "pkg": "com.falconware.prestissimo",
+    "apk": "com.falconware.prestissimo_11.apk",
+    "ver": "1.0",
+    "size": 57999
+  },
+  {
+    "pkg": "com.anysoftkeyboard.languagepack.SSH",
+    "apk": "com.anysoftkeyboard.languagepack.SSH_4.apk",
+    "ver": "0.4.20120611-beta",
+    "size": 59341
+  },
+  {
+    "pkg": "de.mangelow.syncwifi",
+    "apk": "de.mangelow.syncwifi_17.apk",
+    "ver": "2.15",
+    "size": 59415
+  },
+  {
+    "pkg": "ru.neverdark.silentnight",
+    "apk": "ru.neverdark.silentnight_8.apk",
+    "ver": "0.3",
+    "size": 59511
+  },
+  {
+    "pkg": "be.brunoparmentier.dnssetter",
+    "apk": "be.brunoparmentier.dnssetter_3.apk",
+    "ver": "0.1.2",
+    "size": 60128
+  },
+  {
+    "pkg": "se.norenh.rkfread",
+    "apk": "se.norenh.rkfread_4.apk",
+    "ver": "1.3",
+    "size": 60171
+  },
+  {
+    "pkg": "be.ppareit.shutdown",
+    "apk": "be.ppareit.shutdown_10201.apk",
+    "ver": "1.2.1",
+    "size": 60685
+  },
+  {
+    "pkg": "com.gpstether",
+    "apk": "com.gpstether_3.apk",
+    "ver": "1.0.2r9",
+    "size": 61142
+  },
+  {
+    "pkg": "ru.gelin.android.sendtosd",
+    "apk": "ru.gelin.android.sendtosd_41.apk",
+    "ver": "0.3.11",
+    "size": 61197
+  },
+  {
+    "pkg": "com.dosse.dozeoff",
+    "apk": "com.dosse.dozeoff_3.apk",
+    "ver": "1.2",
+    "size": 62058
+  },
+  {
+    "pkg": "com.alexkang.bluechat",
+    "apk": "com.alexkang.bluechat_2.apk",
+    "ver": "1.1",
+    "size": 62496
+  },
+  {
+    "pkg": "de.drhoffmannsoft.pizza",
+    "apk": "de.drhoffmannsoft.pizza_12.apk",
+    "ver": "1.05-12",
+    "size": 62671
+  },
+  {
+    "pkg": "com.pjuu.otterdroid",
+    "apk": "com.pjuu.otterdroid_8.apk",
+    "ver": "0.4.2",
+    "size": 63213
+  },
+  {
+    "pkg": "tritop.android.SLWTrafficMeterWidget",
+    "apk": "tritop.android.SLWTrafficMeterWidget_2.apk",
+    "ver": "1.1",
+    "size": 64997
+  },
+  {
+    "pkg": "szelok.app.twister",
+    "apk": "szelok.app.twister_1.apk",
+    "ver": "1.0",
+    "size": 65233
+  },
+  {
+    "pkg": "org.shortcuts",
+    "apk": "org.shortcuts_2.apk",
+    "ver": "1.1",
+    "size": 65681
+  },
+  {
+    "pkg": "An.stop",
+    "apk": "An.stop_10.apk",
+    "ver": "1.5",
+    "size": 66218
+  },
+  {
+    "pkg": "ch.blinkenlights.android.vanillaplug",
+    "apk": "ch.blinkenlights.android.vanillaplug_170.apk",
+    "ver": "1.7",
+    "size": 66663
+  },
+  {
+    "pkg": "info.spotcomms.wlanbackend",
+    "apk": "info.spotcomms.wlanbackend_29.apk",
+    "ver": "2.2",
+    "size": 67050
+  },
+  {
+    "pkg": "io.github.muntashirakon.captiveportalcontroller",
+    "apk": "io.github.muntashirakon.captiveportalcontroller_3.apk",
+    "ver": "1.1.0",
+    "size": 67131
+  },
+  {
+    "pkg": "info.guardianproject.gilga",
+    "apk": "info.guardianproject.gilga_12.apk",
+    "ver": "0.0.12",
+    "size": 67581
+  },
+  {
+    "pkg": "com.brocktice.JustSit",
+    "apk": "com.brocktice.JustSit_17.apk",
+    "ver": "0.3.3",
+    "size": 67717
+  },
+  {
+    "pkg": "com.tobykurien.google_news",
+    "apk": "com.tobykurien.google_news_20.apk",
+    "ver": "1.20",
+    "size": 69622
+  },
+  {
+    "pkg": "com.github.yeriomin.smsscheduler",
+    "apk": "com.github.yeriomin.smsscheduler_5.apk",
+    "ver": "0.5",
+    "size": 70164
+  },
+  {
+    "pkg": "io.github.yoshi1123.adbio",
+    "apk": "io.github.yoshi1123.adbio_4.apk",
+    "ver": "1.0c2",
+    "size": 70362
+  },
+  {
+    "pkg": "org.projectmaxs.module.bluetooth",
+    "apk": "org.projectmaxs.module.bluetooth_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 70391
+  },
+  {
+    "pkg": "org.projectmaxs.module.clipboard",
+    "apk": "org.projectmaxs.module.clipboard_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 70391
+  },
+  {
+    "pkg": "org.projectmaxs.module.smsnotify",
+    "apk": "org.projectmaxs.module.smsnotify_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 70391
+  },
+  {
+    "pkg": "org.projectmaxs.module.wifichange",
+    "apk": "org.projectmaxs.module.wifichange_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 70391
+  },
+  {
+    "pkg": "com.kodarkooperativet.notificationstopwatch",
+    "apk": "com.kodarkooperativet.notificationstopwatch_6.apk",
+    "ver": "1.4",
+    "size": 71108
+  },
+  {
+    "pkg": "de.k3b.android.camerafolder",
+    "apk": "de.k3b.android.camerafolder_4.apk",
+    "ver": "1.0.3",
+    "size": 72613
+  },
+  {
+    "pkg": "de.hoffmannsgimmicks",
+    "apk": "de.hoffmannsgimmicks_13.apk",
+    "ver": "1.08-13",
+    "size": 73269
+  },
+  {
+    "pkg": "net.teknoraver.andhrystone",
+    "apk": "net.teknoraver.andhrystone_9.apk",
+    "ver": "1.6.1",
+    "size": 73423
+  },
+  {
+    "pkg": "krasilnikov.alexey.cryptopass",
+    "apk": "krasilnikov.alexey.cryptopass_4.apk",
+    "ver": "1.2",
+    "size": 74055
+  },
+  {
+    "pkg": "bughunter2.smsfilter",
+    "apk": "bughunter2.smsfilter_4.apk",
+    "ver": "1.3",
+    "size": 74240
+  },
+  {
+    "pkg": "info.staticfree.android.robotfindskitten",
+    "apk": "info.staticfree.android.robotfindskitten_7.apk",
+    "ver": "1.0.701",
+    "size": 74250
+  },
+  {
+    "pkg": "org.projectmaxs.module.alarmset",
+    "apk": "org.projectmaxs.module.alarmset_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.bluetoothadmin",
+    "apk": "org.projectmaxs.module.bluetoothadmin_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.contactsread",
+    "apk": "org.projectmaxs.module.contactsread_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.fileread",
+    "apk": "org.projectmaxs.module.fileread_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.filewrite",
+    "apk": "org.projectmaxs.module.filewrite_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.locationfine",
+    "apk": "org.projectmaxs.module.locationfine_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.misc",
+    "apk": "org.projectmaxs.module.misc_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.notification",
+    "apk": "org.projectmaxs.module.notification_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.phonestateread",
+    "apk": "org.projectmaxs.module.phonestateread_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.ringermode",
+    "apk": "org.projectmaxs.module.ringermode_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.smsread",
+    "apk": "org.projectmaxs.module.smsread_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.smswrite",
+    "apk": "org.projectmaxs.module.smswrite_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.wifiaccess",
+    "apk": "org.projectmaxs.module.wifiaccess_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74487
+  },
+  {
+    "pkg": "org.projectmaxs.module.nfc",
+    "apk": "org.projectmaxs.module.nfc_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 74543
+  },
+  {
+    "pkg": "de.antonwolf.agendawidget",
+    "apk": "de.antonwolf.agendawidget_22.apk",
+    "ver": "1.7.0",
+    "size": 75874
+  },
+  {
+    "pkg": "ru.henridellal.fsassist",
+    "apk": "ru.henridellal.fsassist_5.apk",
+    "ver": "1.0.4",
+    "size": 75971
+  },
+  {
+    "pkg": "com.github.ympavlov.minidoro",
+    "apk": "com.github.ympavlov.minidoro_113.apk",
+    "ver": "1.13",
+    "size": 76032
+  },
+  {
+    "pkg": "search.searx",
+    "apk": "search.searx_2.apk",
+    "ver": "1.0.1",
+    "size": 77158
+  },
+  {
+    "pkg": "com.oakley.fon",
+    "apk": "com.oakley.fon_152.apk",
+    "ver": "1.5.2",
+    "size": 77994
+  },
+  {
+    "pkg": "org.projectmaxs.module.smssend",
+    "apk": "org.projectmaxs.module.smssend_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 78583
+  },
+  {
+    "pkg": "org.balau.fakedawn",
+    "apk": "org.balau.fakedawn_4.apk",
+    "ver": "1.3",
+    "size": 78729
+  },
+  {
+    "pkg": "org.jtb.httpmon",
+    "apk": "org.jtb.httpmon_27.apk",
+    "ver": "0.4.10",
+    "size": 78773
+  },
+  {
+    "pkg": "io.github.otakuchiyan.dnsman",
+    "apk": "io.github.otakuchiyan.dnsman_101.apk",
+    "ver": "0.10.1",
+    "size": 78864
+  },
+  {
+    "pkg": "me.velc.devqs",
+    "apk": "me.velc.devqs_3.apk",
+    "ver": "1.1.1",
+    "size": 79489
+  },
+  {
+    "pkg": "exe.bbllw8.anemo",
+    "apk": "exe.bbllw8.anemo_18.apk",
+    "ver": "2.7.1",
+    "size": 80025
+  },
+  {
+    "pkg": "zatrit.skinbread",
+    "apk": "zatrit.skinbread_6.apk",
+    "ver": "1.5",
+    "size": 80159
+  },
+  {
+    "pkg": "io.github.tiagoshibata.gpsdclient",
+    "apk": "io.github.tiagoshibata.gpsdclient_5.apk",
+    "ver": "1.0.4",
+    "size": 80342
+  },
+  {
+    "pkg": "com.hectorone.multismssender",
+    "apk": "com.hectorone.multismssender_18.apk",
+    "ver": "2.8",
+    "size": 82301
+  },
+  {
+    "pkg": "com.trianguloy.clipboardeditor",
+    "apk": "com.trianguloy.clipboardeditor_9.apk",
+    "ver": "1.6",
+    "size": 82392
+  },
+  {
+    "pkg": "org.projectmaxs.module.shell",
+    "apk": "org.projectmaxs.module.shell_2000506627.apk",
+    "ver": "0.5.19",
+    "size": 82679
+  },
+  {
+    "pkg": "com.github.yeriomin.workoutlog",
+    "apk": "com.github.yeriomin.workoutlog_2.apk",
+    "ver": "0.2",
+    "size": 82686
+  },
+  {
+    "pkg": "org.droidtr.keyboard",
+    "apk": "org.droidtr.keyboard_66.apk",
+    "ver": "7.7.3",
+    "size": 83680
+  },
+  {
+    "pkg": "us.spotco.extirpater",
+    "apk": "us.spotco.extirpater_35.apk",
+    "ver": "1.8",
+    "size": 83994
+  },
+  {
+    "pkg": "org.debian.eugen.headingcalculator",
+    "apk": "org.debian.eugen.headingcalculator_4.apk",
+    "ver": "1.3",
+    "size": 84382
+  },
+  {
+    "pkg": "org.jf.Penroser",
+    "apk": "org.jf.Penroser_6.apk",
+    "ver": "1.2",
+    "size": 85150
+  },
+  {
+    "pkg": "org.beide.droidgain",
+    "apk": "org.beide.droidgain_1.apk",
+    "ver": "1.0",
+    "size": 85416
+  },
+  {
+    "pkg": "com.jotabout.screeninfo",
+    "apk": "com.jotabout.screeninfo_107.apk",
+    "ver": "1.0.7",
+    "size": 86283
+  },
+  {
+    "pkg": "eu.veldsoft.politrics",
+    "apk": "eu.veldsoft.politrics_1.apk",
+    "ver": "1.0",
+    "size": 86378
+  },
+  {
+    "pkg": "com.morlunk.mountie",
+    "apk": "com.morlunk.mountie_1.apk",
+    "ver": "1.0",
+    "size": 86538
+  },
+  {
+    "pkg": "io.github.ronynn.karui",
+    "apk": "io.github.ronynn.karui_4.apk",
+    "ver": "1.4",
+    "size": 86813
+  },
+  {
+    "pkg": "com.templaro.opsiz.aka",
+    "apk": "com.templaro.opsiz.aka_10.apk",
+    "ver": "1.0",
+    "size": 87090
+  },
+  {
+    "pkg": "us.spotco.carrion",
+    "apk": "us.spotco.carrion_123.apk",
+    "ver": "1.23",
+    "size": 87424
+  },
+  {
+    "pkg": "name.seguri.android.lock",
+    "apk": "name.seguri.android.lock_12.apk",
+    "ver": "1.4.1",
+    "size": 87754
+  },
+  {
+    "pkg": "org.smblott.intentradio",
+    "apk": "org.smblott.intentradio_21.apk",
+    "ver": "1.9.11",
+    "size": 88608
+  },
+  {
+    "pkg": "us.spotco.motionlock",
+    "apk": "us.spotco.motionlock_22.apk",
+    "ver": "1.3",
+    "size": 90310
+  },
+  {
+    "pkg": "net.iowaline.dotdash",
+    "apk": "net.iowaline.dotdash_17.apk",
+    "ver": "1.2.1",
+    "size": 90676
+  },
+  {
+    "pkg": "mixedbit.speechtrainer",
+    "apk": "mixedbit.speechtrainer_5.apk",
+    "ver": "1.04",
+    "size": 90854
+  },
+  {
+    "pkg": "ru.gelin.android.browser.open",
+    "apk": "ru.gelin.android.browser.open_8.apk",
+    "ver": "0.0.7",
+    "size": 91357
+  },
+  {
+    "pkg": "com.fgrim.msnake",
+    "apk": "com.fgrim.msnake_12.apk",
+    "ver": "2.0",
+    "size": 91431
+  },
+  {
+    "pkg": "com.trianguloy.isUserAMonkey",
+    "apk": "com.trianguloy.isUserAMonkey_3.apk",
+    "ver": "2.0",
+    "size": 91716
+  }
+]

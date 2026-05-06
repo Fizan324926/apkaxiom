@@ -45,7 +45,22 @@ impl CoverageMap {
     /// Record an observation. Returns `true` if this is a
     /// previously-unseen edge (the slot was 0 before).
     pub fn observe(&self, axiom: &Verdict, target: &Verdict) -> bool {
-        let key = format!("{}|{}", axiom.label(), target.label());
+        self.observe_xv(axiom, &[target.clone()])
+    }
+
+    /// Cross-version aware: hash includes every per-version
+    /// target verdict so distinct cross-version verdict shapes
+    /// register as distinct edges. With N targets `[T0..T(N-1)]`,
+    /// the slot key is `axiom | T0 | T1 | ... | T(N-1)`.
+    /// Single-version mode (one target) reduces to the original
+    /// `(axiom, target)` pair.
+    pub fn observe_xv(&self, axiom: &Verdict, targets: &[Verdict]) -> bool {
+        let mut key = String::with_capacity(64);
+        key.push_str(&axiom.label());
+        for t in targets {
+            key.push('|');
+            key.push_str(&t.label());
+        }
         let slot = hash_to_slot(key.as_bytes());
         let prev = self.slots[slot].fetch_add(1, Ordering::Relaxed);
         prev == 0
@@ -114,5 +129,28 @@ mod tests {
         m.observe(&Verdict::Reject("9".into()), &Verdict::Accept);
         m.observe(&Verdict::Reject("9".into()), &Verdict::Reject("9".into()));
         assert_eq!(m.distinct_edges(), 3);
+    }
+
+    #[test]
+    fn xv_observe_counts_per_version_shape() {
+        let m = CoverageMap::new();
+        // Same axiom, same A14 verdict, different A11 verdicts:
+        // these should be treated as distinct edges.
+        let axiom = Verdict::Accept;
+        let a14 = Verdict::Accept;
+        let a11_acc = Verdict::Accept;
+        let a11_rej = Verdict::Reject("aosp:-3".into());
+        assert!(m.observe_xv(&axiom, &[a14.clone(), a11_acc]));
+        assert!(m.observe_xv(&axiom, &[a14.clone(), a11_rej]));
+        assert_eq!(m.distinct_edges(), 2);
+    }
+
+    #[test]
+    fn xv_single_target_matches_original_observe() {
+        let m1 = CoverageMap::new();
+        let m2 = CoverageMap::new();
+        m1.observe(&Verdict::Accept, &Verdict::Accept);
+        m2.observe_xv(&Verdict::Accept, &[Verdict::Accept]);
+        assert_eq!(m1.distinct_edges(), m2.distinct_edges());
     }
 }

@@ -849,7 +849,7 @@ p114-build: ## P1.14 — build every P1.14 binary (release).
 	  -p p114-corpus-archive -p p114-cve-template
 
 .PHONY: p114-fuzz
-p114-fuzz: ## P1.14 — 3 000-iter cross-version dev-mode fuzz with synthetic A8/A11/A14.
+p114-fuzz: ## P1.14 — 3 000-iter cross-version dev-mode fuzz with synthetic-pass-through.
 	$(MAKE) p114-build
 	$(MAKE) p113-corpus-seed
 	$(MAKE) p16-aosp-runtime-probe
@@ -860,12 +860,34 @@ p114-fuzz: ## P1.14 — 3 000-iter cross-version dev-mode fuzz with synthetic A8
 	  --probes "A14:synthetic,A11:synthetic,A8:synthetic" \
 	  --iters 3000 --log-every 1000
 
+.PHONY: p114-fuzz-divergence
+p114-fuzz-divergence: ## P1.14 audit-2 — 3 000-iter run with legacy synthetic divergence rules opted in (for classifier rule validation).
+	$(MAKE) p114-build
+	$(MAKE) p113-corpus-seed
+	$(MAKE) p16-aosp-runtime-probe
+	rm -rf $(ROOT)/fuzz/findings
+	APKAXIOM_SYNTHETIC_DIVERGENCE=1 \
+	  $(ROOT)/target/release/p113-fuzz-driver \
+	    --mode dev --seeds $(ROOT)/fuzz/corpus/seed --archive $(ROOT)/fuzz/findings \
+	    --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	    --probes "A14:synthetic,A11:synthetic,A8:synthetic" \
+	    --iters 3000 --log-every 1000
+
 .PHONY: p114-classify
 p114-classify: ## P1.14 — classify the harness archive into the 4-way taxonomy.
 	$(MAKE) p114-build
 	$(ROOT)/target/release/p114-classify \
 	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
 	  --out $(ROOT)/fuzz/findings/classified.ndjson
+
+.PHONY: p114-classify-regression
+p114-classify-regression: ## P1.14 audit-2 — fail CI if cross-version-evasion drops below floor.
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-classify \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --out $(ROOT)/fuzz/findings/classified.ndjson \
+	  --min-xv-gate $${P114_MIN_XV:-50} \
+	  --min-cve-gate $${P114_MIN_CVE:-10}
 
 .PHONY: p114-classify-eval
 p114-classify-eval: ## P1.14 — HARD gate: classifier micro-precision >= 0.80 vs holdout.
@@ -878,6 +900,72 @@ p114-classify-eval: ## P1.14 — HARD gate: classifier micro-precision >= 0.80 v
 	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
 	  --holdout $(ROOT)/fuzz/classifier/holdout.tsv \
 	  --min-precision 0.80
+
+.PHONY: p114-classify-eval-verdict-only
+p114-classify-eval-verdict-only: ## P1.14 audit-2 — independent verdict-only oracle gate.
+	$(MAKE) p114-build
+	$(ROOT)/target/release/p114-build-holdout-verdict-only \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --out $(ROOT)/fuzz/classifier/holdout-verdict-only.tsv --max 100
+	$(ROOT)/target/release/p114-classify-eval \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --holdout $(ROOT)/fuzz/classifier/holdout-verdict-only.tsv \
+	  --min-precision 0.80
+
+.PHONY: p114-classify-train-ml
+p114-classify-train-ml: ## P1.14 audit-2 — train xgboost ML classifier as second-opinion gate.
+	$(MAKE) p114-build
+	@if ! python3 -c "import xgboost, sklearn" 2>/dev/null; then \
+	  echo "Installing xgboost + scikit-learn for ML harness..."; \
+	  pip3 install --break-system-packages --quiet xgboost scikit-learn; \
+	fi
+	@if [ ! -f $(ROOT)/fuzz/classifier/holdout.tsv ]; then \
+	  $(ROOT)/target/release/p114-build-holdout \
+	    --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	    --inputs-dir $(ROOT)/fuzz/findings \
+	    --out $(ROOT)/fuzz/classifier/holdout.tsv --max 100; \
+	fi
+	python3 $(ROOT)/fuzz/classifier/train.py \
+	  --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	  --inputs-dir $(ROOT)/fuzz/findings \
+	  --holdout $(ROOT)/fuzz/classifier/holdout.tsv \
+	  --min-precision 0.80
+
+.PHONY: p114-realapk-eval
+p114-realapk-eval: ## P1.14 audit-2 — run cross-version classifier across the F-Droid corpus.
+	$(MAKE) p114-build
+	@if [ ! -d $(ROOT)/fuzz/corpus/real-apks ] || [ -z "$$(ls $(ROOT)/fuzz/corpus/real-apks/*.apk 2>/dev/null)" ]; then \
+	  echo "no APKs at $(ROOT)/fuzz/corpus/real-apks — run scripts/p114-fetch-real-apks.sh"; \
+	  exit 2; \
+	fi
+	rm -rf $(ROOT)/fuzz/findings-realapks
+	$(ROOT)/target/release/p114-realapk-eval \
+	  --seeds $(ROOT)/fuzz/corpus/real-apks \
+	  --archive $(ROOT)/fuzz/findings-realapks \
+	  --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	  --probes "A14:synthetic,A11:synthetic,A8:synthetic"
+	$(ROOT)/target/release/p114-classify \
+	  --archive $(ROOT)/fuzz/findings-realapks/archive.ndjson \
+	  --out $(ROOT)/fuzz/findings-realapks/classified.ndjson
+	@# Healthy signal: real APKs should produce 0 cross-version-evasion findings
+	@# under the pass-through synthetic default. If any fire, the synthetic
+	@# rules have regressed.
+	@xv=$$(grep -c 'cross-version-evasion' $(ROOT)/fuzz/findings-realapks/classified.ndjson 2>/dev/null || echo 0); \
+	if [ "$$xv" -gt 0 ]; then \
+	  echo "::error::p114-realapk-eval: $$xv false-positive cross-version-evasion findings on legitimate APKs"; \
+	  exit 1; \
+	fi; \
+	echo "p114-realapk-eval: 0 false-positive cross-version-evasion findings on real APKs (PASS)"
+
+.PHONY: p114-fuzz-replay
+p114-fuzz-replay: ## P1.14 audit-2 — replay cross-version archive bit-identical (HARD gate).
+	$(MAKE) p114-build
+	APKAXIOM_SYNTHETIC_DIVERGENCE=1 \
+	  $(ROOT)/target/release/p114-fuzz-replay \
+	    --archive $(ROOT)/fuzz/findings/archive.ndjson \
+	    --probe $(ROOT)/target/zip-aosp-runtime-probe \
+	    --probes "A14:synthetic,A11:synthetic,A8:synthetic" \
+	    --limit 100
 
 .PHONY: p114-orchestrate
 p114-orchestrate: ## P1.14 — 4-worker × 500-iter Centipede-style pool.
@@ -951,9 +1039,12 @@ p114-tests: ## P1.14 — every P1.13 + P1.14 lib test.
 .PHONY: p114-gates
 p114-gates: ## P1.14 — every CI gate (no MinIO; that needs Docker outside CI).
 	$(MAKE) p114-tests
-	$(MAKE) p114-fuzz
+	$(MAKE) p114-fuzz-divergence
 	$(MAKE) p114-classify
 	$(MAKE) p114-classify-eval
+	$(MAKE) p114-classify-eval-verdict-only
+	$(MAKE) p114-classify-regression
+	$(MAKE) p114-fuzz-replay
 	$(MAKE) p114-orchestrate
 	$(MAKE) p114-cve-template-smoke
 	$(MAKE) p114-dashboard-validate

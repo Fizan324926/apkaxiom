@@ -28,6 +28,14 @@ path = "src/bin/grammar_gen.rs"
 name = "p113-afl-harness"
 path = "src/bin/afl_harness.rs"
 
+[[bin]]
+name = "p114-realapk-eval"
+path = "src/bin/realapk_eval.rs"
+
+[[bin]]
+name = "p114-fuzz-replay"
+path = "src/bin/replay_xv.rs"
+
 [features]
 # Real-mode KVM/Nyx harness path. Disabled by default — building it
 # requires libnyx + a /dev/kvm host. Dev mode (default) runs the

@@ -23,6 +23,10 @@ path = "src/eval.rs"
 name = "p114-build-holdout"
 path = "src/bin/build_holdout.rs"
 
+[[bin]]
+name = "p114-build-holdout-verdict-only"
+path = "src/bin/build_holdout_verdict_only.rs"
+
 [dependencies]
 p113-fuzz-harness = { path = "../harness" }
 

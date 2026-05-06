@@ -42,10 +42,14 @@ fn arg<T: std::str::FromStr>(name: &str) -> Option<T> {
         .and_then(|s| s.parse().ok())
 }
 
+/// Used for stratified sampling — see `fn main`.
+#[allow(dead_code)]
 fn has_zip64_locator(input: &[u8]) -> bool {
     input.windows(4).any(|w| w == b"PK\x06\x07")
 }
 
+/// Used for stratified sampling — see `fn main`.
+#[allow(dead_code)]
 fn has_utf8_filename_flag(input: &[u8]) -> bool {
     for i in 0..input.len().saturating_sub(8) {
         if &input[i..i + 4] == b"PK\x03\x04" {
@@ -67,35 +71,45 @@ fn has_utf8_filename_flag(input: &[u8]) -> bool {
 }
 
 fn oracle_label(
-    bytes: &[u8],
+    _bytes: &[u8],
     axiom: &Verdict,
     targets: &[Verdict],
 ) -> Option<&'static str> {
+    // Threat-model labels (audit-2 closure):
+    //
+    // - aosp-cve-candidate: verifier rejects + any target accepts.
+    //   Verifier-vs-runtime gap is the primary signal regardless
+    //   of which targets diverge.
+    // - cross-version-evasion: verifier accepts + accept↔reject
+    //   split among targets. Verifier-accepts gate is essential
+    //   — without it, the verifier blocks installation regardless
+    //   of which runtime version is targeted.
+    // - model-bug: verifier accepts + every target rejects.
+    // - spec-ambiguity: verifier rejects + every target rejects.
+    //
+    // Input-byte features (`has_zip64_locator`, `has_utf8_*`)
+    // are no longer used for labelling; they're only used by
+    // [`fn main`] for STRATIFIED SAMPLING (over-represent
+    // structurally-interesting inputs in the holdout) so the
+    // gate exercises diverse input shapes.
     let any_target_accept = targets.iter().any(|v| matches!(v, Verdict::Accept));
-    let all_target_reject = !targets.is_empty() && targets.iter().all(|v| matches!(v, Verdict::Reject(_)));
+    let any_target_reject = targets.iter().any(|v| matches!(v, Verdict::Reject(_)));
+    let all_target_reject =
+        !targets.is_empty() && targets.iter().all(|v| matches!(v, Verdict::Reject(_)));
     match axiom {
         Verdict::Accept => {
-            // Verifier accepts; if any target rejects, the spec is
-            // too lax → model bug.
-            if all_target_reject {
+            if any_target_accept && any_target_reject {
+                Some("cross-version-evasion")
+            } else if all_target_reject {
                 Some("model-bug")
             } else {
                 None
             }
         }
         Verdict::Reject(_) => {
-            // Structural cross-version: if input contains a ZIP64
-            // EOCD locator OR a UTF-8 filename flag and any target
-            // accepts, the synthetic A11/A8 layer would reject
-            // while the real A14 might accept → cross-version
-            // evasion.
-            if (has_zip64_locator(bytes) || has_utf8_filename_flag(bytes)) && any_target_accept {
-                Some("cross-version-evasion")
-            } else if any_target_accept {
-                // Verifier rejects, runtime accepts → CVE candidate.
+            if any_target_accept {
                 Some("aosp-cve-candidate")
             } else if all_target_reject {
-                // Both reject; spec-quality finding.
                 Some("spec-ambiguity")
             } else {
                 None

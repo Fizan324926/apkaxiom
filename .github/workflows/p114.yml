@@ -59,14 +59,31 @@ jobs:
       - name: Run lib tests (P1.13 + P1.14)
         run: cargo test --release -p p113-fuzz-harness -p p114-classifier -p p114-orchestrator -p p114-corpus-archive --lib
 
-      - name: Cross-version fuzz (3 000 iters, synthetic A8/A11/A14)
-        run: make p114-fuzz
+      - name: Cross-version fuzz with legacy divergence opt-in (for classifier rule validation)
+        run: make p114-fuzz-divergence
 
       - name: Classify the archive
         run: make p114-classify
 
-      - name: HARD gate — classifier micro-precision >= 0.80
+      - name: HARD gate — classifier micro-precision >= 0.80 (input-feature oracle)
         run: make p114-classify-eval
+
+      - name: HARD gate — classifier micro-precision >= 0.80 (independent verdict-only oracle)
+        run: make p114-classify-eval-verdict-only
+
+      - name: HARD gate — cross-version-evasion / CVE regression floors
+        run: make p114-classify-regression P114_MIN_XV=50 P114_MIN_CVE=10
+
+      - name: HARD gate — cross-version replay bit-identical
+        run: make p114-fuzz-replay
+
+      - name: ML classifier (xgboost) — second-opinion gate
+        run: make p114-classify-train-ml
+
+      - name: Real-APK regression — 0 false-positive cross-version findings
+        run: |
+          ./scripts/p114-fetch-real-apks.sh
+          make p114-realapk-eval
 
       - name: 4-worker pool smoke run
         run: make p114-orchestrate

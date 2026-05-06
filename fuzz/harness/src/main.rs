@@ -481,7 +481,17 @@ fn main() -> std::io::Result<()> {
             }
         };
         let bucket = classify(&axiom, &target);
-        let new_edge = coverage.observe(&axiom, &target);
+        // Collect cross-version verdicts up front so coverage feedback
+        // sees the full per-version verdict shape, not just the
+        // primary A14 verdict (audit-2 closure).
+        let xv_verdicts: Vec<Verdict> = cross_version_probes
+            .iter()
+            .map(|vp| vp.run_one(&mutated).unwrap_or(target.clone()))
+            .collect();
+        let mut all_targets: Vec<Verdict> = Vec::with_capacity(1 + xv_verdicts.len());
+        all_targets.push(target.clone());
+        all_targets.extend(xv_verdicts.iter().cloned());
+        let new_edge = coverage.observe_xv(&axiom, &all_targets);
         if new_edge {
             new_edge_count += 1;
             // Add this input to the new-edge queue so subsequent
@@ -546,11 +556,8 @@ fn main() -> std::io::Result<()> {
                     shard_input_path(&sha)
                 }
             };
-            for vp in &cross_version_probes {
-                let v_verdict = match vp.run_one(&mutated) {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
+            for (vp, v_verdict) in cross_version_probes.iter().zip(xv_verdicts.iter()) {
+                let v_verdict = v_verdict.clone();
                 let v_bucket = classify(&axiom, &v_verdict);
                 if !v_bucket.is_finding() {
                     // Every probe writes A/B records too so the
