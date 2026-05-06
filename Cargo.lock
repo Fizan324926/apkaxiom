@@ -1119,6 +1119,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "p119-eval-compare"
+version = "0.0.0"
+dependencies = [
+ "axiom-blake3-hacl",
+ "axiom-crypto-hacl",
+ "axiom-l1-rs",
+ "axiom-l1-signing-verified",
+ "walkdir",
+]
+
+[[package]]
 name = "p17-bench-1k"
 version = "0.0.0"
 dependencies = [

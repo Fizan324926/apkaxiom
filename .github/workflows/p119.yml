@@ -1,0 +1,108 @@
+name: P1.19 E2E evaluation — Bench-1K coverage + Androguard comparison
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/p119-eval-compare/**'
+      - 'crates/axiom-l1-rs/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-blake3-hacl/**'
+      - 'fuzz/corpus/real-apks/**'
+      - 'scripts/p119-androguard-bench.py'
+      - 'scripts/p119-compare.sh'
+      - '.github/workflows/p119.yml'
+  pull_request:
+    paths:
+      - 'tools/p119-eval-compare/**'
+      - 'crates/axiom-l1-rs/**'
+      - 'crates/axiom-l1-signing-verified/**'
+      - 'crates/axiom-crypto-hacl/**'
+      - 'crates/axiom-blake3-hacl/**'
+      - 'scripts/p119-androguard-bench.py'
+      - '.github/workflows/p119.yml'
+  workflow_dispatch:
+
+jobs:
+  p119-eval:
+    name: P1.19 Bench-1K coverage + Androguard comparison
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-22.04-cargo-p119-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ubuntu-22.04-cargo-p119-
+
+      - name: Build p119-eval-compare (release)
+        run: cargo build -q -p p119-eval-compare --release
+
+      - name: HARD gate — ≥99% coverage on real-apks corpus
+        run: |
+          ./target/release/p119-eval-compare \
+            --corpus fuzz/corpus/real-apks \
+            --bench \
+            --json-out /tmp/p119-apkaxiom-ci.ndjson
+
+      - name: Install Androguard
+        run: pip install --quiet androguard==4.1.3
+
+      - name: Androguard manifest-only bench (comparison)
+        run: |
+          python3 scripts/p119-androguard-bench.py \
+            fuzz/corpus/real-apks \
+            --output /tmp/p119-androguard-ci.ndjson \
+            --mode manifest
+
+      - name: Print comparison table
+        run: |
+          python3 - fuzz/corpus/real-apks /tmp/p119-apkaxiom-ci.ndjson /tmp/p119-androguard-ci.ndjson <<'PYEOF'
+          import json, sys, os
+
+          def load(path):
+              records = []
+              with open(path) as f:
+                  for line in f:
+                      line = line.strip()
+                      if line:
+                          records.append(json.loads(line))
+              return records
+
+          def stats(times):
+              s = sorted(times)
+              n = len(s)
+              def pct(p):
+                  idx = int((p / 100.0) * (n - 1))
+                  return s[min(idx, n - 1)]
+              total_sec = sum(s) / 1000.0
+              return {"n": n, "p50": pct(50), "p95": pct(95), "tput": n / total_sec if total_sec > 0 else 0}
+
+          ax = stats([r["elapsed_ms"] for r in load(sys.argv[2])])
+          ag = stats([r["elapsed_ms"] for r in load(sys.argv[3])])
+          speedup = ag["p50"] / ax["p50"] if ax["p50"] > 0 else 0
+
+          print(f"\nComparison on {os.path.basename(sys.argv[1])} ({ax['n']} APKs):")
+          print(f"  APKAXIOM:           p50={ax['p50']:.1f}ms  p95={ax['p95']:.1f}ms  {ax['tput']:.0f} APKs/s")
+          print(f"  Androguard manifest: p50={ag['p50']:.1f}ms  p95={ag['p95']:.1f}ms  {ag['tput']:.0f} APKs/s")
+          print(f"  Speedup: {speedup:.1f}×")
+          PYEOF
+
+      - name: Upload receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: p119-eval-receipts
+          path: |
+            /tmp/p119-apkaxiom-ci.ndjson
+            /tmp/p119-androguard-ci.ndjson

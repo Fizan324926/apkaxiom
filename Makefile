@@ -1333,6 +1333,43 @@ p118-gates: ## P1.18 — all local gates: smoke + repro.
 .PHONY: p118
 p118: p118-gates ## Alias — run every P1.18 gate.
 
+##@ P1.19 — AndroZoo benchmark + Androguard comparison + paper draft
+
+.PHONY: p119-build
+p119-build: ## P1.19 — build p119-eval-compare release binary.
+	cargo build -q -p p119-eval-compare --release
+
+.PHONY: p119-bench
+p119-bench: p119-build ## P1.19 — timed eval on bench-1k (coverage gate + comparison-ready NDJSON).
+	$(ROOT)/target/release/p119-eval-compare \
+		--corpus $(ROOT)/fuzz/corpus/bench-1k \
+		--bench \
+		--json-out /tmp/p119-apkaxiom.ndjson
+
+.PHONY: p119-bench-real
+p119-bench-real: p119-build ## P1.19 — timed eval on real-apks corpus.
+	$(ROOT)/target/release/p119-eval-compare \
+		--corpus $(ROOT)/fuzz/corpus/real-apks \
+		--bench \
+		--json-out /tmp/p119-apkaxiom-real.ndjson
+
+.PHONY: p119-androguard
+p119-androguard: ## P1.19 — Androguard 4.1.3 manifest-mode benchmark on real-apks.
+	python3 $(ROOT)/scripts/p119-androguard-bench.py \
+		$(ROOT)/fuzz/corpus/real-apks \
+		--output /tmp/p119-androguard-real.ndjson
+
+.PHONY: p119-compare
+p119-compare: p119-build ## P1.19 — full comparison table (APKAXIOM vs Androguard manifest + full).
+	bash $(ROOT)/scripts/p119-compare.sh $(ROOT)/fuzz/corpus/real-apks
+
+.PHONY: p119-gates
+p119-gates: ## P1.19 — all local gates: bench coverage ≥99%.
+	$(MAKE) p119-bench
+
+.PHONY: p119
+p119: p119-gates ## Alias — run every P1.19 gate.
+
 ##@ Nix
 
 .PHONY: nix-check

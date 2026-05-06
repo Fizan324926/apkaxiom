@@ -6,6 +6,7 @@ members = [
     "crates/axiom-l1-signing-verified",
     "tools/p116-signing-bench",
     "tools/p118-e2e",
+    "tools/p119-eval-compare",
     "crates/axiom-l0",
     "crates/axiom-l0-zip-lfh-extracted",
     "crates/axiom-l0-zip-lfh-verified",
