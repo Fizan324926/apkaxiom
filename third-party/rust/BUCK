@@ -763,6 +763,52 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "errno",
+    actual = ":errno-0.3",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "errno-0.3",
+    srcs = [
+        "vendor/errno-0.3.14/src/hermit.rs",
+        "vendor/errno-0.3.14/src/lib.rs",
+        "vendor/errno-0.3.14/src/sys.rs",
+        "vendor/errno-0.3.14/src/unix.rs",
+        "vendor/errno-0.3.14/src/wasi.rs",
+        "vendor/errno-0.3.14/src/windows.rs",
+    ],
+    crate = "errno",
+    crate_root = "vendor/errno-0.3.14/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "macos-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "macos-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "windows-gnu": dict(
+            deps = [":windows-sys-0.61"],
+        ),
+        "windows-msvc": dict(
+            deps = [":windows-sys-0.61"],
+        ),
+    },
+    visibility = [],
+)
+
 cargo.rust_library(
     name = "ff-0.13",
     srcs = [
@@ -1222,6 +1268,10 @@ cargo.rust_library(
     crate = "libc",
     crate_root = "vendor/libc-0.2.186/src/lib.rs",
     edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
     visibility = [],
 )
 
@@ -2112,6 +2162,65 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "signal-hook",
+    actual = ":signal-hook-0.3",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "signal-hook-0.3",
+    srcs = [
+        "vendor/signal-hook-0.3.18/src/flag.rs",
+        "vendor/signal-hook-0.3.18/src/iterator/backend.rs",
+        "vendor/signal-hook-0.3.18/src/iterator/exfiltrator/mod.rs",
+        "vendor/signal-hook-0.3.18/src/iterator/exfiltrator/origin.rs",
+        "vendor/signal-hook-0.3.18/src/iterator/exfiltrator/raw.rs",
+        "vendor/signal-hook-0.3.18/src/iterator/mod.rs",
+        "vendor/signal-hook-0.3.18/src/lib.rs",
+        "vendor/signal-hook-0.3.18/src/low_level/channel.rs",
+        "vendor/signal-hook-0.3.18/src/low_level/mod.rs",
+        "vendor/signal-hook-0.3.18/src/low_level/pipe.rs",
+        "vendor/signal-hook-0.3.18/src/low_level/siginfo.rs",
+        "vendor/signal-hook-0.3.18/src/low_level/signal_details.rs",
+    ],
+    crate = "signal_hook",
+    crate_root = "vendor/signal-hook-0.3.18/src/lib.rs",
+    edition = "2018",
+    features = [
+        "channel",
+        "iterator",
+    ],
+    visibility = [],
+    deps = [
+        ":libc-0.2",
+        ":signal-hook-registry-1",
+    ],
+)
+
+alias(
+    name = "signal-hook-registry",
+    actual = ":signal-hook-registry-1",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "signal-hook-registry-1",
+    srcs = [
+        "vendor/signal-hook-registry-1.4.8/src/half_lock.rs",
+        "vendor/signal-hook-registry-1.4.8/src/lib.rs",
+        "vendor/signal-hook-registry-1.4.8/src/vec_map.rs",
+    ],
+    crate = "signal_hook_registry",
+    crate_root = "vendor/signal-hook-registry-1.4.8/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [
+        ":errno-0.3",
+        ":libc-0.2",
+    ],
+)
+
 cargo.rust_library(
     name = "signature-2",
     srcs = [
@@ -2772,6 +2881,8 @@ cargo.rust_library(
         "Win32_Storage_FileSystem",
         "Win32_System",
         "Win32_System_Console",
+        "Win32_System_Diagnostics",
+        "Win32_System_Diagnostics_Debug",
         "Win32_System_SystemInformation",
         "default",
     ],

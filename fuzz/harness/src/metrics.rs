@@ -44,6 +44,9 @@ pub struct Metrics {
     pub iter_duration_ns_sum: AtomicU64,
     /// `p113_fuzz_distinct_clusters_total` — deduped cluster count.
     pub distinct_clusters: AtomicU64,
+    /// `p113_fuzz_probe_timeouts_total` — count of inputs killed by
+    /// the per-call watchdog.
+    pub probe_timeouts: AtomicU64,
 }
 
 impl Metrics {
@@ -51,7 +54,11 @@ impl Metrics {
     #[must_use]
     pub fn render(&self) -> String {
         let mut s = String::with_capacity(2048);
-        let counters: [(&str, u64); 6] = [
+        let counters: [(&str, u64); 7] = [
+            (
+                "p113_fuzz_probe_timeouts_total",
+                self.probe_timeouts.load(Ordering::Relaxed),
+            ),
             (
                 "p113_fuzz_iters_total",
                 self.iters_total.load(Ordering::Relaxed),

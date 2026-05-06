@@ -1,0 +1,39 @@
+# P1.13 Gap-4 closure — AFL++ instrumented Rust harness.
+#
+# This crate is intentionally OUTSIDE the workspace so it can
+# disable `unsafe_code = "forbid"` on the bin entry. The workspace
+# lints config sets that to forbid, which cannot be relaxed via
+# package-level [lints]. The crate is built via:
+#
+#     cargo afl build --manifest-path fuzz/afl-instrumented/Cargo.toml \
+#                     --release --bin p113-afl-instrumented
+#
+# The `afl::fuzz!{}` macro it uses is itself written in unsafe
+# (it sets up the AFL persistent-mode forkserver and shared-memory
+# bitmap). That unsafe is sealed inside the `afl` crate (0.14.5);
+# our entry point only sees the safe `fn(&[u8])` callback.
+
+# Standalone — not a workspace member. Out-of-workspace so we can
+# disable the workspace's `unsafe_code = "forbid"` lint.
+[workspace]
+
+[package]
+name = "p113-afl-instrumented"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+publish = false
+authors = ["APKAXIOM Authors"]
+repository = "https://github.com/Fizan324926/apkaxiom"
+rust-version = "1.83"
+
+[[bin]]
+name = "p113-afl-instrumented"
+path = "src/main.rs"
+
+[dependencies]
+# Pin to the same cargo-afl tool version (0.14.5) installed at
+# /root/.cargo/bin/cargo-afl. afl 0.15+ requires edition2024 which
+# our pinned rustc 1.83 doesn't stabilise.
+afl = "=0.14.5"
+p113-fuzz-harness = { path = "../harness" }

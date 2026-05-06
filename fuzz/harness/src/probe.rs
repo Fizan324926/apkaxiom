@@ -14,13 +14,39 @@
 //!
 //! Spawned with `--archive-runtime-server`. EOF on stdin closes
 //! the child cleanly.
+//!
+//! ## Per-call timeout (Gap-10 closure)
+//!
+//! A single shared watchdog thread enforces per-input timeouts.
+//! Each `run_one` call registers `(deadline, pid_atomic, counter)`
+//! into a shared registry before its stdin write, then deregisters
+//! after the stdout read returns. The watchdog wakes every 5 ms,
+//! scans the registry, and, for any entry whose deadline has
+//! passed, issues `kill -9 <pid>`, bumps the probe's `timed_out`
+//! counter, and removes the entry (so the next call re-registers
+//! fresh, avoiding any re-kill of the post-restart pid). The
+//! probe's existing pipe-broken auto-restart path then transparently
+//! re-spawns the child on the next call; a delta on `timed_out`
+//! is what tells the caller a kill happened.
+//!
+//! Why `kill(2)` via `/bin/kill -9` and not `libc::kill`?
+//! The crate is `#![forbid(unsafe_code)]`. `Child::kill` requires
+//! `&mut self`, so the watchdog can't grab the probe mutex
+//! without deadlocking against the in-flight `run_one` (which
+//! holds the mutex while blocked on stdout). Storing the pid as
+//! an `AtomicU32` and shelling out to `/bin/kill` is the safe
+//! escape hatch — it only fires on overrun (rare) and the cost
+//! is dominated by the kill itself.
 
 use std::{
+    collections::HashMap,
     io::{BufRead, BufReader, Read, Write},
     path::Path,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::Mutex,
-    time::Duration,
+    sync::atomic::{AtomicU32, AtomicU64, Ordering},
+    sync::{Arc, Mutex, OnceLock},
+    thread,
+    time::{Duration, Instant},
 };
 
 use crate::classifier::Verdict;
@@ -35,6 +61,16 @@ pub struct PersistentProbe {
     /// Per-input timeout. If a single input takes longer than
     /// this, the probe is killed + restarted (Gap-10).
     timeout: Duration,
+    /// Atomic mirror of the child's pid. Updated on every
+    /// (re)spawn; read by the watchdog to issue `kill -9`
+    /// without holding the probe mutex.
+    pid: Arc<AtomicU32>,
+    /// Stable identity in the watchdog registry.
+    handle_id: u64,
+    /// Count of inputs killed by the watchdog. Bumped from
+    /// inside the watchdog thread; read by the run path to
+    /// detect the kill.
+    timed_out: Arc<AtomicU64>,
 }
 
 struct ChildState {
@@ -54,11 +90,15 @@ impl PersistentProbe {
     /// per-input timeout is 5 s; override with [`Self::with_timeout`].
     pub fn spawn(label: &str, binary: &Path) -> std::io::Result<Self> {
         let child = Self::spawn_child(binary)?;
+        let pid = Arc::new(AtomicU32::new(child.child.id()));
         Ok(Self {
             child: Mutex::new(child),
             label: label.to_string(),
             binary: binary.to_path_buf(),
             timeout: Duration::from_secs(5),
+            pid,
+            handle_id: next_handle_id(),
+            timed_out: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -71,8 +111,12 @@ impl PersistentProbe {
     }
 
     fn spawn_child(binary: &Path) -> std::io::Result<ChildState> {
+        Self::spawn_child_argv(binary, &["--archive-runtime-server"])
+    }
+
+    fn spawn_child_argv(binary: &Path, argv: &[&str]) -> std::io::Result<ChildState> {
         let mut c = Command::new(binary)
-            .arg("--archive-runtime-server")
+            .args(argv)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -100,16 +144,52 @@ impl PersistentProbe {
         &self.label
     }
 
+    /// Number of inputs killed by the watchdog since spawn.
+    #[must_use]
+    pub fn timed_out(&self) -> u64 {
+        self.timed_out.load(Ordering::Relaxed)
+    }
+
     /// Run one input through the probe. On a child crash, restarts
     /// the child once and retries; further failures are returned
-    /// as `Err`.
+    /// as `Err`. On per-call overrun, the watchdog kills the
+    /// child; this function returns `Err(TimedOut)` and the next
+    /// call re-spawns.
     pub fn run_one(&self, input: &[u8]) -> std::io::Result<Verdict> {
-        // Try once; if the pipe is dead, restart and try once more.
-        match self.run_one_inner(input) {
+        let watchdog = ensure_watchdog();
+        let timed_out_before = self.timed_out.load(Ordering::Relaxed);
+        let deadline = Instant::now() + self.timeout;
+        watchdog.register(
+            self.handle_id,
+            deadline,
+            Arc::clone(&self.pid),
+            Arc::clone(&self.timed_out),
+        );
+        let raw = self.run_one_inner(input);
+        watchdog.deregister(self.handle_id);
+
+        match raw {
             Ok(v) => Ok(v),
             Err(e) if is_pipe_broken(&e) => {
+                let timed_out_after = self.timed_out.load(Ordering::Relaxed);
                 self.restart()?;
-                self.run_one_inner(input)
+                if timed_out_after > timed_out_before {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!("probe timed out after {:?}", self.timeout),
+                    ));
+                }
+                // Re-register for the retry.
+                let retry_deadline = Instant::now() + self.timeout;
+                watchdog.register(
+                    self.handle_id,
+                    retry_deadline,
+                    Arc::clone(&self.pid),
+                    Arc::clone(&self.timed_out),
+                );
+                let retry = self.run_one_inner(input);
+                watchdog.deregister(self.handle_id);
+                retry
             }
             Err(e) => Err(e),
         }
@@ -127,7 +207,10 @@ impl PersistentProbe {
         let mut line = String::new();
         let n = g.stdout.read_line(&mut line)?;
         if n == 0 {
-            return Err(std::io::Error::other("probe closed stdout"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "probe closed stdout",
+            ));
         }
         g.served = g.served.wrapping_add(1);
         Ok(parse_reply(line.trim_end()))
@@ -139,6 +222,7 @@ impl PersistentProbe {
         let _ = g.child.kill();
         let _ = g.child.wait();
         let fresh = Self::spawn_child(&self.binary)?;
+        self.pid.store(fresh.child.id(), Ordering::Relaxed);
         *g = fresh;
         Ok(())
     }
@@ -148,11 +232,9 @@ impl PersistentProbe {
     /// Idempotent.
     pub fn shutdown(&self) {
         let mut g = self.child.lock().expect("probe mutex poisoned");
-        // Dropping stdin closes the pipe and signals EOF.
-        // Replace with a fresh dummy stdin so the field is valid
-        // for any further (no-op) calls.
         let _ = g.child.kill();
         let _ = g.child.wait();
+        ensure_watchdog().deregister(self.handle_id);
     }
 
     /// Number of inputs served since spawn (or last restart).
@@ -167,6 +249,7 @@ impl std::fmt::Debug for PersistentProbe {
         f.debug_struct("PersistentProbe")
             .field("label", &self.label)
             .field("served", &self.served())
+            .field("timed_out", &self.timed_out())
             .finish()
     }
 }
@@ -221,6 +304,113 @@ pub fn run_one_oneshot(binary: &Path, input: &[u8], timeout: Duration) -> std::i
     Ok(parse_reply(s.lines().next().unwrap_or("")))
 }
 
+// ---------------------------------------------------------------------
+// Watchdog — single shared thread; lazily started on first probe.
+// ---------------------------------------------------------------------
+
+fn next_handle_id() -> u64 {
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
+struct WatchdogEntry {
+    deadline: Instant,
+    pid: Arc<AtomicU32>,
+    timed_out: Arc<AtomicU64>,
+}
+
+struct Watchdog {
+    inner: Mutex<HashMap<u64, WatchdogEntry>>,
+}
+
+static WATCHDOG: OnceLock<Watchdog> = OnceLock::new();
+
+fn ensure_watchdog() -> &'static Watchdog {
+    WATCHDOG.get_or_init(|| {
+        thread::Builder::new()
+            .name("p113-probe-watchdog".into())
+            .spawn(watchdog_loop)
+            .expect("watchdog thread spawn");
+        Watchdog {
+            inner: Mutex::new(HashMap::new()),
+        }
+    })
+}
+
+impl Watchdog {
+    fn register(
+        &self,
+        id: u64,
+        deadline: Instant,
+        pid: Arc<AtomicU32>,
+        timed_out: Arc<AtomicU64>,
+    ) {
+        let mut g = self.inner.lock().expect("watchdog mutex");
+        g.insert(
+            id,
+            WatchdogEntry {
+                deadline,
+                pid,
+                timed_out,
+            },
+        );
+    }
+
+    fn deregister(&self, id: u64) {
+        let mut g = self.inner.lock().expect("watchdog mutex");
+        g.remove(&id);
+    }
+}
+
+fn watchdog_loop() {
+    // 5 ms cadence — fine grained enough that timeouts above
+    // ~50 ms are accurate to ~10 % and the wakeup cost is
+    // negligible (one mutex acquire on an empty map).
+    let cadence = Duration::from_millis(5);
+    loop {
+        thread::sleep(cadence);
+        let w = match WATCHDOG.get() {
+            Some(w) => w,
+            None => continue,
+        };
+        // Snapshot expired entries under the lock, drop the lock,
+        // then issue kills outside it (kill is slow vs holding
+        // a contended mutex).
+        let to_kill: Vec<(u64, u32, Arc<AtomicU64>)> = {
+            let mut g = match w.inner.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            let now = Instant::now();
+            let expired: Vec<u64> = g
+                .iter()
+                .filter(|(_, e)| e.deadline <= now)
+                .map(|(&id, _)| id)
+                .collect();
+            expired
+                .into_iter()
+                .filter_map(|id| {
+                    g.remove(&id)
+                        .map(|e| (id, e.pid.load(Ordering::Relaxed), e.timed_out))
+                })
+                .collect()
+        };
+        for (_id, pid, timed_out) in to_kill {
+            if pid != 0 {
+                // Best-effort SIGKILL via /bin/kill — bypasses
+                // the unsafe_code forbid that blocks libc::kill.
+                let _ = Command::new("kill")
+                    .arg("-9")
+                    .arg(pid.to_string())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+            timed_out.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,5 +429,94 @@ mod tests {
     fn parse_reply_malformed() {
         let v = parse_reply("garbage");
         assert!(matches!(v, Verdict::Reject(s) if s.starts_with("malformed:")));
+    }
+
+    /// Test-only constructor that lets the caller pick argv. Real
+    /// callers go through [`PersistentProbe::spawn`] which always
+    /// passes `--archive-runtime-server`.
+    fn spawn_with_argv_for_test(
+        label: &str,
+        binary: &Path,
+        argv: &[&str],
+    ) -> std::io::Result<PersistentProbe> {
+        let child = PersistentProbe::spawn_child_argv(binary, argv)?;
+        let pid = Arc::new(AtomicU32::new(child.child.id()));
+        Ok(PersistentProbe {
+            child: Mutex::new(child),
+            label: label.to_string(),
+            binary: binary.to_path_buf(),
+            timeout: Duration::from_secs(5),
+            pid,
+            handle_id: next_handle_id(),
+            timed_out: Arc::new(AtomicU64::new(0)),
+        })
+    }
+
+    /// End-to-end watchdog test. Uses `/bin/sleep 30` as the "probe":
+    /// it ignores stdin and never writes stdout, so any
+    /// `run_one` would block indefinitely without the watchdog.
+    /// With a 250 ms timeout the watchdog must kill it and the
+    /// call must return promptly (well under 3 s).
+    #[test]
+    fn watchdog_kills_runaway_probe() {
+        let bin = std::path::PathBuf::from("/bin/sleep");
+        if !bin.exists() {
+            return;
+        }
+        let probe = spawn_with_argv_for_test("sleep-test", &bin, &["30"])
+            .expect("spawn sleep")
+            .with_timeout(Duration::from_millis(250));
+        let t0 = Instant::now();
+        let r = probe.run_one(&[0u8; 4]);
+        let dt = t0.elapsed();
+        assert!(
+            r.is_err(),
+            "expected error from timed-out runaway probe, got {r:?}"
+        );
+        assert!(
+            dt < Duration::from_secs(3),
+            "watchdog did not return promptly: {dt:?}"
+        );
+        assert!(
+            probe.timed_out() >= 1,
+            "expected timed_out >= 1, got {}",
+            probe.timed_out()
+        );
+    }
+
+    /// Watchdog must NOT fire when the probe responds within the
+    /// deadline. Uses `/bin/cat` echoing fixed-length frames; the
+    /// probe protocol is wrong (cat just echoes raw bytes), so
+    /// `parse_reply` will return `Reject(malformed:...)`. That's
+    /// fine — what we're testing is that `run_one` returns a
+    /// verdict (not a TimedOut error) and `timed_out()` stays 0.
+    /// We use a single 4-byte length prefix (no body) so cat
+    /// echoes exactly 4 bytes back, which contains a `\n`?
+    /// Probably not — so we accept either Ok or non-Timeout Err.
+    #[test]
+    fn watchdog_does_not_fire_when_probe_responds() {
+        // Build a tiny shell-script probe that echoes a fixed reply
+        // immediately, satisfying read_line and exiting fast.
+        let script = "/tmp/p113-watchdog-fast-probe.sh";
+        std::fs::write(
+            script,
+            "#!/bin/sh\nwhile true; do head -c 4 > /dev/null && echo 'ok 0'; done\n",
+        )
+        .expect("write script");
+        let _ = std::process::Command::new("chmod")
+            .arg("+x")
+            .arg(script)
+            .status();
+        let bin = std::path::PathBuf::from(script);
+        let probe = spawn_with_argv_for_test("fast-probe", &bin, &[])
+            .expect("spawn fast probe")
+            .with_timeout(Duration::from_millis(500));
+        let v = probe.run_one(&[]).expect("run_one fast");
+        assert!(
+            matches!(v, Verdict::Accept),
+            "expected Accept, got {v:?}"
+        );
+        assert_eq!(probe.timed_out(), 0, "watchdog must not fire on fast path");
+        let _ = std::fs::remove_file(script);
     }
 }

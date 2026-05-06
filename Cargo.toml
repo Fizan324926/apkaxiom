@@ -65,6 +65,10 @@ exclude = [
     # `cargo --manifest-path tools/zip-stream-soak-async/Cargo.toml`
     # from inside `nix develop`.
     "tools/zip-stream-soak-async",
+    # P1.13 Gap-4 closure — AFL++ instrumented harness. Out-of-
+    # workspace so it can opt out of `unsafe_code = "forbid"` for
+    # the `afl::fuzz!{}` macro entry. Built via `cargo afl build`.
+    "fuzz/afl-instrumented",
 ]
 
 [workspace.package]

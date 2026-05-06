@@ -111,4 +111,8 @@ fuzz/findings/
 # P1.13 parallel-worker output + AFL output — runtime artefacts.
 fuzz/findings-parallel/
 fuzz/afl-output/
+fuzz/afl-instrumented-output/
+# afl-instrumented is out-of-workspace (its own Cargo.lock + target/).
+fuzz/afl-instrumented/Cargo.lock
+fuzz/afl-instrumented/target/
 fuzz/observability/

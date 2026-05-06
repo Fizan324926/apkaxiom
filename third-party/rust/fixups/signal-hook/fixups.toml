@@ -1,0 +1,6 @@
+# P1.13 Gap-17 closure — real SIGINT/SIGTERM handler.
+#
+# signal-hook 0.3.18 has a build.rs that only does work under the
+# `extended-siginfo-raw` feature (which we don't enable). The
+# default build is a no-op. Skip running it.
+buildscript.run = false

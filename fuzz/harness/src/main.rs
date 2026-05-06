@@ -69,6 +69,10 @@ struct Args {
     min_findings_gate: Option<u64>,
     min_e_findings_gate: Option<u64>,
     max_io_errors_gate: Option<u64>,
+    /// Per-input timeout in milliseconds. Watchdog kills the
+    /// probe with `kill -9` on overrun; the next call re-spawns
+    /// transparently. Default 5000 ms.
+    probe_timeout_ms: u64,
 }
 
 impl Args {
@@ -97,6 +101,7 @@ impl Args {
             min_findings_gate: arg("--min-findings-gate"),
             min_e_findings_gate: arg("--min-e-gate"),
             max_io_errors_gate: arg("--max-io-errors"),
+            probe_timeout_ms: arg("--probe-timeout-ms").unwrap_or(5_000),
         }
     }
 }
@@ -181,23 +186,50 @@ fn print_status(c: &Counters, elapsed: Duration) {
 }
 
 fn install_signal_handler(stop: Arc<AtomicBool>) {
-    // SIGINT clean shutdown — Gap-17. We can't pull `signal-hook`
-    // (Reindeer surface), but a tiny C signal handler via libc is
-    // acceptable. The ctrlc crate isn't here either; using a
-    // single-shot std-only approach: spawn a thread that polls
-    // /proc/<pid>/signals — which we can't reliably do. Instead
-    // we use Unix-only `signal` via the libc syscall. Since we
-    // forbid unsafe_code at the crate level, use std's
-    // `signal_hook_registry`-equivalent fallback: rely on the
-    // budget watchdog + Ctrl-C delivering SIGINT to the whole
-    // process group, which our std::io::stdin().read on the
-    // Prometheus port etc. will surface as ConnectionAborted. As
-    // a portable fallback that compiles under #![forbid(unsafe_code)]
-    // we just install a once-per-second drain on the stop flag
-    // here and rely on the OS default action of SIGINT (terminate)
-    // when the operator hits Ctrl-C. The flag is still useful for
-    // budget-driven shutdown.
-    let _ = stop;
+    // Real SIGINT/SIGTERM handler (Gap-17 closure). `signal-hook`
+    // is `#![forbid(unsafe_code)]`-clean at its public surface —
+    // the unsafe is sealed inside `signal-hook-registry`. We
+    // register both signals against a single Iterator and spawn
+    // a dedicated thread that drains it; on first delivery the
+    // stop flag flips, the main loop observes it on its next
+    // iteration, and the driver shuts down cleanly (flushing
+    // ndjson, killing probes, returning a successful exit code).
+    //
+    // A second signal of the same kind exits the process hard —
+    // operators expect Ctrl-C twice to mean "I really mean it".
+    use signal_hook::consts::{SIGINT, SIGTERM};
+    use signal_hook::iterator::Signals;
+    let mut signals = match Signals::new([SIGINT, SIGTERM]) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("WARN signal-hook registration failed: {e} (continuing without handler)");
+            return;
+        }
+    };
+    let stop_thread = Arc::clone(&stop);
+    std::thread::Builder::new()
+        .name("p113-signal-handler".into())
+        .spawn(move || {
+            let mut count: u32 = 0;
+            for sig in signals.forever() {
+                count += 1;
+                let label = match sig {
+                    SIGINT => "SIGINT",
+                    SIGTERM => "SIGTERM",
+                    _ => "signal",
+                };
+                if count == 1 {
+                    eprintln!(
+                        "{label} received — initiating clean shutdown (send again to force-exit)"
+                    );
+                    stop_thread.store(true, Ordering::Relaxed);
+                } else {
+                    eprintln!("{label} again — force-exiting");
+                    std::process::exit(130);
+                }
+            }
+        })
+        .expect("signal handler thread spawn");
 }
 
 fn shard_input_path(sha: &str) -> String {
@@ -277,12 +309,19 @@ fn main() -> std::io::Result<()> {
         );
         std::process::exit(2);
     }
-    let primary_probe = PersistentProbe::spawn("aosp-libziparchive-runtime", &args.probe)?;
-    println!("  primary-probe: {} (persistent)", primary_probe.label());
+    let probe_timeout = Duration::from_millis(args.probe_timeout_ms);
+    let primary_probe = PersistentProbe::spawn("aosp-libziparchive-runtime", &args.probe)?
+        .with_timeout(probe_timeout);
+    println!(
+        "  primary-probe: {} (persistent, timeout={}ms)",
+        primary_probe.label(),
+        args.probe_timeout_ms
+    );
     let asan_probe = match &args.asan_probe {
         Some(p) if p.exists() => {
-            let pp = PersistentProbe::spawn("aosp-libziparchive-asan", p)?;
-            println!("  asan-probe   : {} (persistent)", pp.label());
+            let pp = PersistentProbe::spawn("aosp-libziparchive-asan", p)?
+                .with_timeout(probe_timeout);
+            println!("  asan-probe   : {} (persistent, timeout={}ms)", pp.label(), args.probe_timeout_ms);
             Some(pp)
         }
         Some(p) => {
@@ -363,11 +402,16 @@ fn main() -> std::io::Result<()> {
         let target = match primary_probe.run_one(&mutated) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("WARN primary probe i={}: {e}", counters.iters);
-                counters.target_io_errors += 1;
-                metrics
-                    .target_io_errors_total
-                    .fetch_add(1, Ordering::Relaxed);
+                let is_timeout = e.kind() == std::io::ErrorKind::TimedOut;
+                if is_timeout {
+                    metrics.probe_timeouts.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    eprintln!("WARN primary probe i={}: {e}", counters.iters);
+                    counters.target_io_errors += 1;
+                    metrics
+                        .target_io_errors_total
+                        .fetch_add(1, Ordering::Relaxed);
+                }
                 counters.iters += 1;
                 continue;
             }
@@ -508,6 +552,13 @@ fn main() -> std::io::Result<()> {
     println!("=== summary ===");
     println!("  total iters             : {}", counters.iters);
     println!("  target io errors        : {}", counters.target_io_errors);
+    println!(
+        "  primary-probe timeouts  : {}",
+        primary_probe.timed_out()
+    );
+    if let Some(p) = asan_probe.as_ref() {
+        println!("  asan-probe   timeouts   : {}", p.timed_out());
+    }
     println!("  bucket A (both ok)      : {}", counters.bucket_a);
     println!("  bucket B (same tag)     : {}", counters.bucket_b);
     println!("  bucket C (taxonomy)     : {}", counters.bucket_c);

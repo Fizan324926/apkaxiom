@@ -897,6 +897,38 @@ p113-afl-fuzz: ## P1.13 Gap-4 — run AFL++ in non-instrumented (-n) mode for $$
 	@echo "afl summary:"
 	@cat $(ROOT)/fuzz/afl-output/default/fuzzer_stats 2>/dev/null | head -25 || echo "  (no fuzzer_stats — afl exited early)"
 
+.PHONY: p113-afl-instrumented
+p113-afl-instrumented: ## P1.13 Gap-4 closure (audit-2) — build sancov-instrumented Rust binary via cargo-afl.
+	@command -v cargo-afl >/dev/null 2>&1 || { \
+	  echo "cargo-afl missing — install with:  cargo install cargo-afl --version '<0.15' --locked"; \
+	  exit 1; \
+	}
+	PATH=/root/security_research_tools/bin:$$PATH \
+	  cargo afl build --manifest-path $(ROOT)/fuzz/afl-instrumented/Cargo.toml \
+	    --release --bin p113-afl-instrumented
+
+.PHONY: p113-afl-fuzz-instrumented
+p113-afl-fuzz-instrumented: ## P1.13 Gap-4 closure (audit-2) — run AFL++ in instrumented mode (sancov-guided) for $$P113_AFL_SECONDS (default 300s).
+	$(MAKE) p113-afl-instrumented
+	$(MAKE) p16-aosp-runtime-probe
+	@if [ ! -e /root/.afl-core-set ]; then \
+	  echo core > /proc/sys/kernel/core_pattern 2>/dev/null && touch /root/.afl-core-set || true; \
+	fi
+	mkdir -p $(ROOT)/fuzz/afl-instrumented-output
+	rm -rf $(ROOT)/fuzz/afl-instrumented-output/*
+	PATH=/root/security_research_tools/bin:$$PATH \
+	  AFL_SKIP_CPUFREQ=1 AFL_NO_AFFINITY=1 \
+	  APKAXIOM_AOSP_PROBE=$(ROOT)/target/zip-aosp-runtime-probe \
+	  timeout $${P113_AFL_SECONDS:-300} afl-fuzz \
+	    -i $(ROOT)/fuzz/corpus/seed/badpack-cves \
+	    -o $(ROOT)/fuzz/afl-instrumented-output \
+	    -t 5000 -m none \
+	    -V $${P113_AFL_SECONDS:-300} \
+	    -- $(ROOT)/fuzz/afl-instrumented/target/release/p113-afl-instrumented || true
+	@echo "afl-instrumented summary:"
+	@cat $(ROOT)/fuzz/afl-instrumented-output/default/fuzzer_stats 2>/dev/null | head -25 \
+	  || echo "  (no fuzzer_stats — afl exited early)"
+
 .PHONY: p113-parallel
 p113-parallel: ## P1.13 Gap-6 — Centipede-equivalent: N parallel dev-mode workers (default 4).
 	$(MAKE) p113-corpus-seed

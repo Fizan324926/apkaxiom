@@ -40,6 +40,11 @@ nyx-cuttlefish = []
 [dependencies]
 axiom-l0-zip-verified = { path = "../../crates/axiom-l0-zip-verified" }
 axiom-blake3-hacl = { path = "../../crates/axiom-blake3-hacl" }
+# Real SIGINT/SIGTERM handler (Gap-17 closure). The user-facing
+# API is unsafe-clean; the `unsafe` is sealed inside
+# `signal-hook-registry`. We use the iterator API
+# `Signals::forever()` from a dedicated thread.
+signal-hook = { version = "=0.3.18", default-features = false, features = ["iterator"] }
 
 [lints]
 workspace = true

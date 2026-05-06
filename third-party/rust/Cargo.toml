@@ -75,5 +75,14 @@ spki = { version = "=0.7.3", default-features = false }
 der = { version = "=0.7.9", default-features = false, features = ["alloc", "oid"] }
 const-oid = { version = "=0.9.6", default-features = false }
 sha1 = { version = "=0.10.6", default-features = false }
+# P1.13 Gap-17 closure — real SIGINT/SIGTERM handler. The crate's
+# user-facing API is `#![forbid(unsafe_code)]`-clean; the `unsafe`
+# is contained inside `signal-hook-registry`. Pulling 0.3.x stays
+# at MSRV 1.36 and only adds two transitive crates that aren't
+# already vendored: `signal-hook-registry` and `errno` (libc is
+# already here from the rsa stack).
+signal-hook = { version = "=0.3.18", default-features = false, features = ["iterator"] }
+signal-hook-registry = "=1.4.8"
+errno = "=0.3.14"
 
 [patch.crates-io]
