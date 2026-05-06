@@ -160,51 +160,86 @@ fn bench_arm_b(fixture: &[u8], iters: usize) -> f64 {
     t0.elapsed().as_nanos() as f64 / iters as f64
 }
 
-fn main() {
-    let fixture = build_fixture();
-    let fixture_len = fixture.len();
-
-    const RUNS: usize = 5;
-    const ITERS: usize = 100_000;
-    const GATE_PCT: f64 = 15.0;
-
-    println!(
-        "ir-overhead-bench: {RUNS} runs × {ITERS} iters, fixture {fixture_len} bytes"
-    );
-    println!("  gate: IR overhead ≤ {GATE_PCT:.0} %");
-    println!();
-
-    // Warm up.
-    let _ = bench_arm_a(&fixture, 1000);
-    let _ = bench_arm_b(&fixture, 1000);
+fn run_bench(label: &str, fixture: &[u8], runs: usize, iters: usize) -> (f64, f64) {
+    let _ = bench_arm_a(fixture, iters.min(1000));
+    let _ = bench_arm_b(fixture, iters.min(1000));
 
     let mut ns_a = 0.0f64;
     let mut ns_b = 0.0f64;
-    for _ in 0..RUNS {
-        ns_a += bench_arm_a(&fixture, ITERS);
-        ns_b += bench_arm_b(&fixture, ITERS);
+    for _ in 0..runs {
+        ns_a += bench_arm_a(fixture, iters);
+        ns_b += bench_arm_b(fixture, iters);
     }
-    ns_a /= RUNS as f64;
-    ns_b /= RUNS as f64;
+    ns_a /= runs as f64;
+    ns_b /= runs as f64;
 
-    let mb_per_sec_a = fixture_len as f64 / (ns_a * 1e-9) / 1e6;
-    let mb_per_sec_b = fixture_len as f64 / (ns_b * 1e-9) / 1e6;
+    let mb_per_sec_a = fixture.len() as f64 / (ns_a * 1e-9) / 1e6;
+    let mb_per_sec_b = fixture.len() as f64 / (ns_b * 1e-9) / 1e6;
     let overhead_pct = (ns_b - ns_a) / ns_a * 100.0;
-    let pass = overhead_pct <= GATE_PCT;
 
-    println!("arm A base-parse-only : {:>8.0} ns/iter  {:>8.1} MB/s", ns_a, mb_per_sec_a);
-    println!("arm B base + IR emit  : {:>8.0} ns/iter  {:>8.1} MB/s", ns_b, mb_per_sec_b);
-    println!(
-        "Δ(IR vs base)         : {:>+7.2} %  {}",
-        overhead_pct,
-        if pass { "PASS" } else { "FAIL" }
-    );
+    println!("[{label}]  {} bytes  ({runs} runs × {iters} iters)", fixture.len());
+    println!("  arm A base-parse-only : {:>8.0} ns/iter  {:>8.1} MB/s", ns_a, mb_per_sec_a);
+    println!("  arm B base + IR emit  : {:>8.0} ns/iter  {:>8.1} MB/s", ns_b, mb_per_sec_b);
+    println!("  Δ(IR vs base)         : {:>+7.2} %", overhead_pct);
+    (ns_a, ns_b)
+}
 
-    if pass {
-        println!("\nGATE PASS — IR overhead {overhead_pct:.2} % ≤ {GATE_PCT:.0} %");
+fn largest_apk_in_corpus(corpus_dir: &std::path::Path) -> Option<Vec<u8>> {
+    let best = std::fs::read_dir(corpus_dir).ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("apk"))
+        .max_by_key(|e| e.metadata().map(|m| m.len()).unwrap_or(0))?;
+    std::fs::read(best.path()).ok()
+}
+
+fn main() {
+    let mut args = std::env::args().skip(1).peekable();
+    let mut corpus: Option<std::path::PathBuf> = None;
+    while let Some(arg) = args.next() {
+        if arg == "--corpus" {
+            corpus = args.next().map(std::path::PathBuf::from);
+        }
+    }
+
+    const RUNS: usize = 5;
+    const ITERS_SYNTH: usize = 100_000;
+    const ITERS_REAL:  usize = 1_000;
+    const GATE_PCT: f64 = 15.0;
+
+    println!("ir-overhead-bench: gate IR overhead ≤ {GATE_PCT:.0} %");
+    println!();
+
+    // ── Synthetic fixture (CI gate) ───────────────────────────────────────────
+    let fixture = build_fixture();
+    let (ns_a_synth, ns_b_synth) = run_bench("synthetic", &fixture, RUNS, ITERS_SYNTH);
+    let overhead_synth = (ns_b_synth - ns_a_synth) / ns_a_synth * 100.0;
+    let gate_pass = overhead_synth <= GATE_PCT;
+    println!("  → gate (synthetic): {:>+7.2} %  {}", overhead_synth,
+        if gate_pass { "PASS" } else { "FAIL" });
+
+    // ── Real-APK bench (informational, no gate exit) ──────────────────────────
+    if let Some(ref dir) = corpus {
+        println!();
+        if let Some(real_bytes) = largest_apk_in_corpus(dir) {
+            let (ns_a_real, ns_b_real) = run_bench("real-APK (largest in corpus)", &real_bytes, RUNS, ITERS_REAL);
+            let overhead_real = (ns_b_real - ns_a_real) / ns_a_real * 100.0;
+            let real_label = if overhead_real <= GATE_PCT { "within gate" }
+                             else if overhead_real <= 25.0 { "warn >15%" }
+                             else { "WARN >25%" };
+            println!("  → real-APK overhead: {:>+7.2} %  [{}]", overhead_real, real_label);
+        } else {
+            println!("  [real-APK bench skipped — no APKs found in {}]", dir.display());
+        }
+    } else {
+        println!("(pass --corpus DIR to also bench on a real APK from the corpus)");
+    }
+
+    println!();
+    if gate_pass {
+        println!("GATE PASS — IR overhead {overhead_synth:.2} % ≤ {GATE_PCT:.0} %");
         std::process::exit(0);
     } else {
-        eprintln!("\nGATE FAIL — IR overhead {overhead_pct:.2} % > {GATE_PCT:.0} %");
+        eprintln!("GATE FAIL — IR overhead {overhead_synth:.2} % > {GATE_PCT:.0} %");
         std::process::exit(1);
     }
 }

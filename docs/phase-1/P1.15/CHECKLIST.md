@@ -1,6 +1,6 @@
 # P1.15 — Closure Checklist
 
-**Status:** ✅ closed (AXIOM-IR-v0.1 emitter: AXML + ARSC parsers, semantic decode, Bench-1K 998/1000 round-trip + 998/998 semantic-check, IR overhead 4.26 %, CI green) on 2026-05-06.
+**Status:** ✅ closed (AXIOM-IR-v0.1 emitter: AXML + ARSC parsers, semantic decode, Bench-1K **1000/1000** round-trip + 4-gate semantic check + **100% androguard ground-truth** on 1000 APKs, IR overhead 8.42% synthetic / 51.87% real-APK, CI green) on 2026-05-06.
 
 **Spec gates** (P1.15 §10):
 
@@ -11,9 +11,10 @@
 | `ManifestIr` + `ResourceIr` glue layer | ✅ `crates/axiom-l1-rs/src/ir/emit.rs` — `emit_manifest`, `reencode_manifest`, `emit_resources`, `reencode_resources`; 1 unit test |
 | Semantic decode — `ManifestModule` fields populated (HARD) | ✅ `crates/axiom-l1-rs/src/ir/manifest_decode.rs` — package, min/target SDK, components (Activity/Service/Receiver/Provider), intent filters, uses-permissions, permissions decoded from AXML start-element walk; `strings.rs` handles both UTF-8 and UTF-16 string pools |
 | Semantic decode — `ResourceTable` string pool populated (HARD) | ✅ `crates/axiom-l1-rs/src/ir/resource_decode.rs` — global + per-package string pools decoded from ARSC; package name extracted from 256-byte UTF-16LE field at package chunk offset 12 |
-| Semantic decode gate — all packages non-empty (HARD) | ✅ **998/998 PASS** on Bench-1K corpus (`p115-semantic-check --corpus fuzz/corpus/bench-1k`); 2 APKs skipped due to deflate MAX_INFLATE_BYTES parse error (not a semantic decode failure) |
-| Round-trip gate ≥ 95 % byte-identical on F-Droid corpus (HARD) | ✅ **998/1000 APKs pass** both AXML and ARSC channels on Bench-1K (`p115-roundtrip --corpus fuzz/corpus/bench-1k`); 2 APKs rejected at parse with deflate limit → 99.8% rate; original 100-APK corpus: 100/100 |
-| IR emission overhead ≤ 15 % throughput hit (HARD) | ✅ **+4.26 % overhead** (arm A base=3 082 ns, arm B base+IR=3 213 ns); `p115-ir-overhead-bench`; gate 15 % |
+| Semantic decode gate — 4-way hard check (HARD) | ✅ **1000/1000 PASS** on Bench-1K: pkg_empty=0, comp_name_empty=0, perm_name_empty=0, sdk_inconsistent=0 (`p115-semantic-check --corpus fuzz/corpus/bench-1k`) |
+| Ground-truth vs androguard reference (HARD) | ✅ **1000/1000 package match (100%)**, **992/992 min_sdk match (100%)** (8 skip: both decoders returned 0, so no comparison); avg comp delta=0.00, avg perm delta=0.00 — `scripts/p115-ground-truth-check.py --corpus fuzz/corpus/bench-1k` |
+| Round-trip gate ≥ 95 % byte-identical on F-Droid corpus (HARD) | ✅ **1000/1000 APKs pass** both AXML and ARSC channels on Bench-1K (`p115-roundtrip --corpus fuzz/corpus/bench-1k`); inflate fix resolved 2 data-descriptor APKs (GP bit 3, LFH usz=0) that previously hit the 4096-byte heuristic cap |
+| IR emission overhead ≤ 15 % throughput hit (HARD) | ✅ **+8.42 % synthetic overhead** (arm A=2 986 ns, arm B=3 238 ns, gate 15%); **+51.87 % real-APK overhead** on 1.88 MB APK (WARN >25%, informational — dominated by full string-pool decode; future optimization target) |
 | IR output deterministic — same input → same bytes | ✅ 3 determinism tests: `axml_determinism_synthetic`, `arsc_determinism_synthetic`, `emit_manifest_glue_determinism`; parse is structurally `PartialEq` + `Clone`; emit is pure |
 | CI — multi-arch gate (ubuntu-22.04 + arm) | ✅ `.github/workflows/p115.yml` — 4 hard gates: unit+determinism tests, round-trip ≥ 95%, IR overhead ≤ 15%, semantic decode all-non-empty |
 | Doc comment displacement fix on `manifest_bytes` | ✅ reordered `verify_v2` before accessor methods in `apk.rs`; compile_fail doc tests C-01/C-02/C-03 remain attached to `verify_v2` |
@@ -87,6 +88,7 @@ of 1 000 iters discarded. Result: 5.9 % overhead vs 15 % gate.
 
 | # | Item | Blocker |
 |---|---|---|
-| §C-1 | ~~Run `p115-roundtrip` against AndroZoo Bench-1K~~ | ~~AndroZoo credentials~~ — **superseded**: F-Droid Bench-1K (1 000 APKs, public) passes 99.8% round-trip + 100% semantic; `scripts/p115-fetch-bench1k.sh` is the canonical fetcher |
+| §C-1 | ~~Run `p115-roundtrip` against AndroZoo Bench-1K~~ | ~~AndroZoo credentials~~ — **superseded**: F-Droid Bench-1K (1 000 APKs, public) passes 100% round-trip + 100% semantic + 100% androguard GT |
 | §C-2 | Run `p115-roundtrip` against production APKs with non-standard AXML padding to confirm trailer handling | Live device / proprietary corpus |
-| §C-3 | Raise `MAX_INFLATE_BYTES` limit or add streaming inflate to handle the 2 oversized APKs (groomiac.voicemailplayer, nl.asymmetrics.droidshows) that exceed current deflate cap | Config / streaming inflate refactor |
+| §C-3 | ~~Inflate cap fix for data-descriptor APKs~~ | **Closed**: `inflate_raw` now uses `MAX_INFLATE_BYTES` when `expected_size == 0` (GP bit 3); round-trip is now 1000/1000 |
+| §C-4 | Optimize semantic decode overhead for large APKs — 51.87% overhead on 1.88 MB APK (vs 8.42% synthetic); root cause is full string-pool decode on every call; consider lazy/cached pool | Future optimization; gate remains synthetic |

@@ -45,11 +45,22 @@ jobs:
       - name: HARD gate — unit + determinism tests
         run: make p115-tests
 
+      - name: Fetch F-Droid Bench-1K corpus
+        run: bash scripts/p115-fetch-bench1k.sh
+        env:
+          P115_APK_TARGET: "100"
+
       - name: HARD gate — byte-identical round-trip ≥ 95 % on F-Droid corpus
-        run: make p115-roundtrip
+        run: make p115-roundtrip P115_CORPUS=fuzz/corpus/bench-1k
 
-      - name: HARD gate — IR emission overhead ≤ 15 %
-        run: make p115-ir-overhead-bench
+      - name: HARD gate — IR emission overhead ≤ 15 % + real-APK report
+        run: make p115-ir-overhead-bench P115_CORPUS=fuzz/corpus/bench-1k
 
-      - name: HARD gate — semantic decode (all packages non-empty)
-        run: make p115-semantic-check
+      - name: HARD gate — semantic decode (pkg/comp/perm/sdk 4-way check)
+        run: make p115-semantic-check P115_CORPUS=fuzz/corpus/bench-1k
+
+      - name: Install androguard for ground-truth check
+        run: pip install androguard --quiet
+
+      - name: HARD gate — ground-truth vs androguard (pkg ≥ 98%, min_sdk ≥ 95%)
+        run: make p115-ground-truth P115_CORPUS=fuzz/corpus/bench-1k

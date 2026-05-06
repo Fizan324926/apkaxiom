@@ -278,11 +278,21 @@ pub(crate) fn classify_for_capture(file_name: &[u8]) -> Option<CaptureSlot> {
 
 /// Decompress raw DEFLATE bytes (no zlib wrapper).
 pub(crate) fn inflate_raw(deflated: &[u8], expected_size: u32) -> Result<Vec<u8>, ApkError> {
-    let limit = std::cmp::min(MAX_INFLATE_BYTES, expected_size as usize * 4 + 4096);
+    // When expected_size == 0 the LFH had GP bit 3 set (data descriptor):
+    // sizes are deferred and the local header carries zeros.  Fall back to
+    // the full per-entry cap; the aggregate-budget guard in persist_capture
+    // still bounds the total across all entries.
+    let limit = if expected_size == 0 {
+        MAX_INFLATE_BYTES
+    } else {
+        // The declared uncompressed size is the exact output length.  Add a
+        // 64 KiB margin for APKs whose builders misreport by a few bytes.
+        std::cmp::min(MAX_INFLATE_BYTES, expected_size as usize + 65_536)
+    };
     miniz_oxide::inflate::decompress_to_vec_with_limit(deflated, limit).map_err(|e| {
         ApkError::ManifestDecode(match e.status {
             miniz_oxide::inflate::TINFLStatus::HasMoreOutput => {
-                "deflate inflate exceeded MAX_INFLATE_BYTES"
+                "deflate inflate output exceeded per-entry cap (MAX_INFLATE_BYTES)"
             }
             miniz_oxide::inflate::TINFLStatus::FailedCannotMakeProgress
             | miniz_oxide::inflate::TINFLStatus::Failed

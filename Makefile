@@ -1062,25 +1062,33 @@ p115-roundtrip: ## P1.15 — byte-identical round-trip gate on real APKs (≥ 95
 	$(ROOT)/target/release/p115-roundtrip --corpus $(P115_CORPUS)
 
 .PHONY: p115-ir-overhead-bench
-p115-ir-overhead-bench: ## P1.15 — IR emission overhead gate (≤ 15 % throughput hit).
+p115-ir-overhead-bench: ## P1.15 — IR emission overhead gate (≤ 15 %) + real-APK report.
 	cargo build -q -p p115-roundtrip --release
-	$(ROOT)/target/release/p115-ir-overhead-bench
+	$(ROOT)/target/release/p115-ir-overhead-bench --corpus $(P115_CORPUS)
 
 .PHONY: p115-tests
 p115-tests: ## P1.15 — unit + determinism tests for axiom-l1-rs ir module.
 	cargo test -p axiom-l1-rs -p p115-roundtrip --lib
 
 .PHONY: p115-semantic-check
-p115-semantic-check: ## P1.15 — semantic decode gate (all packages non-empty).
+p115-semantic-check: ## P1.15 — semantic decode gate (4 hard checks: pkg/comp/perm/sdk).
 	cargo build -q -p p115-roundtrip --release
 	$(ROOT)/target/release/p115-semantic-check --corpus $(P115_CORPUS)
 
+.PHONY: p115-ground-truth
+p115-ground-truth: ## P1.15 — ground-truth comparison against androguard (pkg ≥ 98%, min_sdk ≥ 95%).
+	cargo build -q -p p115-roundtrip --release
+	python3 $(ROOT)/scripts/p115-ground-truth-check.py \
+		--corpus $(P115_CORPUS) \
+		--binary $(ROOT)/target/release/p115-semantic-check
+
 .PHONY: p115-gates
-p115-gates: ## P1.15 — every CI gate.
+p115-gates: ## P1.15 — every CI gate (unit, round-trip, overhead, semantic, ground-truth).
 	$(MAKE) p115-tests
 	$(MAKE) p115-roundtrip
 	$(MAKE) p115-ir-overhead-bench
 	$(MAKE) p115-semantic-check
+	$(MAKE) p115-ground-truth
 
 .PHONY: p115
 p115: p115-gates ## Alias — run every P1.15 gate.
