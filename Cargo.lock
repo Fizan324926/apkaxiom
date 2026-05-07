@@ -897,6 +897,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "novelty-proof"
+version = "0.0.0"
+dependencies = [
+ "axiom-blake3-hacl",
+ "axiom-crypto-hacl",
+ "axiom-l1-rs",
+ "axiom-l1-signing-verified",
+ "axiom-sigblock",
+ "walkdir",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

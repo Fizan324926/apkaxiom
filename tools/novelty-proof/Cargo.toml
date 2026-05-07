@@ -1,0 +1,25 @@
+[package]
+name = "novelty-proof"
+description = "APKAXIOM novelty-proof scanner — surfaces structural findings that signature-only verifiers miss."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "novelty-proof"
+path = "src/main.rs"
+
+[dependencies]
+axiom-l1-rs = { path = "../../crates/axiom-l1-rs" }
+axiom-l1-signing-verified = { path = "../../crates/axiom-l1-signing-verified" }
+axiom-sigblock = { path = "../../crates/axiom-sigblock" }
+axiom-blake3-hacl = { path = "../../crates/axiom-blake3-hacl" }
+axiom-crypto-hacl = { path = "../../crates/axiom-crypto-hacl" }
+walkdir = "2"
+
+[lints]
+workspace = true
