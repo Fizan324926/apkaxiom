@@ -1363,6 +1363,46 @@ p119-androguard: ## P1.19 — Androguard 4.1.3 manifest-mode benchmark on real-a
 p119-compare: p119-build ## P1.19 — full comparison table (APKAXIOM vs Androguard manifest + full).
 	bash $(ROOT)/scripts/p119-compare.sh $(ROOT)/fuzz/corpus/real-apks
 
+.PHONY: p119-fetch-fdroid
+p119-fetch-fdroid: ## Fetch 500 real F-Droid APKs into corpus/bench-10k/real-fdroid (skips already-downloaded).
+	python3 $(ROOT)/scripts/fetch-fdroid-real-apks.py \
+		--target 500 \
+		--out $(ROOT)/corpus/bench-10k/real-fdroid \
+		--existing $(ROOT)/fuzz/corpus/bench-1k \
+		--max-size-mb 30 \
+		--min-size-bytes 50000
+
+.PHONY: p119-bench-fdroid
+p119-bench-fdroid: p119-build ## APKAXIOM timed eval on real F-Droid APKs (bench-10k/real-fdroid).
+	@test -d $(ROOT)/corpus/bench-10k/real-fdroid || \
+	  (echo "::error::corpus/bench-10k/real-fdroid missing — run \`make p119-fetch-fdroid\` first" && exit 1)
+	$(ROOT)/target/release/p119-eval-compare \
+		--corpus $(ROOT)/corpus/bench-10k/real-fdroid \
+		--bench \
+		--json-out /tmp/p119-apkaxiom-fdroid.ndjson
+
+.PHONY: p119-androguard-fdroid
+p119-androguard-fdroid: ## Androguard manifest-mode benchmark on real F-Droid APKs.
+	@test -d $(ROOT)/corpus/bench-10k/real-fdroid || \
+	  (echo "::error::corpus/bench-10k/real-fdroid missing — run \`make p119-fetch-fdroid\` first" && exit 1)
+	python3 $(ROOT)/scripts/p119-androguard-bench.py \
+		$(ROOT)/corpus/bench-10k/real-fdroid \
+		--output /tmp/p119-androguard-fdroid.ndjson
+
+.PHONY: p119-compare-fdroid
+p119-compare-fdroid: p119-build ## APKAXIOM vs Androguard on real F-Droid APKs (500-APK differential).
+	@test -d $(ROOT)/corpus/bench-10k/real-fdroid || \
+	  (echo "::error::corpus/bench-10k/real-fdroid missing — run \`make p119-fetch-fdroid\` first" && exit 1)
+	bash $(ROOT)/scripts/p119-compare.sh $(ROOT)/corpus/bench-10k/real-fdroid
+
+.PHONY: p119-divergence-fdroid
+p119-divergence-fdroid: p119-bench-fdroid p119-androguard-fdroid ## Per-APK divergence report: APKAXIOM vs Androguard on real-fdroid corpus.
+	python3 $(ROOT)/scripts/p119-divergence-report.py \
+		--apkaxiom /tmp/p119-apkaxiom-fdroid.ndjson \
+		--androguard /tmp/p119-androguard-fdroid.ndjson \
+		--output /tmp/p119-divergences-fdroid.ndjson
+	@echo "divergence NDJSON: /tmp/p119-divergences-fdroid.ndjson"
+
 .PHONY: p119-gates
 p119-gates: ## P1.19 — all local gates: bench coverage ≥99%.
 	$(MAKE) p119-bench
