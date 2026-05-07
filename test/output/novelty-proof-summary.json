@@ -1,0 +1,50 @@
+[
+  {
+    "apk": "dual-eocd.apk",
+    "class": "Class 1 \u2014 ZIP structural",
+    "apkaxiom": "NO_SIGBLOCK + MANIFEST_PARSE_ERROR",
+    "androguard": "CRASH",
+    "apksigner": "CRASH",
+    "conclusion": "APKAXIOM surfaces MANIFEST_PARSE_ERROR and does not crash; both other tools crash outright."
+  },
+  {
+    "apk": "overlapping-entries.apk",
+    "class": "Class 1 \u2014 ZIP structural",
+    "apkaxiom": "NO_SIGBLOCK + MANIFEST_PARSE_ERROR",
+    "androguard": "CRASH",
+    "apksigner": "CRASH",
+    "conclusion": "APKAXIOM parses without crash and flags NO_SIGBLOCK; both Androguard and apksigner throw unhandled exceptions."
+  },
+  {
+    "apk": "sigblock-tamper.apk",
+    "class": "Class 2 \u2014 Sigblock injection",
+    "apkaxiom": "HAS_SOURCE_STAMP + UNKNOWN_SIGBLOCK_PAIR",
+    "androguard": "SILENT PASS (injection invisible)",
+    "apksigner": "Verifies (injection invisible)",
+    "conclusion": "APKAXIOM emits UNKNOWN_SIGBLOCK_PAIR; apksigner says Verifies; Androguard silently parses \u2014 neither detects the injection."
+  },
+  {
+    "apk": "(Lean 4 proofs)",
+    "class": "Class 3 \u2014 Formal correctness",
+    "apkaxiom": "TV receipts present: 6  Lean files: 42",
+    "androguard": "No formal spec",
+    "apksigner": "No formal spec",
+    "conclusion": "APKAXIOM is the only Android tool with machine-checked parser proofs."
+  },
+  {
+    "apk": "sigblock-tamper.apk",
+    "class": "Class 4 \u2014 BLAKE3 tamper",
+    "apkaxiom": "blake3 diverges: True  (bdc5d1da\u2026 \u2192 78292323\u2026)",
+    "androguard": "BLIND \u2014 silently parsed",
+    "apksigner": "Verifies \u2014 BLIND",
+    "conclusion": "APKAXIOM's BLAKE3 changes; apksigner and Androguard both pass the tampered APK."
+  },
+  {
+    "apk": "wifiautoff-v1v2v3v31.apk",
+    "class": "Class 5 \u2014 v3.1 rotation",
+    "apkaxiom": "HAS_V3_1_ROTATION + HAS_SOURCE_STAMP",
+    "androguard": "signed_v3=True  NO v3.1 API",
+    "apksigner": "WARNING: unknown attribute 0x559f8b02  (v3.1 not verified)",
+    "conclusion": "APKAXIOM emits HAS_V3_1_ROTATION; Androguard lacks the API; apksigner treats the rotation proof as an unknown warning."
+  }
+]
