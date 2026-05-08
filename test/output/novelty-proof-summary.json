@@ -2,7 +2,7 @@
   {
     "apk": "dual-eocd.apk",
     "class": "Class 1 \u2014 ZIP structural",
-    "apkaxiom": "NO_SIGBLOCK + MANIFEST_PARSE_ERROR",
+    "apkaxiom": "MULTIPLE_EOCD_RECORDS + NO_SIGBLOCK + MANIFEST_PARSE_ERROR",
     "androguard": "CRASH",
     "apksigner": "CRASH",
     "conclusion": "APKAXIOM surfaces MANIFEST_PARSE_ERROR and does not crash; both other tools crash outright."
@@ -10,7 +10,7 @@
   {
     "apk": "overlapping-entries.apk",
     "class": "Class 1 \u2014 ZIP structural",
-    "apkaxiom": "NO_SIGBLOCK + MANIFEST_PARSE_ERROR",
+    "apkaxiom": "DUPLICATE_LFH_NAME + NO_SIGBLOCK",
     "androguard": "CRASH",
     "apksigner": "CRASH",
     "conclusion": "APKAXIOM parses without crash and flags NO_SIGBLOCK; both Androguard and apksigner throw unhandled exceptions."
@@ -46,5 +46,29 @@
     "androguard": "signed_v3=True  NO v3.1 API",
     "apksigner": "WARNING: unknown attribute 0x559f8b02  (v3.1 not verified)",
     "conclusion": "APKAXIOM emits HAS_V3_1_ROTATION; Androguard lacks the API; apksigner treats the rotation proof as an unknown warning."
+  },
+  {
+    "apk": "signed-dual-eocd.apk",
+    "class": "Wild scan",
+    "apkaxiom": "MULTIPLE_EOCD_RECORDS + HAS_SOURCE_STAMP",
+    "androguard": "pkg=acab.naiveha.subrosa",
+    "apksigner": "FAILS",
+    "conclusion": "2 finding(s) \u2014 see APKAXIOM column"
+  },
+  {
+    "apk": "signed-lfh-cdr-mismatch.apk",
+    "class": "Wild scan",
+    "apkaxiom": "LFH_CDR_FIELD_MISMATCH + HAS_SOURCE_STAMP + MANIFEST_PARSE_ERROR",
+    "androguard": "pkg=acab.naiveha.subrosa",
+    "apksigner": "FAILS",
+    "conclusion": "3 finding(s) \u2014 see APKAXIOM column"
+  },
+  {
+    "apk": "signed-overlap.apk",
+    "class": "Wild scan",
+    "apkaxiom": "DUPLICATE_LFH_NAME + NO_SIGBLOCK",
+    "androguard": "CRASH",
+    "apksigner": "FAILS",
+    "conclusion": "2 finding(s) \u2014 see APKAXIOM column"
   }
 ]

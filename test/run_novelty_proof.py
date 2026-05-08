@@ -231,12 +231,22 @@ def ensure_overlapping(path: Path) -> Path:
                 + struct.pack("<HH", len(name), 0) + name + data)
 
     def cdr(name: bytes, data: bytes, lfh_off: int) -> bytes:
-        return (b"PK\x01\x02" + struct.pack("<HH", 20, 20) + struct.pack("<H", 0)
-                + struct.pack("<H", 0) + struct.pack("<HH", 0, 0)
-                + struct.pack("<I", 0)
-                + struct.pack("<III", len(data), len(data), len(name))
-                + struct.pack("<HHH", 0, 0, 0)
-                + struct.pack("<HII", 0, 0, lfh_off) + name)
+        # Central Directory Record (46-byte fixed prefix + name + extra + comment).
+        # Layout per APPNOTE.TXT §4.3.12:
+        #   sig(4) ver_made(2) ver_need(2) gp_flag(2) method(2) mtime(2) mdate(2)
+        #   crc(4) csize(4) usize(4) name_len(2) extra_len(2) cmt_len(2)
+        #   disk_num(2) int_attrs(2) ext_attrs(4) lfh_offset(4) name_bytes
+        return (b"PK\x01\x02"
+                + struct.pack("<HH", 20, 20)        # ver_made + ver_need
+                + struct.pack("<HH", 0, 0)          # gp_flag + method
+                + struct.pack("<HH", 0, 0)          # mtime + mdate
+                + struct.pack("<I", 0)              # crc
+                + struct.pack("<II", len(data), len(data))  # csize + usize
+                + struct.pack("<HHH", len(name), 0, 0)      # name_len + extra_len + cmt_len
+                + struct.pack("<HH", 0, 0)          # disk_num + int_attrs
+                + struct.pack("<I", 0)              # ext_attrs
+                + struct.pack("<I", lfh_off)        # lfh_offset
+                + name)
 
     name = b"AndroidManifest.xml"
     for data in (benign_m, malicious_m):

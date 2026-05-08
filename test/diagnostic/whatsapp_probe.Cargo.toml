@@ -1,0 +1,13 @@
+[package]
+name = "whatsapp-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+axiom-l1-rs    = { path = "/root/apkaxiom/crates/axiom-l1-rs" }
+axiom-zip-ref  = { path = "/root/apkaxiom/crates/axiom-zip-ref" }
+
+[[bin]]
+name = "whatsapp-probe"
+path = "main.rs"

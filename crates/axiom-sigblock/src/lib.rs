@@ -261,7 +261,37 @@ pub fn locate(apk_bytes: &[u8]) -> Result<Option<SignatureBlock>, ParseError> {
     if eocd_off + 22 > apk_bytes.len() {
         return Err(ParseError::NoEocd);
     }
-    let cd_offset = u64::from(read_u32(apk_bytes, eocd_off + 16));
+    // ZIP64-aware cd_offset resolution. The canonical EOCD's
+    // cd_offset is u32; if it is the sentinel 0xFFFFFFFF the real
+    // cd_offset lives in the ZIP64 EOCD record, located via the
+    // ZIP64 EOCD locator immediately preceding the canonical EOCD.
+    let cd_offset_raw = read_u32(apk_bytes, eocd_off + 16);
+    let cd_offset: u64 = if cd_offset_raw == 0xFFFF_FFFF {
+        // ZIP64 path. Locator is exactly 20 bytes before the
+        // canonical EOCD; record's cd_offset field is at offset
+        // [48..56] of the ZIP64 EOCD record.
+        const ZIP64_EOCD_LOC_SIG: u32 = 0x0706_4b50;
+        const ZIP64_EOCD_REC_SIG: u32 = 0x0606_4b50;
+        if eocd_off < 20 {
+            return Err(ParseError::NoEocd);
+        }
+        let loc_off = eocd_off - 20;
+        let loc_sig = read_u32(apk_bytes, loc_off);
+        if loc_sig != ZIP64_EOCD_LOC_SIG {
+            return Err(ParseError::NoEocd);
+        }
+        let z64_eocd_off = read_u64(apk_bytes, loc_off + 8) as usize;
+        if z64_eocd_off + 56 > apk_bytes.len() {
+            return Err(ParseError::NoEocd);
+        }
+        let z64_sig = read_u32(apk_bytes, z64_eocd_off);
+        if z64_sig != ZIP64_EOCD_REC_SIG {
+            return Err(ParseError::NoEocd);
+        }
+        read_u64(apk_bytes, z64_eocd_off + 48)
+    } else {
+        u64::from(cd_offset_raw)
+    };
     let input_len = apk_bytes.len() as u64;
     if cd_offset > input_len {
         return Err(ParseError::InvalidCdOffset {

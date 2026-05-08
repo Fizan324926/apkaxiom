@@ -84,6 +84,33 @@ pub struct ApkParser<R: Read> {
     pending: std::collections::VecDeque<ParseEvent>,
     /// Internal state machine.
     state: ParserState,
+    /// Unbounded tail buffer. Populated lazily once
+    /// [`Self::advance_post_entries`] is invoked (i.e. we have left
+    /// the LFH section). Holds *all* bytes from the cursor at the
+    /// end of the last LFH body through end-of-file: signing block
+    /// + central directory + EOCD + ZIP64 records (if present) +
+    /// trailing comment. The fixed-capacity ring buffer above is
+    /// optimised for streaming throughput on a per-LFH basis;
+    /// trailers commonly exceed that capacity (real-world APKs see
+    /// signing blocks of hundreds of KB, central directories of
+    /// hundreds of KB more), so the trailer needs a separate path.
+    ///
+    /// The first time we enter post-entries we drain the ring
+    /// buffer's unread region into `tail_buf`, then perform a
+    /// single bounded `Read::read_to_end` to slurp the rest. From
+    /// that point on `tail_unread()` replaces `unread()` for all
+    /// trailer parsing.
+    tail_buf: Vec<u8>,
+    /// Cursor into [`Self::tail_buf`]. Bytes `[0, tail_pos)` are
+    /// already consumed; bytes `[tail_pos, tail_buf.len())` are
+    /// the active trailer slice.
+    tail_pos: usize,
+    /// Stream-offset of `tail_buf[0]`. Used to translate between
+    /// in-buffer offsets and absolute stream offsets.
+    tail_origin: u64,
+    /// True once `tail_buf` has been populated. The ring buffer is
+    /// no longer authoritative after this flips to true.
+    tail_ready: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +223,10 @@ impl<R: Read> ApkParser<R> {
             chunk_size,
             pending: std::collections::VecDeque::with_capacity(Self::EVENT_BUDGET),
             state: ParserState::NextEntry,
+            tail_buf: Vec::new(),
+            tail_pos: 0,
+            tail_origin: 0,
+            tail_ready: false,
         }
     }
 
@@ -301,14 +332,44 @@ impl<R: Read> ApkParser<R> {
         while self.unread().len() < lfh::FIXED_SIZE {
             let n = self.read_more()?;
             if n == 0 {
-                if self.unread().len() >= eocd::FIXED_SIZE
-                    && eocd::find_eocd(self.unread()).is_some()
-                {
-                    return self.emit_eocd_and_complete();
+                // Differentiate three cases at EOF:
+                //
+                //  (a) We have ≥ 4 bytes whose first u32 is an
+                //      LFH signature: this means we started
+                //      reading an LFH but the input was cut off
+                //      inside its fixed prefix (truncated APK).
+                //      → emit StreamError::Truncated.
+                //
+                //  (b) We have ≥ 4 bytes whose first u32 is NOT
+                //      an LFH signature: the LFH section is over
+                //      and we are about to walk the trailer
+                //      (signing block / CDR / EOCD). The trailer
+                //      can be hundreds of KB on real APKs, which
+                //      may exceed our ring buffer; switch to the
+                //      tail-buffer path that uses
+                //      `Read::read_to_end` to slurp it without a
+                //      capacity limit.
+                //
+                //  (c) We have < 4 bytes: not enough to even tell
+                //      what comes next. → emit Truncated.
+                //
+                let unread_len = self.unread().len();
+                if unread_len >= 4 {
+                    let head =
+                        u32::from_le_bytes(self.unread()[0..4].try_into().unwrap());
+                    if head == lfh::SIGNATURE {
+                        return Err(StreamError::Truncated {
+                            at: self.bytes_consumed,
+                            expected: lfh::FIXED_SIZE as u64 - unread_len as u64,
+                        });
+                    }
+                    // Non-LFH signature → trailer. Hand off to
+                    // the unbounded tail path.
+                    return self.advance_post_entries();
                 }
                 return Err(StreamError::Truncated {
                     at: self.bytes_consumed,
-                    expected: lfh::FIXED_SIZE as u64 - self.unread().len() as u64,
+                    expected: lfh::FIXED_SIZE as u64 - unread_len as u64,
                 });
             }
         }
@@ -527,69 +588,190 @@ impl<R: Read> ApkParser<R> {
         }))
     }
 
-    /// After the last LFH record, slurp until EOF, then emit
-    /// `EocdSeen` + `ParseComplete`.
+    /// After the last LFH record, materialise the trailer (signing
+    /// block + central directory + EOCD + optional ZIP64 records +
+    /// trailing comment) into the unbounded [`Self::tail_buf`] and
+    /// then dispatch to [`Self::emit_eocd_and_complete`].
+    ///
+    /// The fixed-capacity ring buffer above us was sized for LFH
+    /// streaming and is too small for typical trailers (signing
+    /// blocks of hundreds of KB are normal for production APKs;
+    /// WhatsApp's is ~526 KB). So once we know we are out of the
+    /// LFH section we shift to a separate, growable buffer that
+    /// uses a single bounded `Read::read_to_end` to slurp the rest
+    /// of the input without re-reading any byte.
     fn advance_post_entries(&mut self) -> Result<Option<ParseEvent>, StreamError> {
-        loop {
-            let n = self.read_more()?;
-            if n == 0 {
-                break;
-            }
+        if !self.tail_ready {
+            // Drain whatever the ring buffer still has into the
+            // tail. `bytes_consumed` already points at the start
+            // of what we drain.
+            let unread_len = self.write_pos - self.read_pos;
+            self.tail_origin = self.bytes_consumed;
+            self.tail_buf.clear();
+            self.tail_buf
+                .extend_from_slice(&self.buf[self.read_pos..self.write_pos]);
+
+            // Mark the ring buffer as drained so any further
+            // attempt to read it returns nothing.
+            self.read_pos = self.write_pos;
+
+            // Slurp the rest of the input. `read_to_end` grows the
+            // Vec in geometric chunks (Rust's std impl) so this is
+            // O(n) and allocates O(log n) times.
+            self.reader
+                .read_to_end(&mut self.tail_buf)
+                .map_err(StreamError::Io)?;
+
+            // Advance the bytes_consumed counter so subsequent
+            // diagnostics still make sense; tail_origin remains
+            // pinned at the trailer start for offset arithmetic.
+            self.bytes_consumed = self.tail_origin + self.tail_buf.len() as u64;
+
+            // Diagnostics: prevent the unread() helper below from
+            // ever returning stale ring-buffer bytes after this
+            // point.
+            let _ = unread_len; // captured intentionally; could be logged.
+            self.tail_pos = 0;
+            self.tail_ready = true;
         }
         self.emit_eocd_and_complete()
+    }
+
+    /// Borrow the unread portion of the post-entries tail buffer.
+    /// Only valid after `advance_post_entries` has been invoked.
+    fn tail_unread(&self) -> &[u8] {
+        debug_assert!(self.tail_ready, "tail_unread before tail materialised");
+        &self.tail_buf[self.tail_pos..]
     }
 
     /// At EOF — locate the EOCD, walk every Central-Directory record
     /// and the optional APK-signing block, then emit `SigningBlock`
     /// (if non-empty) → `CdrEntry` × N → `EocdSeen` → `ParseComplete`.
     /// Each event carries verbatim bytes for the region it covers.
+    ///
+    /// Reads from the unbounded [`Self::tail_buf`] populated by
+    /// [`Self::advance_post_entries`]; the fixed-capacity ring
+    /// buffer is no longer authoritative once we are here.
     #[allow(clippy::too_many_lines)]
     fn emit_eocd_and_complete(&mut self) -> Result<Option<ParseEvent>, StreamError> {
-        // 1. Locate + parse the EOCD.
-        let eocd_off_in_buf = eocd::find_eocd(self.unread())
-            .ok_or(StreamError::Eocd(eocd::ParseError::BadSignature))?;
-        let (eocd_record, eocd_consumed) =
-            eocd::parse_eocd(&self.unread()[eocd_off_in_buf..]).map_err(StreamError::Eocd)?;
+        debug_assert!(self.tail_ready);
+        let tail_origin = self.tail_origin;
 
-        // 2. Translate stream-offsets to buffer-relative offsets.
-        // After the last LFH body, `self.bytes_consumed` points at the
-        // start of whatever follows (signing block or CD). The EOCD's
-        // `cd_offset` field is the absolute stream-offset of the CD's
-        // first byte.
-        let buf_start_in_stream = self.bytes_consumed;
-        let cd_start_in_stream = u64::from(eocd_record.cd_offset);
-        let cd_size = eocd_record.cd_size as usize;
+        // Snapshot the tail slice + parse outputs without holding
+        // a borrow across the `self.pending.push_back` calls.
+        let (eocd_off_in_tail, eocd_consumed, eocd_record) = {
+            let tail = self.tail_unread();
+            let off = eocd::find_eocd(tail)
+                .ok_or(StreamError::Eocd(eocd::ParseError::BadSignature))?;
+            let (record, consumed) =
+                eocd::parse_eocd(&tail[off..]).map_err(StreamError::Eocd)?;
+            (off, consumed, record)
+        };
 
-        if cd_start_in_stream < buf_start_in_stream {
-            // CD landed in already-consumed bytes — should be impossible
-            // because advance_post_entries reads to EOF before we get
-            // here, but reject defensively.
+        // Detect and handle ZIP64 archives. Both `cd_offset` and
+        // `cd_size` are 32-bit fields with sentinel `0xFFFFFFFF`
+        // meaning "look in the ZIP64 EOCD record for the real
+        // 64-bit value". Same logic for `total_entries` /
+        // `entries_on_this_disk` (sentinel `0xFFFF`).
+        //
+        // The ZIP64 EOCD locator (signature `0x07064b50`) sits
+        // immediately before the canonical EOCD when present, and
+        // carries the absolute file offset of the ZIP64 EOCD
+        // record (signature `0x06064b50`) which holds the real
+        // 64-bit fields.
+        const ZIP64_EOCD_LOC_SIG: u32 = 0x0706_4b50;
+        const ZIP64_EOCD_REC_SIG: u32 = 0x0606_4b50;
+        let mut cd_start_in_stream = u64::from(eocd_record.cd_offset);
+        let mut cd_size_u64: u64 = u64::from(eocd_record.cd_size);
+        let cd_offset_is_sentinel = eocd_record.cd_offset == 0xFFFF_FFFF;
+        let cd_size_is_sentinel = eocd_record.cd_size == 0xFFFF_FFFF;
+        if cd_offset_is_sentinel || cd_size_is_sentinel {
+            // Locate ZIP64 EOCD locator: 20 bytes immediately
+            // before the canonical EOCD.
+            if eocd_off_in_tail < 20 {
+                return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+            }
+            let loc_off = eocd_off_in_tail - 20;
+            let loc_buf = &self.tail_unread()[loc_off..loc_off + 20];
+            let loc_sig =
+                u32::from_le_bytes(loc_buf[0..4].try_into().unwrap());
+            if loc_sig != ZIP64_EOCD_LOC_SIG {
+                return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+            }
+            let zip64_eocd_offset_in_stream =
+                u64::from_le_bytes(loc_buf[8..16].try_into().unwrap());
+            if zip64_eocd_offset_in_stream < tail_origin {
+                return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+            }
+            let zip64_eocd_off_in_tail =
+                (zip64_eocd_offset_in_stream - tail_origin) as usize;
+            let tail_len = self.tail_unread().len();
+            if zip64_eocd_off_in_tail + 56 > tail_len {
+                return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+            }
+            let z64 = &self.tail_unread()
+                [zip64_eocd_off_in_tail..zip64_eocd_off_in_tail + 56];
+            let z64_sig = u32::from_le_bytes(z64[0..4].try_into().unwrap());
+            if z64_sig != ZIP64_EOCD_REC_SIG {
+                return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
+            }
+            // ZIP64 EOCD record layout (relevant fields):
+            //   [0..4]   signature
+            //   [4..12]  size_of_zip64_eocd_record (u64)
+            //   [12..14] version_made_by
+            //   [14..16] version_needed
+            //   [16..20] disk_number
+            //   [20..24] disk_with_cd_start
+            //   [24..32] entries_on_this_disk (u64)
+            //   [32..40] total_entries (u64)
+            //   [40..48] cd_size (u64)
+            //   [48..56] cd_offset (u64)
+            cd_size_u64 = u64::from_le_bytes(z64[40..48].try_into().unwrap());
+            cd_start_in_stream =
+                u64::from_le_bytes(z64[48..56].try_into().unwrap());
+        }
+
+        let cd_size = cd_size_u64 as usize;
+
+        if cd_start_in_stream < tail_origin {
             return Err(StreamError::Eocd(eocd::ParseError::BadSignature));
         }
-        let cd_off_in_buf = (cd_start_in_stream - buf_start_in_stream) as usize;
-        let unread_len = self.unread().len();
-        if cd_off_in_buf
+        let cd_off_in_tail = (cd_start_in_stream - tail_origin) as usize;
+
+        // Validate CD region lies entirely inside the tail.
+        let tail_len = self.tail_unread().len();
+        if cd_off_in_tail
             .checked_add(cd_size)
-            .is_none_or(|end| end > unread_len)
+            .is_none_or(|end| end > tail_len)
         {
             return Err(StreamError::Truncated {
-                at: buf_start_in_stream + cd_off_in_buf as u64,
+                at: cd_start_in_stream,
                 expected: cd_size as u64,
             });
         }
 
-        // 3. The signing block (or arbitrary padding) is the gap
-        // between the post-bodies cursor and the CD start.
-        if cd_off_in_buf > 0 {
-            let sig_bytes = self.unread()[..cd_off_in_buf].to_vec();
+        // Take owned copies of every region we need to emit so we
+        // can drop the immutable borrow before pushing events.
+        let sig_bytes = if cd_off_in_tail > 0 {
+            Some(self.tail_unread()[..cd_off_in_tail].to_vec())
+        } else {
+            None
+        };
+        let cd_bytes_owned =
+            self.tail_unread()[cd_off_in_tail..cd_off_in_tail + cd_size].to_vec();
+        let eocd_raw = self.tail_unread()
+            [eocd_off_in_tail..eocd_off_in_tail + eocd_consumed]
+            .to_vec();
+
+        // 3. Signing block (or padding) — emit if present.
+        if let Some(sig_bytes) = sig_bytes {
             self.pending.push_back(ParseEvent::SigningBlock {
                 raw: sig_bytes,
-                offset: buf_start_in_stream,
+                offset: tail_origin,
             });
         }
 
-        // 4. Walk the CD record-by-record.
-        let cd_bytes_owned = self.unread()[cd_off_in_buf..cd_off_in_buf + cd_size].to_vec();
+        // 4. Walk the central directory record-by-record.
         let mut cdr_off_in_cd = 0usize;
         while cdr_off_in_cd < cd_bytes_owned.len() {
             let (cdr, cdr_consumed) =
@@ -612,17 +794,16 @@ impl<R: Read> ApkParser<R> {
         }
 
         // 5. Emit the EOCD with raw bytes + ParseComplete.
-        let eocd_raw = self.unread()[eocd_off_in_buf..eocd_off_in_buf + eocd_consumed].to_vec();
-        let eocd_offset_in_stream = buf_start_in_stream + eocd_off_in_buf as u64;
-        let eocd_event = ParseEvent::EocdSeen {
+        let eocd_offset_in_stream = tail_origin + eocd_off_in_tail as u64;
+        self.tail_pos = eocd_off_in_tail + eocd_consumed;
+        self.bytes_consumed = tail_origin + self.tail_pos as u64;
+        self.pending.push_back(ParseEvent::EocdSeen {
             raw: eocd_raw,
             offset: eocd_offset_in_stream,
             total_entries: eocd_record.total_entries,
             cd_offset: eocd_record.cd_offset,
             cd_size: eocd_record.cd_size,
-        };
-        self.consume(eocd_off_in_buf + eocd_consumed);
-        self.pending.push_back(eocd_event);
+        });
         self.pending.push_back(ParseEvent::ParseComplete {
             entries: self.entries_seen,
             bytes: self.bytes_consumed,
