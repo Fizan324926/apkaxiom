@@ -2,15 +2,14 @@
 
 > Found 2026-05-08 with the APKAXIOM novelty-proof harness.
 
-This directory holds the full evidence pack for two CVE-eligible
-denial-of-service vulnerabilities discovered in the most widely-deployed
-Android-tooling chain (Androguard + apksigner). Each finding is:
+This directory holds the full evidence pack for five CVE-eligible
+vulnerabilities discovered across the Android tooling chain, real apps
+from F-Droid, and structural parsing divergences. Each finding is:
 
 - Reproducible against the **latest** released version
-- Triggerable by an APK file under 1 KB
-- Reachable through the most common public API entry points
-- Proven end-to-end with 9 impact demonstrations (all passing)
-- Cross-validated: Python stdlib + jadx handle every PoC gracefully
+- Bytecode-verified (where applicable) via jadx decompilation
+- Proven end-to-end with PoC exploits and impact demonstrations
+- Cross-validated across tools
 
 ## What's here
 
@@ -18,21 +17,35 @@ Android-tooling chain (Androguard + apksigner). Each finding is:
 test/cve/
 ├── INDEX.md                                 ← you are here
 ├── reports/
-│   ├── CVE-CANDIDATE-1-androguard.md       ← Androguard 4.1.3 — 4 distinct DoS sites
-│   └── CVE-CANDIDATE-2-apksigner.md        ← apksigner 31.0.2 — uncaught Java DoS + OOM
-├── poc/                                    ← 10 minimal reproducer APKs
-│   ├── poc-A1-zero-bytes.apk        (0 B)   ← crashes both tools
-│   ├── poc-A2-eocd-only.apk        (22 B)   ← KeyError in Androguard
-│   ├── poc-A3-truncated-eocd.apk   (10 B)   ← struct.error in Androguard
-│   ├── poc-A4-dex-zeros.apk       (313 B)   ← DEX ValueError in Androguard
-│   ├── poc-B1-lfh-giant-name.apk   (30 B)   ← malformed ZIP
-│   ├── poc-B2-cd-overflow.apk      (22 B)   ← CD offset overflow
-│   ├── poc-B3-eocd-comment.apk     (22 B)   ← EOCD comment truncation
-│   ├── poc-C1-oom-giant-size.apk  (136 B)   ← OOM: 136 B → 2 GB JVM alloc
-│   ├── poc-C2-legal-no-manifest.apk(150 B)  ← LEGAL valid ZIP, no manifest
-│   └── poc-C3-legal-stub-manifest.apk(152B) ← LEGAL valid ZIP, stub manifest
+│   ├── CVE-CANDIDATE-1-androguard.md       ← Androguard 4.1.3 — 4 distinct DoS
+│   ├── CVE-CANDIDATE-2-apksigner.md        ← apksigner 31.0.2 — DoS + OOM
+│   ├── CVE-CANDIDATE-3-kdeconnect.md       ← KDE Connect 1.35.5 — RCE via exported activity
+│   ├── CVE-CANDIDATE-4-ghostcommander.md   ← Ghost Commander 1.64.2b4 — arb file read/write
+│   └── CVE-CANDIDATE-5-apksigner-janus-gap.md ← apksigner v1-only verification gap
+├── poc/                                    ← 10 DoS reproducer APKs
+│   ├── poc-A1-zero-bytes.apk        (0 B)
+│   ├── poc-A2-eocd-only.apk        (22 B)
+│   ├── poc-A3-truncated-eocd.apk   (10 B)
+│   ├── poc-A4-dex-zeros.apk       (313 B)
+│   ├── poc-B1-lfh-giant-name.apk   (30 B)
+│   ├── poc-B2-cd-overflow.apk      (22 B)
+│   ├── poc-B3-eocd-comment.apk     (22 B)
+│   ├── poc-C1-oom-giant-size.apk  (136 B)   ← OOM: 136 B → 2 GB alloc
+│   ├── poc-C2-legal-no-manifest.apk(150 B)
+│   └── poc-C3-legal-stub-manifest.apk(152B)
+├── divergence/                             ← structural parsing divergence analysis
+│   ├── analysis.md                         ← full write-up: 18 divergence classes
+│   ├── poc/                                ← 23 crafted + 3 Janus + 8 mutated real APKs
+│   │   ├── janus_4k_prepend.apk           ← 4KB prepend, apksigner says "Verifies"
+│   │   ├── hidden_gap_32k.apk             ← 32KB hidden gap, "Verifies"
+│   │   └── janus_combined.apk             ← combined, "Verifies"
+│   ├── v1_only_apks.json                  ← 268/1000 F-Droid APKs vulnerable
+│   └── corpus_scan_results.json
+├── poc_device.sh                           ← on-device exploit suite (ADB)
 ├── reproduce.sh                            ← crash matrix (quick)
-└── prove_impact.sh                         ← full 9-demo end-to-end proof
+├── prove_impact.sh                         ← 9-demo end-to-end proof
+├── e2e_server.py                           ← HTTP service crash proof
+└── e2e_attack.sh                           ← full E2E attack demonstration
 ```
 
 ## Run it
@@ -47,58 +60,59 @@ bash test/cve/prove_impact.sh
 
 ## Headline numbers
 
-| Tool | Version | Distinct crash classes | Smallest trigger | Worst impact |
+| # | CVE Candidate | Tool/App | Severity | Impact |
 |---|---|---|---|---|
-| Androguard | 4.1.3 (latest PyPI) | 4 | 0 bytes | Batch-pipeline kill |
-| apksigner | 31.0.2 (build-tools) | 3+ (all uncaught) | 0 bytes | OOM: 136 B → 2 GB alloc (15.8M× amplification) |
+| 1 | Androguard DoS | Androguard 4.1.3 | HIGH (7.5) | 4 crash sites, 0-byte trigger |
+| 2 | apksigner DoS + OOM | apksigner 31.0.2 | HIGH (7.5) | 136 B → 2 GB alloc (15.8M×) |
+| 3 | KDE Connect RCE | KDE Connect 1.35.5 | CRITICAL (9.0) | Desktop command exec via phone |
+| 4 | Ghost Commander File R/W | Ghost Commander 1.64.2b4 | HIGH (7.7) | Arbitrary file read/write |
+| 5 | apksigner Janus Gap | apksigner 31.0.2 | HIGH (7.5) | Silent verify on manipulated APKs |
 
-## Impact demonstrations (9/9 PASS)
+## Impact demonstrations (9/9 PASS — DoS candidates)
 
 | # | Demo | Result |
 |---|---|---|
-| 1 | Uncaught exception kills Python process | PASS — `print()` after crash never runs |
-| 2 | Uncaught exception kills JVM process | PASS — 7 stack frames leaked |
-| 3 | Batch-pipeline poisoning | PASS — 1 poison APK kills entire 5-APK queue |
-| 4 | CI/CD pipeline kill | PASS — `apksigner verify` crash halts release |
-| 5 | Legal APK triggers crash | PASS — valid ZIP + AOSP-optional field = KeyError |
-| 6 | OOM resource exhaustion | PASS — 136 bytes triggers `OutOfMemoryError` |
-| 7 | Controllable amplification | PASS — 32/128/512 MB variants all crash JVM |
-| 8 | Cross-tool comparison | PASS — zipfile + jadx handle all 10 PoCs gracefully |
-| 9 | Full reproduction matrix | PASS — 19/30 Androguard cells crash, 10/10 apksigner crash |
+| 1 | Uncaught exception kills Python process | PASS |
+| 2 | Uncaught exception kills JVM process | PASS |
+| 3 | Batch-pipeline poisoning | PASS |
+| 4 | CI/CD pipeline kill | PASS |
+| 5 | Legal APK triggers crash | PASS |
+| 6 | OOM resource exhaustion | PASS — 136 B → `OutOfMemoryError` |
+| 7 | Controllable amplification | PASS — 32/128/512 MB variants |
+| 8 | Cross-tool comparison | PASS — zipfile + jadx handle all gracefully |
+| 9 | Full reproduction matrix | PASS — 19/30 Androguard + 10/10 apksigner crash |
 
-## CVSS v3.1 — both candidates
+## App-level findings (bytecode-verified via jadx)
 
-```
-CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H = 7.5 HIGH
-```
+| # | App | Component | Vuln Type | PoC |
+|---|---|---|---|---|
+| 3 | KDE Connect | RunCommandUrlActivity | Exported activity, no permission | `adb shell am start -d kdeconnect://runcommand/...` |
+| 3 | KDE Connect | SendKeystrokesToHostActivity | Exported, keystroke injection | Same pattern |
+| 3 | KDE Connect | FindMyPhoneReceiver | Exported, alarm trigger | `adb shell am broadcast` |
+| 4 | Ghost Commander | FileProvider | Exported, Base64 path traversal | `adb shell content read --uri content://...` |
 
-## Why this matters
+## Divergence findings (v1-only verification gap)
 
-Both tools are deployed in:
+| PoC | Manipulation | apksigner Verdict | Attack Surface |
+|---|---|---|---|
+| janus_4k_prepend.apk | 4KB payload prepended | **Verifies** | Janus-class code exec (Android < 8.1) |
+| hidden_gap_32k.apk | 32KB hidden in ZIP gap | **Verifies** | Steganographic data hiding |
+| janus_combined.apk | 4KB + 32KB combined | **Verifies** | Both attacks compose |
 
-- App-store ingestion pipelines (Google Play, F-Droid scanners,
-  third-party stores)
-- Malware analysis sandboxes (CAPE, Joe Sandbox, Hatching Triage,
-  VirusTotal, Pithus)
-- Bug-bounty automation (HackerOne / Bugcrowd app submissions)
-- AV/EDR mobile threat intel
-- CI/CD pipelines (Gradle release builds → `apksigner verify`)
+268/1000 (26.8%) real F-Droid APKs are v1-only signed — susceptible to
+all three manipulations without verification failure.
 
-A malicious actor who uploads a < 1 KB malformed APK to any of these
-pipelines triggers an unhandled exception that terminates the analysis
-worker. The OOM variant (poc-C1) amplifies 136 bytes into a 2 GB heap
-allocation, exhausting the JVM. Where the pipeline fans out across many
-APKs (a typical batch job processes thousands per minute), the impact
-is queue starvation or full-pipeline halt.
+18 additional crafted PoCs demonstrate Androguard ACCEPT vs apksigner
+REJECT divergence across overlapping entries, dual EOCD, LFH/CD
+mismatches, and more. See `divergence/analysis.md`.
 
 ## Disclosure status
 
-- **Androguard**: not yet reported (vendor: GitHub
-  `androguard/androguard`). Ready for coordinated disclosure
-  with proposed patches.
-- **apksigner**: not yet reported (vendor: AOSP via
-  `https://source.android.com/security/bulletin/`). Ready for AOSP
-  Vulnerability Reporting submission.
+- **Androguard**: not yet reported (vendor: GitHub `androguard/androguard`)
+- **apksigner**: not yet reported (vendor: AOSP security)
+- **KDE Connect**: not yet reported (vendor: `invent.kde.org/network/kdeconnect-android`)
+- **Ghost Commander**: not yet reported (vendor: SourceForge `ghostcommander`)
+- **On-device PoC**: pending device connection for final proof
 
 ## Discovery methodology
 

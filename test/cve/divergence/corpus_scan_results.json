@@ -1,0 +1,277 @@
+{
+  "total": 1000,
+  "scheme_counts": {
+    "v1_only": 268,
+    "v2_only": 110,
+    "v3_only": 44,
+    "v1_v2": 62,
+    "v1_v2_v3": 365,
+    "v2_v3": 149,
+    "other": 2
+  },
+  "failures": [
+    [
+      "hsware.HSTempo_17.apk",
+      "{'exit_code': 1, 'verifies': False, 'v1': False, 'v2': False, 'v3': False, 'warnings': [], 'errors': []}"
+    ],
+    [
+      "io.rebble.charon_5.apk",
+      "{'exit_code': 1, 'verifies': False, 'v1': False, 'v2': False, 'v3': False, 'warnings': [], 'errors': []}"
+    ]
+  ],
+  "warnings": [],
+  "anomalies": [
+    [
+      "com.anysoftkeyboard.languagepack.arabic_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.armenian2_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.bulgarian_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.croatian_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.danish_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.hungarian_oss_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.italian_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.mirfatif.urdu_2.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.numpad_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.oldnortharabian_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.osspolish_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.ossturkish_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.languagepack.tamazight_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.theme.classic_pc_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.anysoftkeyboard.theme.israel64_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.drdisagree.colorblendr_40.apk",
+      [
+        "Multiple EOCD signatures: 4 found"
+      ]
+    ],
+    [
+      "com.health.openscale_74.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.mskd.flux_15.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.phpbg.easysync_25.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.prhlt.aemus.Read4SpeechExperiments_19.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.trianguloy.numericriddlegenerator_7.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.tutpro.baresip_500.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "com.vayunmathur.pdf_20260430.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "de.felixnuesse.disky_14.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "de.lxtools.noteshop_178.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "dev.mateusznowak.demodulate_100224.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "fr.twentynine.keepon_28.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "hsware.HSTempo_17.apk",
+      [
+        "No valid EOCD found"
+      ]
+    ],
+    [
+      "io.ahxxm.ic_54.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "io.github.samolego.canta_225.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "io.github.stardomains3.oxproxion_200.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "io.github.wiiznokes.gitnote_16.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "io.gitlab.pycpim.marxist_35.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "io.rebble.charon_5.apk",
+      [
+        "No valid EOCD found"
+      ]
+    ],
+    [
+      "net.yolosec.routerkeygen2_80.apk",
+      [
+        "Multiple EOCD signatures: 3 found"
+      ]
+    ],
+    [
+      "nodomain.aditya1875more.stashly_20.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "org.akanework.gramophone_20.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "org.androidlabs.applistbackup_19.apk",
+      [
+        "Multiple EOCD signatures: 3 found"
+      ]
+    ],
+    [
+      "org.herrlado.ask.languagepack.czech_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "org.herrlado.ask.languagepack.lithuanian_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "org.herrlado.ask.languagepack.slovak_6158.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ],
+    [
+      "org.woheller69.browser_3500.apk",
+      [
+        "Multiple EOCD signatures: 2 found"
+      ]
+    ]
+  ]
+}
